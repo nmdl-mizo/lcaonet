@@ -125,7 +125,8 @@ class EGNNConv(MessagePassing):
                 used. Defaults to `False`.
             aggr (str, optional): aggregation method. Defaults to `"add"`.
         """
-        super().__init__(aggr=aggr, **kwargs)
+        # TODO: pass kwargs to superclass
+        super().__init__(aggr=aggr)
         act = activation_resolver(activation, **kwargs)
 
         self.x_dim = x_dim
