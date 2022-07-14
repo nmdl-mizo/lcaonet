@@ -11,6 +11,10 @@ __all__ = ["BaseGNN"]
 class BaseGNN(nn.Module):
     def __init__(self) -> None:
         super().__init__()
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        pass
 
     def calc_atomic_distances(self, data) -> Tensor:
         if data.get(DataKeys.Batch) is not None:

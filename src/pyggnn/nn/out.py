@@ -61,9 +61,11 @@ class Node2Property(nn.Module):
 
     def reset_parameters(self):
         for layer in self.node_transform:
-            layer.reset_parameters()
+            if hasattr(layer, "reset_parameters"):
+                layer.reset_parameters()
         for layer in self.predict:
-            layer.reset_parameters()
+            if hasattr(layer, "reset_parameters"):
+                layer.reset_parameters()
 
     def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
         out = self.node_transform(x)

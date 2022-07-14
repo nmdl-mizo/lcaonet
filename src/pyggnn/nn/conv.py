@@ -193,11 +193,14 @@ class EGNNConv(MessagePassing):
 
     def reset_parameters(self):
         for ef in self.edge_func:
-            ef.reset_parameters()
+            if hasattr(ef, "reset_parameters"):
+                ef.reset_parameters()
         for nf in self.node_func:
-            nf.reset_parameters()
+            if hasattr(nf, "reset_parameters"):
+                nf.reset_parameters()
         for at in self.atten:
-            at.reset_parameters()
+            if hasattr(at, "reset_parameters"):
+                at.reset_parameters()
         if self.cutoff_net is not None:
             self.cutoff_net.reset_parameters()
         if self.batch_norm:
