@@ -3,7 +3,7 @@ from typing import Literal, Optional
 import torch.nn as nn
 from torch import Tensor
 
-from pyggnn.data import DataKeys
+from pyggnn.data.datakeys import DataKeys
 from pyggnn.nn.embedding import AtomicNum2Node
 from pyggnn.nn.conv import EGNNConv
 from pyggnn.nn.out import Node2Property

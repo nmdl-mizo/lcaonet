@@ -12,4 +12,5 @@ class DataKeys:
     Edge_shift = "edge_shift"
     Edge_attr = "edge_attr"
     Energy = "energy"
+    Formation = "formation"
     Forces = "forces"

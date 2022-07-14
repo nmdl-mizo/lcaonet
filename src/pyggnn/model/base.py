@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from pyggnn.data import DataKeys
+from pyggnn.data.datakeys import DataKeys
 
 
 __all__ = ["BaseGNN"]
