@@ -162,7 +162,13 @@ class EGNNConv(MessagePassing):
                     **kwargs,
                 ),
                 act,
-                Dense(edge_hidden, edge_dim, bias=True, activation_name=activation),
+                Dense(
+                    edge_hidden,
+                    edge_dim,
+                    bias=True,
+                    activation_name=activation,
+                    **kwargs,
+                ),
                 act,
             ]
         )
