@@ -1,0 +1,4 @@
+numpy
+ase
+torch>=1.7
+torch-geometric
