@@ -198,7 +198,10 @@ class EGNNConv(MessagePassing):
             nf.reset_parameters()
         for at in self.atten:
             at.reset_parameters()
-        self.bn.reset_parameters()
+        if self.cutoff_net is not None:
+            self.cutoff_net.reset_parameters()
+        if self.batch_norm:
+            self.bn.reset_parameters()
 
     def forward(
         self,
