@@ -41,20 +41,16 @@ class Node2Property(nn.Module):
         aggregation = {"add": global_add_pool, "mean": global_mean_pool}
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
-        self.node_transform = nn.ModuleList(
-            [
-                Dense(in_dim, hidden_dim, bias=True, **kwargs),
-                act,
-                Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
-            ]
+        self.node_transform = nn.Sequential(
+            Dense(in_dim, hidden_dim, bias=True, **kwargs),
+            act,
+            Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
         )
         self.aggregate = aggregation[aggr]
-        self.predict = nn.ModuleList(
-            [
-                Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
-                act,
-                Dense(hidden_dim, out_dim, bias=False, **kwargs),
-            ]
+        self.predict = nn.Sequential(
+            Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
+            act,
+            Dense(hidden_dim, out_dim, bias=False, **kwargs),
         )
 
         self.reset_parameters()

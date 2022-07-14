@@ -152,45 +152,39 @@ class EGNNConv(MessagePassing):
             assert x_dim[0] == x_dim[1]
 
         # updata function
-        self.edge_func = nn.ModuleList(
-            [
-                Dense(
-                    x_dim[0] * 2 + 1 + edge_attr_dim,
-                    edge_hidden,
-                    bias=True,
-                    activation_name=activation,
-                    **kwargs,
-                ),
-                act,
-                Dense(
-                    edge_hidden,
-                    edge_dim,
-                    bias=True,
-                    activation_name=activation,
-                    **kwargs,
-                ),
-                act,
-            ]
+        self.edge_func = nn.Sequential(
+            Dense(
+                x_dim[0] * 2 + 1 + edge_attr_dim,
+                edge_hidden,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
+            act,
+            Dense(
+                edge_hidden,
+                edge_dim,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
+            act,
         )
-        self.node_func = nn.ModuleList(
-            [
-                Dense(
-                    x_dim[0] + edge_dim,
-                    node_hidden,
-                    bias=True,
-                    activation_name=activation,
-                    **kwargs,
-                ),
-                act,
-                Dense(node_hidden, x_dim[1], bias=True),
-            ]
+        self.node_func = nn.Sequential(
+            Dense(
+                x_dim[0] + edge_dim,
+                node_hidden,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
+            act,
+            Dense(node_hidden, x_dim[1], bias=True),
         )
         # attention the edge
-        self.atten = nn.ModuleList(
-            [
-                Dense(edge_dim, 1, bias=True, activation_name=activation, **kwargs),
-                act,
-            ],
+        self.atten = nn.Sequential(
+            Dense(edge_dim, 1, bias=True, activation_name="sigmoid", **kwargs),
+            nn.Sigmoid(),
         )
         # batch normalization
         if batch_norm:
@@ -253,8 +247,7 @@ class EGNNConv(MessagePassing):
             edge_new = torch.cat(
                 [x_i, x_j, torch.pow(dist, 2).unsqueeze(-1), edge_attr], dim=-1
             )
-        for ef in self.edge_func:
-            edge_new = ef(edge_new)
+        edge_new = self.edeg_func(edge_new)
 
         # cutoff net
         if self.cutoff_net is not None:
