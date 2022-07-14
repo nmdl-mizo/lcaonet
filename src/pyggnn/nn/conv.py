@@ -160,7 +160,7 @@ class EGNNConv(MessagePassing):
                     activation_name=activation,
                 ),
                 act,
-                Dense(edge_hidden, edge_dim, bias=True),
+                Dense(edge_hidden, edge_dim, bias=True, activation_name=activation),
                 act,
             ]
         )

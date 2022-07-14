@@ -46,9 +46,11 @@ class Dense(nn.Linear):
             weight_init (Callable, optional: Defaults to `nn.init.xavier_normal_`.
             bias_init (Callable, optional): Defaults to `nn.init.zeros_`.
         """
-        self.activation_name = GAIN_DICT[
-            activation_name_resolver(activation_name, **kwargs)
-        ]
+        self.activation_name = (
+            "linear"
+            if activation_name is None
+            else GAIN_DICT[activation_name_resolver(activation_name, **kwargs)]
+        )
         if self.activation_name == "leaky_relu":
             self.negative_slope = kwargs["negative_slope"]
         self.weight_init = weight_init
