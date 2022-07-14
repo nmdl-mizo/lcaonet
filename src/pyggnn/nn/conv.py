@@ -247,7 +247,7 @@ class EGNNConv(MessagePassing):
             edge_new = torch.cat(
                 [x_i, x_j, torch.pow(dist, 2).unsqueeze(-1), edge_attr], dim=-1
             )
-        edge_new = self.edeg_func(edge_new)
+        edge_new = self.edge_func(edge_new)
 
         # cutoff net
         if self.cutoff_net is not None:
