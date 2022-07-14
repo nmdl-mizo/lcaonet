@@ -43,17 +43,17 @@ class Node2Property(nn.Module):
         self.aggr = aggr
         self.node_transform = nn.ModuleList(
             [
-                Dense(in_dim, hidden_dim, bias=True),
+                Dense(in_dim, hidden_dim, bias=True, **kwargs),
                 act,
-                Dense(hidden_dim, hidden_dim, bias=True),
+                Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
             ]
         )
         self.aggregate = aggregation[aggr]
         self.predict = nn.ModuleList(
             [
-                Dense(hidden_dim, hidden_dim, bias=True),
+                Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
                 act,
-                Dense(hidden_dim, out_dim, bias=False),
+                Dense(hidden_dim, out_dim, bias=False, **kwargs),
             ]
         )
 

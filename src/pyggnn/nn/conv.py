@@ -159,6 +159,7 @@ class EGNNConv(MessagePassing):
                     edge_hidden,
                     bias=True,
                     activation_name=activation,
+                    **kwargs,
                 ),
                 act,
                 Dense(edge_hidden, edge_dim, bias=True, activation_name=activation),
@@ -172,6 +173,7 @@ class EGNNConv(MessagePassing):
                     node_hidden,
                     bias=True,
                     activation_name=activation,
+                    **kwargs,
                 ),
                 act,
                 Dense(node_hidden, x_dim[1], bias=True),
@@ -180,7 +182,7 @@ class EGNNConv(MessagePassing):
         # attention the edge
         self.atten = nn.ModuleList(
             [
-                Dense(edge_dim, 1, bias=True, activation_name=activation),
+                Dense(edge_dim, 1, bias=True, activation_name=activation, **kwargs),
                 act,
             ],
         )
