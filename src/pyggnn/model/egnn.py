@@ -5,7 +5,7 @@ from torch import Tensor
 
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.nn.embedding import AtomicNum2Node
-from pyggnn.nn.conv import EGNNConv
+from pyggnn.nn.conv.egnn_conv import EGNNConv
 from pyggnn.nn.out import Node2Property
 from pyggnn.model.base import BaseGNN
 
