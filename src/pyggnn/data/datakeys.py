@@ -11,6 +11,7 @@ class DataKeys:
     Lattice = "lattice"
     Edge_shift = "edge_shift"
     Edge_attr = "edge_attr"
+    # properties
     Energy = "energy"
     Formation = "formation"
     Forces = "forces"
