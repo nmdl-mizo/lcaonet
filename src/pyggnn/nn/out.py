@@ -83,7 +83,8 @@ class Node2Property2(nn.Module):
         in_dim: int,
         hidden_dim: int = 128,
         out_dim: int = 1,
-        activation: Union[Any, str] = "swish",
+        activation: Union[Any, str] = "shifted_softplus",
+        scaler: Optional[nn.Module] = None,
         aggr: Literal["add", "mean"] = "add",
         **kwargs,
     ):
@@ -93,7 +94,8 @@ class Node2Property2(nn.Module):
             hidden_dim (int, optional): number of hidden layers dim. Defaults to `128`.
             out_dim (int, optional): number of output dim. Defaults to `1`.
             activation: (str or nn.Module, optional): activation function class or name.
-                Defaults to `Swish`.
+                Defaults to `shifted_softplus`.
+            scaler: (nn.Module, optional): scaler layer. Defaults to `None`.
             aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
         """
         super().__init__()
@@ -108,6 +110,7 @@ class Node2Property2(nn.Module):
             act,
             Dense(hidden_dim, out_dim, bias=False, **kwargs),
         )
+        self.scaler = scaler
         self.aggregate = aggregation[aggr]
 
         self.reset_parameters()
@@ -119,4 +122,6 @@ class Node2Property2(nn.Module):
 
     def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
         out = self.predict(x)
+        if self.scaler is not None:
+            out = self.scaler(out)
         return self.aggregate(out, batch=batch)
