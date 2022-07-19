@@ -41,7 +41,7 @@ class Swish(nn.Module):
 
         Args:
             beta (float, optional): Coefficent of beta value. Defaults to 1.0.
-            train_beta (bool, optional): if set to `False`, beta is not learnable parameters.
+            train_beta (bool, optional): if set to `False`, beta is not learnable.
                 Defaults to `True`.
         """
         super().__init__()
