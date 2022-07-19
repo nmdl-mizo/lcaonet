@@ -59,6 +59,7 @@ class SchNet(BaseGNN):
                     SchNetConv(
                         x_dim=node_dim,
                         edge_dim=edge_dim,
+                        n_gaussian=n_gaussian,
                         activation=activation,
                         node_hidden=hidden_dim,
                         n_gaussian=n_gaussian,
@@ -77,6 +78,7 @@ class SchNet(BaseGNN):
                     SchNetConv(
                         x_dim=node_dim,
                         edge_dim=edge_dim,
+                        n_gaussian=n_gaussian,
                         activation=activation,
                         node_hidden=hidden_dim,
                         edge_hidden=hidden_dim,
