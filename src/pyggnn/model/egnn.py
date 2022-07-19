@@ -4,10 +4,10 @@ import torch.nn as nn
 from torch import Tensor
 
 from pyggnn.data.datakeys import DataKeys
+from pyggnn.model.base import BaseGNN
 from pyggnn.nn.embedding import AtomicNum2Node
 from pyggnn.nn.conv.egnn_conv import EGNNConv
-from pyggnn.nn.out import Node2Property
-from pyggnn.model.base import BaseGNN
+from pyggnn.nn.out import Node2Property1
 
 __all__ = ["EGNN"]
 
@@ -32,7 +32,7 @@ class EGNN(BaseGNN):
         node_dim: int,
         edge_dim: int,
         n_conv_layer: int,
-        out_dim: int = 1,
+        out_dim: int,
         activation: Union[Any, str] = "swish",
         cutoff_net: Optional[nn.Module] = None,
         cutoff_radi: Optional[float] = None,
@@ -52,7 +52,6 @@ class EGNN(BaseGNN):
             n_conv_layer (int): number of convolutinal layers.
             cutoff_radi (float): cutoff radious.
             out_dim (int, optional): number of output property dimension.
-                Defaults to `1`.
             activation (str or nn.Module, optional): activation function.
             hidden_dim (int, optional): number of hidden layers.
                 Defaults to `256`.
@@ -69,6 +68,12 @@ class EGNN(BaseGNN):
             max_z (int, optional): max number of atomic number. Defaults to `100`.
         """
         super().__init__()
+        self.node_dim = node_dim
+        self.edge_dim = edge_dim
+        self.n_conv_layer = n_conv_layer
+        self.cutoff_radi = cutoff_radi
+        self.out_dim = out_dim
+        # layers
         self.node_initialize = AtomicNum2Node(embedding_dim=node_dim, max_num=max_z)
 
         if share_weight:
@@ -112,7 +117,7 @@ class EGNN(BaseGNN):
                 ]
             )
 
-        self.output = Node2Property(
+        self.output = Node2Property1(
             in_dim=node_dim,
             hidden_dim=hidden_dim,
             out_dim=out_dim,
@@ -144,3 +149,13 @@ class EGNN(BaseGNN):
         # read out property
         x = self.output(x, batch)
         return x
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"node_dim={self.node_dim}, "
+            f"edge_dim={self.edge_dim}, "
+            f"n_conv_layer={self.n_conv_layer}, "
+            f"cutoff={self.cutoff_radi}, "
+            f"out_dim={self.out_dim})"
+        )
