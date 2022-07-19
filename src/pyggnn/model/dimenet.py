@@ -17,3 +17,7 @@ class DimeNet(BaseGNN):
 
     def forward(self, data_batch) -> Tensor:
         pass
+
+
+class DimeNetPlusPlus(BaseGNN):
+    pass
