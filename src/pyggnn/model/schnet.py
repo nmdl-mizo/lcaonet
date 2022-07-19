@@ -1,6 +1,5 @@
 from typing import Union, Optional, Literal, Any
 
-import torch
 from torch import Tensor
 import torch.nn as nn
 
@@ -30,7 +29,7 @@ class SchNet(BaseGNN):
         aggr: Literal["add", "mean"] = "add",
         scaler: Optional[nn.Module] = None,
         mean: Optional[float] = None,
-        std: Optional[float] = None,
+        stddev: Optional[float] = None,
         residual: bool = True,
         share_weight: bool = False,
         max_z: Optional[int] = 100,
@@ -43,12 +42,6 @@ class SchNet(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
         self.scaler = scaler
-        if scaler is not None:
-            if mean is None:
-                mean = torch.FloatTensor([0.0])
-            if std is None:
-                std = torch.FloatTensor([1.0])
-            self.scaler(mean, std)
         # layers
         self.node_initialize = AtomicNum2Node(embedding_dim=node_dim, max_num=max_z)
         self.edge_smearing = GaussianRBF(start=0.0, stop=cutoff_radi, n_dim=n_gaussian)
@@ -96,7 +89,9 @@ class SchNet(BaseGNN):
             out_dim=out_dim,
             activation=activation,
             aggr=aggr,
-            scaler=self.scaler,
+            scaler=scaler,
+            mean=mean,
+            stddev=stddev,
             **kwargs,
         )
 

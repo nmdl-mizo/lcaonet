@@ -1,5 +1,6 @@
 from typing import Literal, Optional, Union, Any
 
+import torch
 from torch import Tensor
 import torch.nn as nn
 from torch_geometric.nn import global_add_pool, global_mean_pool
@@ -84,8 +85,10 @@ class Node2Property2(nn.Module):
         hidden_dim: int = 128,
         out_dim: int = 1,
         activation: Union[Any, str] = "shifted_softplus",
-        scaler: Optional[nn.Module] = None,
         aggr: Literal["add", "mean"] = "add",
+        scaler: Optional[nn.Module] = None,
+        mean: Optional[Tensor] = None,
+        stddev: Optional[Tensor] = None,
         **kwargs,
     ):
         """
@@ -95,8 +98,10 @@ class Node2Property2(nn.Module):
             out_dim (int, optional): number of output dim. Defaults to `1`.
             activation: (str or nn.Module, optional): activation function class or name.
                 Defaults to `shifted_softplus`.
-            scaler: (nn.Module, optional): scaler layer. Defaults to `None`.
             aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
+            scaler: (nn.Module, optional): scaler layer. Defaults to `None`.
+            mean: (Tensor, optional): mean of the input tensor. Defaults to `None`.
+            stddev: (Tensor, optional): stddev of the input tensor. Defaults to `None`.
         """
         super().__init__()
 
@@ -110,7 +115,14 @@ class Node2Property2(nn.Module):
             act,
             Dense(hidden_dim, out_dim, bias=False, **kwargs),
         )
-        self.scaler = scaler
+        if scaler is None:
+            self.scaler = None
+        else:
+            if mean is None:
+                mean = torch.FloatTensor([0.0])
+            if stddev is None:
+                stddev = torch.FloatTensor([1.0])
+            self.scaler = scaler(mean, stddev)
         self.aggregate = aggregation[aggr]
 
         self.reset_parameters()
