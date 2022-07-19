@@ -47,7 +47,7 @@ class Swish(nn.Module):
         super().__init__()
         self.beta = beta
         if train_beta:
-            self.beta_coeff = nn.Parameter(torch.FloatTensor(beta))
+            self.beta_coeff = nn.Parameter(torch.tensor(beta, dtype=torch.float32))
         else:
             self.register_buffer("beta_coeff", torch.tensor(beta))
 
