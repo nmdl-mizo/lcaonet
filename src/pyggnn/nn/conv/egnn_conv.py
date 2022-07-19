@@ -31,7 +31,7 @@ class EGNNConv(MessagePassing):
         cutoff_radi: Optional[float] = None,
         residual: bool = True,
         batch_norm: bool = False,
-        aggr: Optional[str] = "add",
+        aggr: str = "add",
         **kwargs,
     ):
         """
