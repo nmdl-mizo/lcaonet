@@ -74,7 +74,7 @@ class EGNN(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
         # layers
-        self.node_initialize = AtomicNum2Node(embedding_dim=node_dim, max_num=max_z)
+        self.node_initialize = AtomicNum2Node(embed_dim=node_dim, max_num=max_z)
 
         if share_weight:
             self.convs = nn.ModuleList(

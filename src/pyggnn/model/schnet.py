@@ -43,7 +43,7 @@ class SchNet(BaseGNN):
         self.out_dim = out_dim
         self.scaler = scaler
         # layers
-        self.node_initialize = AtomicNum2Node(embedding_dim=node_dim, max_num=max_z)
+        self.node_initialize = AtomicNum2Node(embed_dim=node_dim, max_num=max_z)
         self.edge_smearing = GaussianRBF(start=0.0, stop=cutoff_radi, n_dim=n_gaussian)
 
         if share_weight:
