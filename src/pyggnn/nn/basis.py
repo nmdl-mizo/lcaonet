@@ -55,11 +55,6 @@ class GaussianRBF(nn.Module):
             self.register_buffer("width", width)
             self.register_buffer("offset", offset)
 
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        pass
-
     def forward(self, distances: Tensor) -> Tensor:
         """
         Compute filtered distances with Gaussian functions.
