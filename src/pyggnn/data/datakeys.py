@@ -9,5 +9,6 @@ class DataKeys:
     Position = "pos"
     Atomic_num = "atomic_num"
     Lattice = "lattice"
+    PBC = "pbc"
     Edge_shift = "edge_shift"
     Edge_attr = "edge_attr"
