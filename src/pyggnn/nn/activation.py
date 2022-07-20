@@ -45,11 +45,10 @@ class Swish(nn.Module):
                 Defaults to `True`.
         """
         super().__init__()
-        self.beta = beta
         if train_beta:
-            self.beta_coeff = nn.Parameter(torch.tensor(beta, dtype=torch.float32))
+            self.beta_coeff = nn.Parameter(torch.tensor(float(beta)))
         else:
-            self.register_buffer("beta_coeff", torch.tensor(beta))
+            self.register_buffer("beta_coeff", torch.tensor(float(beta)))
 
     def forward(self, x: Tensor) -> Tensor:
         return swish(x, self.beta_coeff)
