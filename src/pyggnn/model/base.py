@@ -1,6 +1,9 @@
+from typing import Tuple
+
 import torch
 from torch import Tensor
 import torch.nn as nn
+from torch_sparse import SparseTensor
 
 from pyggnn.data.datakeys import DataKeys
 
@@ -39,3 +42,68 @@ class BaseGNN(nn.Module):
             )
         )
         return torch.norm(edge_vec, dim=1)
+
+    def get_triplets(
+        self, data_batch
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+        """
+        Convert edge_index to triplets.
+
+        Args:
+            edge_index (Tensor): edge_index of shape (2, num_edge).
+                which contains edge_src (index of center atom i) and
+                edge_dst (index of pair atom j).
+
+        Returns:
+            idx_i (Tensor): index of center atom i of shape (num_edge).
+            idx_j (Tensor): index of pair atom j of shape (num_edge).
+            triple_idx_i (Tensor): index of atom i of shape (num_triplets).
+            triple_idx_j (Tensor): index of center atom j of shape (num_triplets).
+            triple_idx_k (Tensor): index of atom k of shape (num_triplets).
+            edge_idx_kj (Tensor): edge index of center k to j of shape (num_triplets).
+            edge_idx_ji (Tensor): edge index of center j to i of shape (num_triplets).
+
+        Notes:
+            Indexing so that j is central.
+
+            reference:
+            https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
+        """
+        idx_j, idx_i = data_batch[DataKeys.Edge_index]  # j->i
+
+        value = torch.arange(idx_j.size(0), device=idx_j.device)
+        num_nodes = data_batch[DataKeys.Atomic_num].size(0)
+        adj_t = SparseTensor(
+            row=idx_i,
+            col=idx_j,
+            value=value,
+            sparse_sizes=(num_nodes, num_nodes),
+        )
+        adj_t_row = adj_t[idx_j]
+        num_triplets = adj_t_row.set_value(None).sum(dim=1).to(torch.long)
+
+        # Node indices (i, j, k) for triplets.
+        triple_idx_i = idx_i.repeat_interleave(num_triplets)
+        triple_idx_j = idx_j.repeat_interleave(num_triplets)
+        triple_idx_k = adj_t_row.storage.col()
+        mask = triple_idx_i != triple_idx_k  # Remove i == k triplets.
+        triple_idx_i, triple_idx_j, triple_idx_k = (
+            triple_idx_i[mask],
+            triple_idx_j[mask],
+            triple_idx_k[mask],
+        )
+
+        # Edge indices (center k -> neighbor j)
+        # and (center j -> neighbor i) for triplets.
+        edge_idx_kj = adj_t_row.storage.value()[mask]
+        edge_idx_ji = adj_t_row.storage.row()[mask]
+
+        return (
+            idx_i,
+            idx_j,
+            triple_idx_i,
+            triple_idx_j,
+            triple_idx_k,
+            edge_idx_kj,
+            edge_idx_ji,
+        )
