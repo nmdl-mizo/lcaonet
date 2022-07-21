@@ -65,7 +65,7 @@ class GaussianRB(nn.Module):
         """
         super().__init__()
         offset = torch.linspace(start=start, end=stop, steps=n_gaussian)
-        width = torch.tensor((offset[1] - offset[0]) * torch.ones_like(offset))
+        width = torch.FloatTensor((offset[1] - offset[0]) * torch.ones_like(offset))
         self.centered = centered
         if trainable:
             self.width = nn.Parameter(width)
