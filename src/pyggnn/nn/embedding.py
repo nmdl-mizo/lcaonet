@@ -39,18 +39,18 @@ class AtomicNum2NodeEmbed(nn.Embedding):
         # https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html#DimeNetPlusPlus
         self.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, z: Tensor) -> Tensor:
         """
         Computed the initial node embedding.
 
         Args:
-            x (Tensor): atomic numbers shape of (num_node).
+            z (Tensor): atomic numbers shape of (num_node).
 
         Returns:
             Tensor: embedding nodes of (num_node x embed_node_dim) shape.
         """
-        x = super().forward(x)
-        return x
+        z = super().forward(z)
+        return z
 
 
 class EdgeEmbed(nn.Module):
@@ -89,7 +89,7 @@ class EdgeEmbed(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
+        z: Tensor,
         rbf: Tensor,
         idx_i: torch.LongTensor,
         idx_j: torch.LongTensor,
@@ -98,7 +98,7 @@ class EdgeEmbed(nn.Module):
         Computed the initial edge embedding.
 
         Args:
-            x (Tensor): atomic numbers shape of (num_node).
+            z (Tensor): atomic numbers shape of (num_node).
             rbf (Tensor): radial basis function shape of (num_edge x n_radial).
             idx_i (LongTensor): index of the first node of the edge shape of (num_edge).
             idx_j (LongTensor): index of the second node of the edge shape of (num_edge).
@@ -106,6 +106,6 @@ class EdgeEmbed(nn.Module):
         Returns:
             Tensor: embedding edge message of (num_edge x edge_dim) shape.
         """
-        x = self.node_embed(x)
+        z = self.node_embed(z)
         rbf = self.rbf_lin(rbf)
-        return self.edge_embed(torch.cat([x[idx_j], x[idx_i], rbf], dim=-1))
+        return self.edge_embed(torch.cat([z[idx_j], z[idx_i], rbf], dim=-1))
