@@ -212,7 +212,19 @@ class Edge2NodeProperty(nn.Module):
         rbf: Tensor,
         idx_i: torch.LongTensor,
         num_nodes: Optional[int] = None,
-    ):
+    ) -> Tensor:
+        """
+        Compute node-wise property from edge embeddings.
+
+        Args:
+            x (Tensor): edge embedding shape of (num_edge x hidden_dim).
+            rbf (Tensor): radial basis function shape of (num_node x n_radial).
+            idx_i (torch.LongTensor): node index center atom i shape of (num_edge).
+            num_nodes (Optional[int], optional): number of edge. Defaults to `None`.
+
+        Returns:
+            Tensor: node-wise properties shape of (num_node x out_dim).
+        """
         x = self.rbf_lin(rbf) * x
         # add all neighbor atoms
         x = scatter(x, idx_i, dim=0, dim_size=num_nodes, reduce=self.aggr)
