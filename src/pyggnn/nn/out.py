@@ -3,13 +3,13 @@ from typing import Literal, Optional, Union, Any
 import torch
 from torch import Tensor
 import torch.nn as nn
-from torch_geometric.nn import global_add_pool, global_mean_pool
+from torch_scattter import scatter
 
 from pyggnn.nn.base import Dense
 from pyggnn.utils.resolve import activation_resolver
 
 
-__all__ = ["Node2Property1", "Node2Property2"]
+__all__ = ["Node2Property1", "Node2Property2", "Edge2NodeProperty"]
 
 
 class Node2Property1(nn.Module):
@@ -41,7 +41,6 @@ class Node2Property1(nn.Module):
 
         act = activation_resolver(activation, **kwargs)
 
-        aggregation = {"add": global_add_pool, "mean": global_mean_pool}
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.node_transform = nn.Sequential(
@@ -49,7 +48,6 @@ class Node2Property1(nn.Module):
             act,
             Dense(hidden_dim, hidden_dim, bias=True),
         )
-        self.aggregate = aggregation[aggr]
         self.predict = nn.Sequential(
             Dense(
                 hidden_dim,
@@ -84,7 +82,7 @@ class Node2Property1(nn.Module):
             Tensor: shape of (num_batch x out_dim).
         """
         out = self.node_transform(x)
-        out = self.aggregate(out, batch=batch)
+        out = scatter(out, index=batch, dim=0, reduce=self.aggr)
         return self.predict(out)
 
 
@@ -121,10 +119,8 @@ class Node2Property2(nn.Module):
             stddev: (Tensor, optional): stddev of the input tensor. Defaults to `None`.
         """
         super().__init__()
-
         act = activation_resolver(activation, **kwargs)
 
-        aggregation = {"add": global_add_pool, "mean": global_mean_pool}
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.predict = nn.Sequential(
@@ -140,7 +136,6 @@ class Node2Property2(nn.Module):
             if stddev is None:
                 stddev = torch.FloatTensor([1.0])
             self.scaler = scaler(mean, stddev)
-        self.aggregate = aggregation[aggr]
 
         self.reset_parameters()
 
@@ -163,4 +158,62 @@ class Node2Property2(nn.Module):
         out = self.predict(x)
         if self.scaler is not None:
             out = self.scaler(out)
-        return self.aggregate(out, batch=batch)
+        return scatter(out, index=batch, dim=0, reduce=self.aggr)
+
+
+class Edge2NodeProperty(nn.Module):
+    """
+    The block to compute the node-wise proptery from edge embeddings.
+    This block contains FNN layers and aggregation block of all neighbor.
+    This block is used in Dimenet.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        n_radial: int,
+        out_dim: int = 1,
+        n_layers: int = 3,
+        activation: Union[Any, str] = "swish",
+        aggr: Literal["add", "mean"] = "add",
+        **kwargs,
+    ):
+        super().__init__()
+        act = activation_resolver(activation, **kwargs)
+
+        assert aggr == "add" or aggr == "mean"
+        self.aggr = aggr
+        self.rbf_lin = Dense(n_radial, hidden_dim, bias=False)
+        lins = []
+        for _ in range(n_layers):
+            lins.append(
+                Dense(
+                    hidden_dim,
+                    hidden_dim,
+                    bias=True,
+                    activation_name=activation,
+                    **kwargs,
+                )
+            )
+            lins.append(act)
+        lins.append(Dense(hidden_dim, out_dim, bias=False))
+        self.lins = nn.Sequential(*lins)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for ll in self.lins:
+            if hasattr(ll, "reset_parameters"):
+                ll.reset_parameters()
+
+    def forward(
+        self,
+        x: Tensor,
+        rbf: Tensor,
+        idx_i: torch.LongTensor,
+        num_nodes: Optional[int] = None,
+    ):
+        x = self.rbf_lin(rbf) * x
+        # add all neighbor atoms
+        x = scatter(x, idx_i, dim=0, dim_size=num_nodes, reduce=self.aggr)
+        return self.lins(x)
