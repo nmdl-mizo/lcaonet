@@ -64,34 +64,15 @@ class GaussianRB(nn.Module):
                 Defaults to `True`.
         """
         super().__init__()
-        self.start = start
-        self.stop = stop
-        self.n_gaussian = n_gaussian
+        offset = torch.linspace(start=start, end=stop, steps=n_gaussian)
+        width = torch.ones_like(offset, dtype=offset.dtype) * (offset[1] - offset[0])
         self.centered = centered
-        self.trainable = trainable
         if trainable:
-            self.width = nn.Parameter(torch.FloatTensor(n_gaussian))
-            self.offset = nn.Parameter(torch.FloatTensor(n_gaussian))
+            self.width = nn.Parameter(width)
+            self.offset = nn.Parameter(offset)
         else:
-            self.register_buffer("width", torch.FloatTensor(n_gaussian))
-            self.register_buffer("offset", torch.FloatTensor(n_gaussian))
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        with torch.no_grad():
-            torch.linspace(
-                start=self.start,
-                end=self.stop,
-                steps=self.n_gaussian,
-                out=self.offset,
-            )
-            self.width = (self.offset[1] - self.offset[0]) * torch.ones_like(
-                self.offset, dtype=self.offset.dtype
-            )
-        if self.trainable:
-            self.width.requires_grad_()
-            self.offset.requires_grad_()
+            self.register_buffer("width", width)
+            self.register_buffer("offset", offset)
 
     def forward(self, dist: Tensor) -> Tensor:
         """

@@ -257,7 +257,6 @@ class DimeNet(BaseGNN):
 
     def reset_parameters(self):
         self.rbf.reset_parameters()
-        self.sbf.reset_parameters()
         self.embed_block.reset_parameters()
         for ib in self.interaction_blocks:
             ib.reset_parameters()

@@ -137,7 +137,6 @@ class SchNet(BaseGNN):
 
     def reset_parameters(self):
         self.node_initialize.reset_parameters()
-        self.edge_rbf.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
         self.output.reset_parameters()
