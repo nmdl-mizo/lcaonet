@@ -1,4 +1,5 @@
 numpy
+sympy
 h5py
 ase
 torch>=1.7
