@@ -86,6 +86,8 @@ class GaussianRB(nn.Module):
                 steps=self.n_gaussian,
                 out=self.offset,
             )
+            print(self.offset)
+            print(self.offset.dtype)
             self.width = (self.offset[1] - self.offset[0]) * torch.ones_like(
                 self.offset, dtype=self.offset.dtype
             )
