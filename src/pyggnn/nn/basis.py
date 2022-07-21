@@ -70,11 +70,11 @@ class GaussianRB(nn.Module):
         self.centered = centered
         self.trainable = trainable
         if trainable:
-            self.width = nn.Parameter(torch.Tensor(n_gaussian))
-            self.offset = nn.Parameter(torch.Tensor(n_gaussian))
+            self.width = nn.Parameter(torch.FloatTensor(n_gaussian))
+            self.offset = nn.Parameter(torch.FloatTensor(n_gaussian))
         else:
-            self.register_buffer("width", torch.Tensor(n_gaussian))
-            self.register_buffer("offset", torch.Tensor(n_gaussian))
+            self.register_buffer("width", torch.FloatTensor(n_gaussian))
+            self.register_buffer("offset", torch.FloatTensor(n_gaussian))
 
         self.reset_parameters()
 
@@ -85,7 +85,6 @@ class GaussianRB(nn.Module):
                 end=self.stop,
                 steps=self.n_gaussian,
                 out=self.offset,
-                dtype=torch.float32,
             )
             self.width = (self.offset[1] - self.offset[0]) * torch.ones_like(
                 self.offset, dtype=self.offset.dtype
