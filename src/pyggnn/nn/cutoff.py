@@ -72,7 +72,7 @@ class EnvelopeCutoff(BaseCutoff):
                 (available at http://arxiv.org/abs/2003.03123).
         """
         super().__init__(cutoff_radi)
-        self.p = float(exponent)
+        self.p = float(exponent + 1)
 
     def forward(self, dist: Tensor) -> Tensor:
         """
@@ -91,10 +91,10 @@ class EnvelopeCutoff(BaseCutoff):
         b = p * (p + 2)
         c = -p * (p + 1) / 2
         # calc polynomial
-        dist_pow_p0 = dist.pow(p)
+        dist_pow_p0 = dist.pow(p - 1)
         dist_pow_p1 = dist_pow_p0 * dist
         dist_pow_p2 = dist_pow_p1 * dist
         # Remove contributions beyond the cutoff radius
-        return (1.0 + a * dist_pow_p0 + b * dist_pow_p1 + c * dist_pow_p2) * (
+        return (1.0 / dist + a * dist_pow_p0 + b * dist_pow_p1 + c * dist_pow_p2) * (
             dist < 1.0
         ).to(dist.dtype)
