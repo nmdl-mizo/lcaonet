@@ -164,7 +164,7 @@ class DimeNet(BaseGNN):
         n_bilinear: int,
         activation: Union[Any, str] = "swish",
         cutoff_radi: float = 4.0,
-        envelope_exponent: int = 6,
+        envelope_exponent: int = 5,
         aggr: Literal["add", "mean"] = "add",
         share_weight: bool = False,
         max_z: Optional[int] = 100,
@@ -181,7 +181,7 @@ class DimeNet(BaseGNN):
             n_bilinear (int): embedding of spherical basis.
             activation (str or nn.Module, optional): activation fucntion.
                 Defaults to `"swish"`.
-            cutoff_radi (float, optional): cutoff radius. Defaults to `4.0`.
+            cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
             envelope_exponent (int, optional): exponent of envelope cutoff funcs.
                 Defaults to `6`.
             aggr ("add" or "mean", optional): aggregation mehod.
