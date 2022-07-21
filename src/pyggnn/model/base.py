@@ -20,6 +20,15 @@ class BaseGNN(nn.Module):
         return NotImplementedError
 
     def calc_atomic_distances(self, data_batch) -> Tensor:
+        """
+        calculate atomic distances for periodic boundary conditions.
+
+        Args:
+            data_batch (Dataloader): one batch.
+
+        Returns:
+            Tensor: inter atomic distances shape of (num_edge).
+        """
         if data_batch.get(DataKeys.Batch) is not None:
             batch = data_batch[DataKeys.Batch]
         else:
@@ -50,9 +59,7 @@ class BaseGNN(nn.Module):
         Convert edge_index to triplets.
 
         Args:
-            edge_index (Tensor): edge_index of shape (2, num_edge).
-                which contains edge_src (index of center atom i) and
-                edge_dst (index of pair atom j).
+            data_batch (Dataloader): one batch.
 
         Returns:
             idx_i (Tensor): index of center atom i of shape (num_edge).
