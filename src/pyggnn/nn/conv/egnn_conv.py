@@ -29,7 +29,6 @@ class EGNNConv(MessagePassing):
         edge_hidden: int = 256,
         cutoff_net: Optional[nn.Module] = None,
         cutoff_radi: Optional[float] = None,
-        residual: bool = True,
         batch_norm: bool = False,
         aggr: str = "add",
         **kwargs,
@@ -48,8 +47,6 @@ class EGNNConv(MessagePassing):
                 Defaults to `256`.
             cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
             cutoff_radi (float, optional): cutoff radious. Defaults to `None`.
-            residual (bool, optional): if set to `False`, no residual network is used.
-                Defaults to `True`.
             batch_norm (bool, optional): if set to `False`, no batch normalization is
                 used. Defaults to `False`.
             aggr (str, optional): aggregation method. Defaults to `"add"`.
@@ -70,15 +67,13 @@ class EGNNConv(MessagePassing):
                 cutoff_radi is not None
             ), "cutoff_radi must be set if cutoff_net is set"
             self.cutoff_net = cutoff_net(cutoff_radi)
-        self.residual = residual
         self.batch_norm = batch_norm
 
         if isinstance(x_dim, int):
             x_dim = (x_dim, x_dim)
+        assert x_dim[0] == x_dim[1]
         if edge_attr_dim is None:
             edge_attr_dim = 0
-        if residual:
-            assert x_dim[0] == x_dim[1]
 
         # updata function
         self.edge_func = nn.Sequential(
@@ -158,7 +153,7 @@ class EGNNConv(MessagePassing):
         for nf in self.node_func:
             out = nf(out)
         out = self.bn(out)
-        out = out + x if self.residual else out
+        out = out + x
         return out
 
     def message(

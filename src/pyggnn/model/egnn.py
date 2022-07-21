@@ -5,7 +5,7 @@ from torch import Tensor
 
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
-from pyggnn.nn.embedding import AtomicNum2Node
+from pyggnn.nn.embedding import AtomicNum2NodeEmbed
 from pyggnn.nn.conv.egnn_conv import EGNNConv
 from pyggnn.nn.out import Node2Property1
 
@@ -38,7 +38,6 @@ class EGNN(BaseGNN):
         cutoff_radi: Optional[float] = None,
         hidden_dim: int = 256,
         aggr: Literal["add", "mean"] = "add",
-        residual: bool = True,
         batch_norm: bool = False,
         edge_attr_dim: Optional[int] = None,
         share_weight: bool = False,
@@ -57,8 +56,6 @@ class EGNN(BaseGNN):
                 Defaults to `256`.
             aggr (`"add"` or `"mean"`, optional): if set to `"add"`, sumaggregation
                 is done along node dimension. Defaults to `"add"`.
-            residual (bool, optional): if `False`, no residual network.
-                Defaults to `True`.
             batch_norm (bool, optional): if `False`, no batch normalization in
                 convolution layers. Defaults to `False`.
             edge_attr_dim (int, optional): number of edge attrbute dim.
@@ -74,7 +71,7 @@ class EGNN(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
         # layers
-        self.node_initialize = AtomicNum2Node(embed_dim=node_dim, max_num=max_z)
+        self.node_initialize = AtomicNum2NodeEmbed(embed_dim=node_dim, max_num=max_z)
 
         if share_weight:
             self.convs = nn.ModuleList(
@@ -89,7 +86,6 @@ class EGNN(BaseGNN):
                         cutoff_net=cutoff_net,
                         cutoff_radi=cutoff_radi,
                         aggr=aggr,
-                        residual=residual,
                         batch_norm=batch_norm,
                         **kwargs,
                     )
@@ -109,7 +105,6 @@ class EGNN(BaseGNN):
                         cutoff_net=cutoff_net,
                         cutoff_radi=cutoff_radi,
                         aggr=aggr,
-                        residual=residual,
                         batch_norm=batch_norm,
                         **kwargs,
                     )
