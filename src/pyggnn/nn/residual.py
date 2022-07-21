@@ -30,7 +30,8 @@ class ResidualBlock(nn.Module):
             last_activation (bool, optional): Defaults to `True`.
         """
         super().__init__()
-        act = activation_resolver(activation)
+        act = activation_resolver(activation, **kwargs)
+
         lins = []
         for _ in range(n_layers - 1):
             lins.append(

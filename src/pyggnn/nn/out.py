@@ -3,7 +3,7 @@ from typing import Literal, Optional, Union, Any
 import torch
 from torch import Tensor
 import torch.nn as nn
-from torch_scattter import scatter
+from torch_scatter import scatter
 
 from pyggnn.nn.base import Dense
 from pyggnn.utils.resolve import activation_resolver
