@@ -84,9 +84,7 @@ class SchNet(BaseGNN):
         self.scaler = scaler
         # layers
         self.node_initialize = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
-        self.edge_smearing = GaussianRB(
-            start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian
-        )
+        self.edge_rbf = GaussianRB(start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian)
 
         if share_weight:
             self.convs = nn.ModuleList(
@@ -139,7 +137,6 @@ class SchNet(BaseGNN):
 
     def reset_parameters(self):
         self.node_initialize.reset_parameters()
-        self.edge_smearing.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
         self.output.reset_parameters()
@@ -151,7 +148,7 @@ class SchNet(BaseGNN):
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # expand with Gaussian radial basis
-        edge_basis = self.edge_smearing(distances)
+        edge_basis = self.edge_rbf(distances)
         # initial embedding
         x = self.node_initialize(atomic_numbers)
         # convolution
