@@ -68,10 +68,10 @@ class Dense(nn.Linear):
         forward calculation of Dense layer.
 
         Args:
-            x (torch.Tensor): input tensor.
+            x (torch.Tensor): input tensor shape of (* x in_dim).
 
         Returns:
-            torch.Tensor: Calculated tensor.
+            torch.Tensor: output tensor shape of (* x out_dim).
         """
         # compute linear layer y = xW^T + b
         return super().forward(x)
