@@ -32,7 +32,7 @@ class AtomicNum2Node(nn.Embedding):
         Computed the initial node embedding.
 
         Args:
-            x (Tensor): atomic numbers of (num_nodes) shape.
+            x (Tensor): atomic numbers shape of (num_nodes).
 
         Returns:
             Tensor: embedding nodes of (num_nodes x embed_dim) shape.
