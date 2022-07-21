@@ -128,9 +128,7 @@ class BesselRB(torch.nn.Module):
         """
         super().__init__()
         self.cutoff_radi = cutoff_radi
-        self.envelope = EnvelopeCutoff(
-            cutoff_radi=cutoff_radi, envelope_exponent=envelope_exponent
-        )
+        self.envelope = EnvelopeCutoff(cutoff_radi, envelope_exponent)
         self.freq = torch.nn.Parameter(torch.Tensor(n_radial))
 
         self.reset_parameters()
