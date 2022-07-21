@@ -44,15 +44,15 @@ class SchNetConv(MessagePassing):
         # update functions
         # filter generator
         self.edge_filter_func = nn.Sequential(
-            Dense(n_gaussian, edge_dim, bias=True),
+            Dense(n_gaussian, edge_dim, bias=True, activation_name=activation, **kwargs),
             act,
-            Dense(edge_dim, edge_dim, bias=True),
+            Dense(edge_dim, edge_dim, bias=True, activation_name=activation, **kwargs),
             act,
         )
         # node fucntions
         self.node_lin1 = Dense(x_dim, edge_dim, bias=True)
         self.node_lin2 = nn.Sequential(
-            Dense(edge_dim, x_dim, bias=True),
+            Dense(edge_dim, x_dim, bias=True, activation_name=activation, **kwargs),
             act,
             Dense(x_dim, x_dim, bias=True),
         )
