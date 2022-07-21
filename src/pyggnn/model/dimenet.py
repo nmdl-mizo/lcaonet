@@ -266,7 +266,7 @@ class DimeNet(BaseGNN):
     def forward(self, data_batch) -> Tensor:
         batch = data_batch[DataKeys.Batch]
         atomic_numbers = data_batch[DataKeys.Atomic_num]
-        pos = data_batch[DataKeys.Pos]
+        pos = data_batch[DataKeys.Position]
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # get triplets
