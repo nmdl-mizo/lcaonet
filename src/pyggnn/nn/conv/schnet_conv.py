@@ -22,7 +22,6 @@ class SchNetConv(MessagePassing):
         node_hidden: int = 256,
         cutoff_net: Optional[nn.Module] = None,
         cutoff_radi: float = 4.0,
-        residual: bool = True,
         aggr: str = "add",
         **kwargs,
     ):
@@ -39,7 +38,6 @@ class SchNetConv(MessagePassing):
         else:
             self.cutoff_net = None
         self.cutoff_radi = cutoff_radi
-        self.residual = residual
 
         # update functions
         # filter generator
@@ -90,7 +88,8 @@ class SchNetConv(MessagePassing):
             size=None,
         )
         out = self.node_lin2(out)
-        out = out + x if self.residual else out
+        # residual network
+        out = out + x
         return out
 
     def message(

@@ -6,8 +6,8 @@ import torch.nn as nn
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.cutoff import CosineCutoff
-from pyggnn.nn.embedding import AtomicNum2Node
-from pyggnn.nn.basis import GaussianRBF
+from pyggnn.nn.embedding import AtomicNum2NodeEmbed
+from pyggnn.nn.basis import GaussianRB
 from pyggnn.nn.conv.schnet_conv import SchNetConv
 from pyggnn.nn.out import Node2Property2
 
@@ -30,7 +30,6 @@ class SchNet(BaseGNN):
         scaler: Optional[nn.Module] = None,
         mean: Optional[float] = None,
         stddev: Optional[float] = None,
-        residual: bool = True,
         share_weight: bool = False,
         max_z: Optional[int] = 100,
         **kwargs,
@@ -39,12 +38,15 @@ class SchNet(BaseGNN):
         self.node_dim = node_dim
         self.edge_dim = edge_dim
         self.n_conv_layer = n_conv_layer
+        self.n_gaussian = n_gaussian
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
         self.scaler = scaler
         # layers
-        self.node_initialize = AtomicNum2Node(embed_dim=node_dim, max_num=max_z)
-        self.edge_smearing = GaussianRBF(start=0.0, stop=cutoff_radi, n_dim=n_gaussian)
+        self.node_initialize = AtomicNum2NodeEmbed(embed_dim=node_dim, max_num=max_z)
+        self.edge_smearing = GaussianRB(
+            start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian
+        )
 
         if share_weight:
             self.convs = nn.ModuleList(
@@ -58,7 +60,6 @@ class SchNet(BaseGNN):
                         cutoff_net=cutoff_net,
                         cutoff_radi=cutoff_radi,
                         aggr=aggr,
-                        residual=residual,
                         **kwargs,
                     )
                     * n_conv_layer
@@ -76,7 +77,6 @@ class SchNet(BaseGNN):
                         cutoff_net=cutoff_net,
                         cutoff_radi=cutoff_radi,
                         aggr=aggr,
-                        residual=residual,
                         **kwargs,
                     )
                     for _ in range(n_conv_layer)
