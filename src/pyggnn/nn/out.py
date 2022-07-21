@@ -77,7 +77,7 @@ class Node2Property1(nn.Module):
         Compute global property from node embeddings.
 
         Args:
-            x (Tensor): node embeddings shape of (num_nodes x in_dim).
+            x (Tensor): node embeddings shape of (num_node x in_dim).
             batch (Tensor, optional): batch index. Defaults to `None`.
 
         Returns:
@@ -154,7 +154,7 @@ class Node2Property2(nn.Module):
         Compute global property from node embeddings.
 
         Args:
-            x (Tensor): node embeddings shape of (num_nodes x in_dim).
+            x (Tensor): node embeddings shape of (num_node x in_dim).
             batch (Tensor, optional): batch index. Defaults to `None`.
 
         Returns:
