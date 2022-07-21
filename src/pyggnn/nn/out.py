@@ -45,15 +45,21 @@ class Node2Property1(nn.Module):
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.node_transform = nn.Sequential(
-            Dense(in_dim, hidden_dim, bias=True, **kwargs),
+            Dense(in_dim, hidden_dim, bias=True, activation_name=activation, **kwargs),
             act,
-            Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
+            Dense(hidden_dim, hidden_dim, bias=True),
         )
         self.aggregate = aggregation[aggr]
         self.predict = nn.Sequential(
-            Dense(hidden_dim, hidden_dim, bias=True, **kwargs),
+            Dense(
+                hidden_dim,
+                hidden_dim,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
             act,
-            Dense(hidden_dim, out_dim, bias=False, **kwargs),
+            Dense(hidden_dim, out_dim, bias=False),
         )
 
         self.reset_parameters()
@@ -122,9 +128,9 @@ class Node2Property2(nn.Module):
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.predict = nn.Sequential(
-            Dense(in_dim, hidden_dim, bias=True, **kwargs),
+            Dense(in_dim, hidden_dim, bias=True, activation_name=activation, **kwargs),
             act,
-            Dense(hidden_dim, out_dim, bias=False, **kwargs),
+            Dense(hidden_dim, out_dim, bias=False),
         )
         if scaler is None:
             self.scaler = None
