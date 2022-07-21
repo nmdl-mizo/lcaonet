@@ -86,7 +86,9 @@ class GaussianRB(nn.Module):
                 steps=self.n_gaussian,
                 out=self.offset,
             )
-            self.width = (self.offset[1] - self.offset[0]) * torch.ones_like(self.offset)
+            self.width = (self.offset[1] - self.offset[0]) * torch.ones_like(
+                self.offset
+            ).to(self.offset.dtype)
         if self.trainable:
             self.width.requires_grad_()
             self.offset.requires_grad_()
