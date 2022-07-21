@@ -116,9 +116,7 @@ class BesselRB(torch.nn.Module):
 
     def reset_parameters(self):
         with torch.no_grad():
-            torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(
-                PI / self.cutoff_radi
-            )
+            torch.arange(1, self.freq.numel() + 1, out=self.freq).mul_(PI)
         self.freq.requires_grad_()
 
     def forward(self, dist: Tensor) -> Tensor:
@@ -131,6 +129,7 @@ class BesselRB(torch.nn.Module):
         Returns:
             Tensor: extend distances of (num_edge x n_radial) shape.
         """
+        dist = dist / self.cutoff_radi
         return self.envelope(dist).unsqueeze(-1) * (self.freq * dist.unsqueeze(-1)).sin()
 
 
@@ -204,7 +203,8 @@ class BesselSB(torch.nn.Module):
             Tensor: extend distances and angles of
                 (n_triplets x (n_pherical x n_radial)) shape.
         """
-        rbf = torch.stack([f(dist / self.cutoff_radi) for f in self.bessel_funcs], dim=1)
+        dist = dist / self.cutoff_radi
+        rbf = torch.stack([f(dist) for f in self.bessel_funcs], dim=1)
         # apply cutoff
         rbf = self.envelope(dist).unsqueeze(-1) * rbf
 

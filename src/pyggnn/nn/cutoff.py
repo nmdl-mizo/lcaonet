@@ -84,7 +84,6 @@ class EnvelopeCutoff(BaseCutoff):
         Returns:
             Tensor: Cutoff values shape of (num_edge)
         """
-        dist = dist / self.cutoff_radi
         p = self.p
         # coeffs
         a = -(p + 1) * (p + 2) / 2
