@@ -88,10 +88,10 @@ class InteractionBlock(nn.Module):
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
         self.bilinear.reset_parameters()
-        for layer in self.layers_before_skip:
+        for layer in self.res_before_skip:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
-        for layer in self.layers_after_skip:
+        for layer in self.res_after_skip:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
 
