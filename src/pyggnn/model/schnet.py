@@ -150,7 +150,7 @@ class SchNet(BaseGNN):
         edge_index = data_batch[DataKeys.Edge_index]
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
-        # smearing with Gaussian basis
+        # expand with Gaussian radial basis
         edge_basis = self.edge_smearing(distances)
         # initial embedding
         x = self.node_initialize(atomic_numbers)
