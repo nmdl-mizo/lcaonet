@@ -4,19 +4,10 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from pyggnn.utils.resolve import activation_name_resolver
+from pyggnn.utils.resolve import activation_gain_resolver
 
 
 __all__ = ["Dense"]
-
-GAIN_DICT = {
-    "sigmoid": "sigmoid",
-    "tanh": "tanh",
-    "relu": "relu",
-    "selu": "selu",
-    "leakyrelu": "leaky_relu",
-    "swish": "sigmoid",
-}
 
 
 class Dense(nn.Linear):
@@ -43,16 +34,17 @@ class Dense(nn.Linear):
                 additive bias. Defaults to `True`.
             activation_name (str or `None`, optional): activation fucntion class
                 or activation fucntion name. Defaults to `None`.
-            weight_init (Callable, optional: Defaults to `nn.init.xavier_normal_`.
+            weight_init (Callable, optional): Defaults to `nn.init.xavier_normal_`.
             bias_init (Callable, optional): Defaults to `nn.init.zeros_`.
         """
         self.activation_name = (
             "linear"
             if activation_name is None
-            else GAIN_DICT[activation_name_resolver(activation_name, **kwargs)]
+            else activation_gain_resolver(activation_name)
         )
         if self.activation_name == "leaky_relu":
-            self.negative_slope = kwargs["negative_slope"]
+            # if not set `negative_slople`, set default values of torch.nn.LeakyReLU
+            self.negative_slope = kwargs.get("negative_slope", 0.01)
         self.weight_init = weight_init
         if bias:
             assert bias_init is not None, "bias_init must not be None if set to bias"
