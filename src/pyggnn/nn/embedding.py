@@ -66,7 +66,7 @@ class EdgeEmbed(nn.Module):
         super().__init__()
         act = activation_resolver(activation, **kwargs)
 
-        self.node_embed = AtomicNum2NodeEmbed(embed_dim=node_dim, max_num=max_z)
+        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
         self.rbf_lin = Dense(in_dim=n_radial, out_dim=edge_dim, bias=False)
         self.edge_embed = nn.Sequential(
             Dense(
