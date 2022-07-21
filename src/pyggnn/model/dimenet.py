@@ -124,8 +124,8 @@ class InteractionBlock(nn.Module):
         rbf = self.rbf_lin(rbf)
         sbf = self.sbf_lin(sbf)
         # linear transformation of input messages
-        x_ji = self.act(self.lin_ji(x))
-        x_kj = self.act(self.lin_kj(x))
+        x_ji = self.lin_ji(x)
+        x_kj = self.lin_kj(x)
         # apply rbf and sbf to input messages
         x_kj = x_kj * rbf
         x_kj = self.bilinear(sbf, x_kj[edge_idx_kj])
