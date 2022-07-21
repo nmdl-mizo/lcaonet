@@ -207,7 +207,6 @@ class DimeNet(BaseGNN):
             node_dim,
             edge_dim,
             n_radial,
-            n_spherical,
             activation,
             max_z,
             **kwargs,
