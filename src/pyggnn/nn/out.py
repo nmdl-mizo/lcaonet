@@ -67,6 +67,16 @@ class Node2Property1(nn.Module):
                 layer.reset_parameters()
 
     def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute global property from node embeddings.
+
+        Args:
+            x (Tensor): node embeddings shape of (num_nodes x in_dim).
+            batch (Tensor, optional): batch index. Defaults to `None`.
+
+        Returns:
+            Tensor: shape of (num_batch x out_dim).
+        """
         out = self.node_transform(x)
         out = self.aggregate(out, batch=batch)
         return self.predict(out)
@@ -76,6 +86,7 @@ class Node2Property2(nn.Module):
     """
     The block to compute the global graph proptery from node embeddings.
     This block contains two FNN layers and aggregation block.
+    If set `scler`, scaling process before aggregation.
     This block is used in SchNet.
     """
 
@@ -133,6 +144,16 @@ class Node2Property2(nn.Module):
                 layer.reset_parameters()
 
     def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute global property from node embeddings.
+
+        Args:
+            x (Tensor): node embeddings shape of (num_nodes x in_dim).
+            batch (Tensor, optional): batch index. Defaults to `None`.
+
+        Returns:
+            Tensor: shape of (num_batch x out_dim).
+        """
         out = self.predict(x)
         if self.scaler is not None:
             out = self.scaler(out)
