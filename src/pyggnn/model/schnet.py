@@ -15,6 +15,19 @@ __all__ = ["SchNet"]
 
 
 class SchNet(BaseGNN):
+    """
+    SchNet implemeted by using PyTorch Geometric.
+    From atomic structure, predict global property such as energy.
+
+    Notes:
+        PyTorch Geometric:
+        https://pytorch-geometric.readthedocs.io/en/latest/
+
+        SchNet:
+        [1] K. T. Schütt et al., J. Chem. Phys. 148, 241722 (2018).
+        [2] https://github.com/atomistic-machine-learning/schnetpack
+    """
+
     def __init__(
         self,
         node_dim: int,
@@ -34,6 +47,33 @@ class SchNet(BaseGNN):
         max_z: Optional[int] = 100,
         **kwargs,
     ):
+        """
+        Args:
+            node_dim (int): node embedding dimension.
+            edge_dim (int): edge filter embedding dimension.
+            n_conv_layer (int): number of convolution layers.
+            out_dim (int): output dimension.
+            n_gaussian (int): number of gaussian radial basis.
+            activation (str or nn.Module, optional): activation function.
+                Defaults to `"shifted_softplus"`.
+            cutoff_net (nn.Module, optional): cutoff networck.
+                Defaults to `CosineCutoff`.
+            cutoff_radi (float, optional): cutoff radius.
+                Defaults to `4.0`.
+            hidden_dim (int, optional): hidden dimension in convolution layers.
+                Defaults to `256`.
+            aggr ("add" or "mean", optional): aggregation method.
+                Defaults to `"add"`.
+            scaler (nn.Module, optional): scaler network.
+                Defaults to `None`.
+            mean (float, optional): mean of node property.
+                Defaults to `None`.
+            stddev (float, optional): standard deviation of node property.
+                Defaults to `None`.
+            share_weight (bool, optional): share weight parameter all convolution.
+                Defaults to `False`.
+            max_z (int, optional): max atomic number. Defaults to `100`.
+        """
         super().__init__()
         self.node_dim = node_dim
         self.edge_dim = edge_dim
