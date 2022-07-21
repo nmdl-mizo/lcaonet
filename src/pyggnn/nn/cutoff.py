@@ -95,6 +95,6 @@ class EnvelopeCutoff(BaseCutoff):
         dist_pow_p1 = dist_pow_p0 * dist
         dist_pow_p2 = dist_pow_p1 * dist
         # Remove contributions beyond the cutoff radius
-        return (1.0 / dist + a * dist_pow_p0 + b * dist_pow_p1 + c * dist_pow_p2) * (
-            dist < 1.0
-        ).to(dist.dtype)
+        return (
+            1.0 / (dist + 1e-6) + a * dist_pow_p0 + b * dist_pow_p1 + c * dist_pow_p2
+        ) * (dist < 1.0).to(dist.dtype)
