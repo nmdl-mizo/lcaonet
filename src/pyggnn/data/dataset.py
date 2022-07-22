@@ -97,6 +97,8 @@ class Db2GraphDataset(torch.utils.data.Dataset):
                 if isinstance(v, int) or isinstance(v, float):
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
+                elif len(v.shape) == 0:
+                    geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 else:
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor(v).unsqueeze(0)
@@ -155,6 +157,8 @@ class Hdf2GraphDataset(torch.utils.data.Dataset):
                     raise KeyError(f"{k} is not found in the {self.hdf5_path}.")
                 if isinstance(v, int) or isinstance(v, float):
                     # add a dimension for batching
+                    geometric_data[k] = torch.tensor([v]).unsqueeze(0)
+                elif len(v.shape) == 0:
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 else:
                     # add a dimension for batching
@@ -224,6 +228,8 @@ class List2GraphDataset(torch.utils.data.Dataset):
                     raise KeyError(f"{k} is not found in the Atoms info.")
                 if isinstance(v, int) or isinstance(v, float):
                     # add a dimension for batching
+                    geometric_data[k] = torch.tensor([v]).unsqueeze(0)
+                elif len(v.shape) == 0:
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 else:
                     # add a dimension for batching
