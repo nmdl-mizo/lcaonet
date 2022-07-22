@@ -26,6 +26,7 @@ class Collater:
             )
             # shift the index of the edge
             edge_ind = b[DataKeys.Edge_index] + edge_ind_max
+            print(edge_ind.shape)
             # update all keys
             for k, v in b:
                 if k == DataKeys.Edge_index:
