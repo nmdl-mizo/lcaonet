@@ -294,12 +294,12 @@ class DimeNet(BaseGNN):
 
         # embedding
         x = self.node_embed(atomic_numbers)
-        x = self.edge_embed(x, rbf, idx_i, idx_j)
-        out = self.output_blocks[0](x, rbf, idx_i, num_nodes=atomic_numbers.size(0))
+        m = self.edge_embed(x, rbf, idx_i, idx_j)
+        out = self.output_blocks[0](m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
         # interaction
         for ib, ob in zip(self.interaction_blocks, self.output_blocks[1:]):
-            x = ib(x, rbf, sbf, edge_idx_kj, edge_idx_ji)
+            m = ib(m, rbf, sbf, edge_idx_kj, edge_idx_ji)
             out += ob(x, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
         # output
