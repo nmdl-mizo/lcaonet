@@ -98,7 +98,8 @@ class Db2GraphDataset(torch.utils.data.Dataset):
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 elif len(v.shape) == 0:
-                    geometric_data[k] = torch.tensor([v]).unsqueeze(0)
+                    # 0-dim array
+                    geometric_data[k] = torch.tensor([float(v)]).unsqueeze(0)
                 else:
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor(v).unsqueeze(0)
@@ -159,7 +160,7 @@ class Hdf2GraphDataset(torch.utils.data.Dataset):
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 elif len(v.shape) == 0:
-                    geometric_data[k] = torch.tensor([v]).unsqueeze(0)
+                    geometric_data[k] = torch.tensor([float(v)]).unsqueeze(0)
                 else:
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor(v).unsqueeze(0)
@@ -230,7 +231,8 @@ class List2GraphDataset(torch.utils.data.Dataset):
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 elif len(v.shape) == 0:
-                    geometric_data[k] = torch.tensor([v]).unsqueeze(0)
+                    # 0 dimensitonal array
+                    geometric_data[k] = torch.tensor([float(v)]).unsqueeze(0)
                 else:
                     # add a dimension for batching
                     geometric_data[k] = torch.tensor(v).unsqueeze(0)
