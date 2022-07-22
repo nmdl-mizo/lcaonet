@@ -161,11 +161,9 @@ class Hdf2GraphDataset(torch.utils.data.Dataset):
                     geometric_data[k] = torch.tensor([v]).unsqueeze(0)
                 elif len(v.shape) == 0:
                     # 0-dim array
-                    print("aa")
                     geometric_data[k] = torch.tensor([float(v)]).unsqueeze(0)
                 else:
                     # add a dimension for batching
-                    print("bb")
                     geometric_data[k] = torch.tensor(v).unsqueeze(0)
         return geometric_data
 
