@@ -7,7 +7,7 @@ class DataKeys:
     Ptr = "ptr"
     Edge_index = "edge_index"
     Position = "pos"
-    Atomic_num = "atomic_num"
+    Atomic_num = "atomic_numbers"
     Lattice = "lattice"
     PBC = "pbc"
     Edge_shift = "edge_shift"

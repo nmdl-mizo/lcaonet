@@ -31,10 +31,11 @@ def _geometric_data(atoms: ase.Atoms, cutoff_radi: float):
         cutoff=cutoff_radi,
         self_interaction=False,
     )
+    # TODO: set data key names
     data = Data(
         pos=torch.tensor(atoms.get_positions()),
         lattice=torch.tensor(atoms.cell.array).unsqueeze(0),
-        atomic_num=torch.tensor(atoms.numbers),
+        atom_numbers=torch.tensor(atoms.numbers),
         edge_index=torch.stack(
             [torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0
         ),
