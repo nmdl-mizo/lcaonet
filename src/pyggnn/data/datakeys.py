@@ -4,7 +4,6 @@ __all__ = ["DataKeys"]
 class DataKeys:
     # data key name
     Batch = "batch"
-    Ptr = "ptr"
     Edge_index = "edge_index"
     Position = "pos"
     Atomic_num = "atom_numbers"
