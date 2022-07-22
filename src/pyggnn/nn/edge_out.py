@@ -21,7 +21,7 @@ class Edge2NodeProp(nn.Module):
 
     def __init__(
         self,
-        hidden_dim: int,
+        edge_dim: int,
         n_radial: int,
         out_dim: int = 1,
         n_layers: int = 3,
@@ -34,20 +34,20 @@ class Edge2NodeProp(nn.Module):
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
-        self.rbf_dense = Dense(n_radial, hidden_dim, bias=False)
+        self.rbf_dense = Dense(n_radial, edge_dim, bias=False)
         denses = []
         for _ in range(n_layers):
             denses.append(
                 Dense(
-                    hidden_dim,
-                    hidden_dim,
+                    edge_dim,
+                    edge_dim,
                     bias=True,
                     activation_name=activation,
                     **kwargs,
                 )
             )
             denses.append(act)
-        denses.append(Dense(hidden_dim, out_dim, bias=False))
+        denses.append(Dense(edge_dim, out_dim, bias=False))
         self.denses = nn.Sequential(*denses)
 
         self.reset_parameters()
@@ -69,7 +69,7 @@ class Edge2NodeProp(nn.Module):
         Compute node-wise property from edge embeddings.
 
         Args:
-            x (Tensor): edge embedding shape of (n_edge x hidden_dim).
+            x (Tensor): edge embedding shape of (n_edge x edge_dim).
             rbf (Tensor): radial basis function shape of (n_node x n_radial).
             idx_i (torch.LongTensor): node index center atom i shape of (n_edge).
             num_nodes (Optional[int], optional): number of edge. Defaults to `None`.

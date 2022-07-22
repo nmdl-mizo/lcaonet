@@ -245,7 +245,7 @@ class DimeNet(BaseGNN):
         self.output_blocks = nn.ModuleList(
             [
                 Edge2NodeProp(
-                    hidden_dim=edge_dim,
+                    edge_dim=edge_dim,
                     n_radial=n_radial,
                     out_dim=out_dim,
                     activation=activation,
@@ -302,7 +302,7 @@ class DimeNet(BaseGNN):
         # interaction and outputs
         for ib, ob in zip(self.interaction_blocks, self.output_blocks[1:]):
             m = ib(m, rbf, sbf, edge_idx_kj, edge_idx_ji)
-            out += ob(x, rbf, idx_i, num_nodes=atomic_numbers.size(0))
+            out += ob(m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
         # aggregation each batch
         return (
