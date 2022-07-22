@@ -18,7 +18,7 @@ class ScaleShift(nn.Module):
 
     Notes:
         reference:
-        [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448–455 (2019).
+        [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448-455 (2019).
     """
 
     def __init__(self, mean: Tensor, stddev: Tensor):
