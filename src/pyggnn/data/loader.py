@@ -40,7 +40,7 @@ class Collater:
             n_batch += 1
             edge_ind_max += n_node
         # add batch index
-        datas[DataKeys.Batch] = batch_ind
+        datas[DataKeys.Batch] = batch_ind.to(self.device)
 
         return datas
 
