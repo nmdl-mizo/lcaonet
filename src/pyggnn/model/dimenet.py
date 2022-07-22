@@ -8,7 +8,7 @@ from torch_scatter import scatter
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.rbf import BesselRBF
 from pyggnn.nn.abf import BesselSBF
-from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
+from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.edge_embed import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.edge_out import Edge2NodeProp
@@ -202,7 +202,7 @@ class DimeNet(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.aggr = aggr
         # layers
-        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_z)
+        self.node_embed = AtomicNum2Node(node_dim, max_z)
         self.edge_embed = EdgeEmbed(
             node_dim,
             edge_dim,
