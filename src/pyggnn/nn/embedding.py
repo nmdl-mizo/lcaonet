@@ -36,7 +36,7 @@ class AtomicNum2NodeEmbed(nn.Embedding):
     def reset_parameters(self):
         super().reset_parameters()
         # ref:
-        # https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html#DimeNetPlusPlus
+        # https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
         self.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
     def forward(self, z: Tensor) -> Tensor:
@@ -44,10 +44,10 @@ class AtomicNum2NodeEmbed(nn.Embedding):
         Computed the initial node embedding.
 
         Args:
-            z (Tensor): atomic numbers shape of (num_node).
+            z (Tensor): atomic numbers shape of (n_node).
 
         Returns:
-            Tensor: embedding nodes of (num_node x embed_node_dim) shape.
+            Tensor: embedding nodes of (n_node x embed_node_dim) shape.
         """
         z = super().forward(z)
         return z
@@ -98,13 +98,13 @@ class EdgeEmbed(nn.Module):
         Computed the initial edge embedding.
 
         Args:
-            z (Tensor): atomic numbers shape of (num_node).
-            rbf (Tensor): radial basis function shape of (num_edge x n_radial).
-            idx_i (LongTensor): index of the first node of the edge shape of (num_edge).
-            idx_j (LongTensor): index of the second node of the edge shape of (num_edge).
+            z (Tensor): atomic numbers shape of (n_node).
+            rbf (Tensor): radial basis function shape of (n_edge x n_radial).
+            idx_i (LongTensor): index of the first node of the edge shape of (n_edge).
+            idx_j (LongTensor): index of the second node of the edge shape of (n_edge).
 
         Returns:
-            Tensor: embedding edge message of (num_edge x edge_dim) shape.
+            Tensor: embedding edge message of (n_edge x edge_dim) shape.
         """
         z = self.node_embed(z)
         rbf = self.rbf_lin(rbf)

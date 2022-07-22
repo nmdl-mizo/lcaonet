@@ -76,13 +76,13 @@ class GaussianRB(nn.Module):
 
     def forward(self, dist: Tensor) -> Tensor:
         """
-        Compute filtered distances with Gaussian basis.
+        Compute extended distances with Gaussian basis.
 
         Args:
-            dist (Tensor): interatomic distance values of (num_edge) shape.
+            dist (Tensor): interatomic distance values of (n_edge) shape.
 
         Returns:
-            Tensor: filtered distances of (num_edge x n_dim) shape.
+            Tensor: extended distances of (n_edge x n_gaussian) shape.
         """
         return gaussian_rbf(
             dist, offsets=self.offset, widths=self.width, centered=self.centered
@@ -121,25 +121,25 @@ class BesselRB(torch.nn.Module):
 
     def forward(self, dist: Tensor) -> Tensor:
         """
-        Extend distances with Bessel basis.
+        Compute extended distances with Bessel basis.
 
         Args:
-            dist (Tensor): interatomic distance values of (num_edge) shape.
+            dist (Tensor): interatomic distance values of (n_edge) shape.
 
         Returns:
-            Tensor: extend distances of (num_edge x n_radial) shape.
+            Tensor: extended distances of (n_edge x n_radial) shape.
         """
         dist = dist / self.cutoff_radi
         return self.envelope(dist).unsqueeze(-1) * (self.freq * dist.unsqueeze(-1)).sin()
 
 
 class BesselSB(torch.nn.Module):
-    """Bessel Sphericla basis functions"""
+    """Bessel Spherical basis functions"""
 
     def __init__(
         self,
-        n_spherical: int,
         n_radial: int,
+        n_spherical: int,
         cutoff_radi: float = 5.0,
         envelope_exponent: int = 5,
     ):
@@ -147,8 +147,8 @@ class BesselSB(torch.nn.Module):
         Expand inter atomic distances and angles by Bessel spherical and radial basis.
 
         Args:
-            n_spherical (int): number of spherical basis.
             n_radial (int): number of radial basis.
+            n_spherical (int): number of spherical basis.
             cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
             envelope_exponent (int, optional): exponent of envelope cutoff fucntion.
                 Defaults to `5`.
@@ -161,8 +161,8 @@ class BesselSB(torch.nn.Module):
         )
 
         assert n_radial <= 64, "n_radial must be under 64"
-        self.n_spherical = n_spherical
         self.n_radial = n_radial
+        self.n_spherical = n_spherical
         self.cutoff_radi = cutoff_radi
         self.envelope = EnvelopeCutoff(cutoff_radi, envelope_exponent)
 
@@ -194,14 +194,14 @@ class BesselSB(torch.nn.Module):
         Extend distances and angles with Bessel spherical and radial basis.
 
         Args:
-            dist (Tensor): interatomic distance values of (num_edge) shape.
+            dist (Tensor): interatomic distance values of (n_edge) shape.
             angle (Tensor): angles of triplets of (n_triplets) shape.
             edge_idx_kj (torch.LongTensor): edge index from atom k to j
                 shape of (n_triplets).
 
         Returns:
             Tensor: extend distances and angles of
-                (n_triplets x (n_pherical x n_radial)) shape.
+                (n_triplets x (n_spherical x n_radial)) shape.
         """
         dist = dist / self.cutoff_radi
         rbf = torch.stack([f(dist) for f in self.bessel_funcs], dim=1)
