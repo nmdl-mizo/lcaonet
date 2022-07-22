@@ -80,6 +80,7 @@ class BesselSBF(nn.Module):
         dist = dist / self.cutoff_radi
         rbf = torch.stack([f(dist) for f in self.bessel_funcs], dim=1)
         # apply cutoff
+        # TODO: separeta cutoff function
         rbf = self.envelope(dist).unsqueeze(-1) * rbf
 
         cbf = torch.stack([f(angle) for f in self.sph_funcs], dim=1)
