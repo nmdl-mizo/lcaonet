@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple, Union
 
 import h5py
 import ase
+import ase.neighborlist
 from ase.db import connect
 from numpy import ndarray
 import torch
