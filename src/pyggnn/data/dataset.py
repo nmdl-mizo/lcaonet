@@ -60,7 +60,7 @@ class Db2GraphDataset(torch.utils.data.Dataset):
         Args:
             db_path (Pathlike): path to the database.
             cutoff_radi (float): cutoff radius.
-            property_names (Dict[str, Any], optional): property names to add to the
+            property_names (List[str], optional): property names to add to the
                 dataset. Defaults to `None`.
             pbc (bool, optional): whether to use periodic boundary conditions.
                 Defaults to `True`.
@@ -119,7 +119,7 @@ class Hdf2GraphDataset(torch.utils.data.Dataset):
         Args:
             hdf5_path (Pathlike): path to the database.
             cutoff_radi (float): cutoff radius.
-            property_names (Dict[str, Any], optional): properties to add to the dataset.
+            property_names (List[str], optional): properties to add to the dataset.
                 Defaults to `None`.
             pbc (bool, optional): whether to use periodic boundary conditions.
                 Defaults to `True`.
@@ -198,7 +198,7 @@ class List2GraphDataset(torch.utils.data.Dataset):
         Args:
             atoms_list (list of ase.Atoms): list of ase.Atoms object.
             cutoff_radi (float): cutoff radius.
-            property_names (Dict[str, Any], optional): properties to add to the dataset.
+            property_names (List[str], optional): properties to add to the dataset.
                 Defaults to `None`.
             pbc (bool, optional): whether to use periodic boundary conditions.
                 Defaults to `True`.
