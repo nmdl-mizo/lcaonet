@@ -11,7 +11,7 @@ from pyggnn.nn.abf import BesselSBF
 from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
 from pyggnn.nn.edge_embed import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
-from pyggnn.nn.out import Edge2NodeProperty
+from pyggnn.nn.edge_out import Edge2NodeProp
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.utils.resolve import activation_resolver
 
@@ -202,8 +202,6 @@ class DimeNet(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.aggr = aggr
         # layers
-        self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
-        self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
         self.node_embed = AtomicNum2NodeEmbed(node_dim, max_z)
         self.edge_embed = EdgeEmbed(
             node_dim,
@@ -212,6 +210,9 @@ class DimeNet(BaseGNN):
             activation,
             **kwargs,
         )
+        self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
+        self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
+
         if share_weight:
             self.interaction_blocks = nn.ModuleList(
                 [
@@ -240,9 +241,10 @@ class DimeNet(BaseGNN):
                     for _ in range(n_interaction)
                 ]
             )
+
         self.output_blocks = nn.ModuleList(
             [
-                Edge2NodeProperty(
+                Edge2NodeProp(
                     hidden_dim=edge_dim,
                     n_radial=n_radial,
                     out_dim=out_dim,
@@ -257,9 +259,9 @@ class DimeNet(BaseGNN):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.rbf.reset_parameters()
         self.node_embed.reset_parameters()
         self.edge_embed.reset_parameters()
+        self.rbf.reset_parameters()
         for ib in self.interaction_blocks:
             ib.reset_parameters()
         for ob in self.output_blocks:
@@ -283,26 +285,26 @@ class DimeNet(BaseGNN):
         ) = self.get_triplets(data_batch)
         # calc angle each triplets
         # arctan is more stable than arccos
-        pos_j = pos[triple_idx_j]
-        pos_ji, pos_kj = pos_j - pos[triple_idx_i], pos[triple_idx_k] - pos_j
-        a = (pos_ji * pos_kj).sum(dim=-1)
-        b = torch.cross(pos_ji, pos_kj).norm(dim=-1)
-        angle = torch.atan2(b, a)
+        pos_i = pos[triple_idx_i]
+        pos_ji, pos_ki = pos[triple_idx_j] - pos_i, pos[triple_idx_k] - pos_i
+        inner = (pos_ji * pos_ki).sum(dim=-1)
+        outter = torch.cross(pos_ji, pos_ki).norm(dim=-1)
+        angle = torch.atan2(outter, inner)
         # expand by radial and spherical basis
         rbf = self.rbf(distances)
         sbf = self.sbf(distances, angle, edge_idx_kj)
 
-        # embedding
+        # embedding and firset output
         x = self.node_embed(atomic_numbers)
         m = self.edge_embed(x, rbf, idx_i, idx_j)
         out = self.output_blocks[0](m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
-        # interaction
+        # interaction and outputs
         for ib, ob in zip(self.interaction_blocks, self.output_blocks[1:]):
             m = ib(m, rbf, sbf, edge_idx_kj, edge_idx_ji)
             out += ob(x, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
-        # output
+        # aggregation each batch
         return (
             out.sum(dim=0)
             if batch is None
