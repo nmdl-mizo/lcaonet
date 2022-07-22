@@ -1,8 +1,8 @@
 from typing import Optional, Union, Any, List
 
-from pyggnn.nn.activation import Swish
+from pyggnn.nn.activation import ShiftedSoftplus, Swish
 
-__all__ = ["activation_resolver", "activation_name_resolver"]
+__all__ = ["activation_resolver", "activation_gain_resolver"]
 
 
 def _normalize_string(s: str) -> str:
@@ -54,12 +54,12 @@ def activation_resolver(query: Union[Any, str] = "relu", **kwargs):
         for act in vars(torch.nn.modules.activation).values()
         if isinstance(act, type) and issubclass(act, base_cls)
     ]
-    # add Swish
-    acts += [Swish]
+    # add Swish and ShiftedSoftplus
+    acts += [Swish, ShiftedSoftplus]
     return _resolver(query, acts, base_cls, **kwargs)
 
 
-def activation_name_resolver(query: Union[Any, str] = "relu", **kwargs) -> str:
+def activation_gain_resolver(query: Union[Any, str] = "relu") -> str:
     import torch
 
     base_cls = torch.nn.Module
@@ -69,6 +69,20 @@ def activation_name_resolver(query: Union[Any, str] = "relu", **kwargs) -> str:
         for act in vars(torch.nn.modules.activation).values()
         if isinstance(act, type) and issubclass(act, base_cls)
     ]
-    # add Swish
-    acts += [Swish]
-    return _resolver(query, acts, base_cls, True, **kwargs).__name__.lower()
+    # add Swish and ShiftedSoftplus
+    acts += [Swish, ShiftedSoftplus]
+    gain_dict = {
+        "sigmoid": "sigmoid",
+        "tanh": "tanh",
+        "relu": "relu",
+        "selu": "selu",
+        "leakyrelu": "leaky_relu",
+        # swish using sigmoid gain
+        "swish": "sigmoid",
+        # shifted softplus using linear gain
+        "shiftedsoftplus": "linear",
+    }
+    # if not found, return "linear"
+    return gain_dict.get(
+        _resolver(query, acts, base_cls, True).__name__.lower(), "linear"
+    )

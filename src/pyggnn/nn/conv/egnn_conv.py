@@ -13,77 +13,6 @@ from pyggnn.utils.resolve import activation_resolver
 __all__ = ["EGNNConv"]
 
 
-# class EGNNEdgeConv(MessagePassing):
-#     def __init__(
-#         self,
-#         channels: Union[int, Tuple[int, int]],
-#         x_dim: int,
-#         hidden_dim: Optional[float] = None,
-#         beta: Optional[float] = None,
-#         residual: bool = True,
-#         batch_norm: bool = True,
-#     ):
-#         super().__init__()
-#         self.channels = channels
-#         self.x_dim = x_dim
-#         self.hidden_dim = hidden_dim
-#         self.beta = beta
-#         self.residual = residual
-#         self.batch_norm = batch_norm
-
-#         if isinstance(channels, int):
-#             channels = (channels, channels)
-#         if hidden_dim is None:
-#             hidden_dim = channels[1] * 2
-#         if residual:
-#             assert channels[0] == channels[1]
-
-#         # updata function
-#         self.layers = nn.ModuleList(
-#             [
-#                 Dense(sum(channels) + x_dim, hidden_dim, bias=True),
-#                 Swish(beta),
-#                 Dense(hidden_dim, channels[1], bias=True),
-#                 Swish(beta),
-#             ]
-#         )
-#         if batch_norm:
-#             self.bn = nn.BatchNorm1d(channels[1])
-#         else:
-#             self.bn = nn.Identity()
-
-#     def reset_parameters(self):
-#         for layer in self.layers:
-#             layer.reset_parameters()
-
-#     def forward(
-#         self,
-#         edge: Tensor,
-#         edge_index: Adj,
-#         edge_attr: Tensor,
-#     ) -> Tensor:
-
-#         # propagate_type: (x: Tensor, edge_attr: OptTensor)
-#         out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
-#         out = self.bn(out)
-#         out = out + x if self.residual else out
-#         return out
-
-#     def message(
-#         self,
-#         x_i: Tensor,
-#         edge_attr: Tensor,
-#     ) -> Tensor:
-#         z = torch.cat([x_i, edge_attr], dim=1)
-#         for layer in self.layers:
-#             z = layer(z)
-#         return z
-
-#     def aggregate(self, inputs: Tensor, **kwargs) -> Tensor:
-#         # no aggregation is exerted for edge convolution
-#         return inputs
-
-
 class EGNNConv(MessagePassing):
     """
     The block to calculate massage passing and update node embeddings.
@@ -100,9 +29,8 @@ class EGNNConv(MessagePassing):
         edge_hidden: int = 256,
         cutoff_net: Optional[nn.Module] = None,
         cutoff_radi: Optional[float] = None,
-        residual: bool = True,
         batch_norm: bool = False,
-        aggr: Optional[str] = "add",
+        aggr: str = "add",
         **kwargs,
     ):
         """
@@ -119,8 +47,6 @@ class EGNNConv(MessagePassing):
                 Defaults to `256`.
             cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
             cutoff_radi (float, optional): cutoff radious. Defaults to `None`.
-            residual (bool, optional): if set to `False`, no residual network is used.
-                Defaults to `True`.
             batch_norm (bool, optional): if set to `False`, no batch normalization is
                 used. Defaults to `False`.
             aggr (str, optional): aggregation method. Defaults to `"add"`.
@@ -141,15 +67,13 @@ class EGNNConv(MessagePassing):
                 cutoff_radi is not None
             ), "cutoff_radi must be set if cutoff_net is set"
             self.cutoff_net = cutoff_net(cutoff_radi)
-        self.residual = residual
         self.batch_norm = batch_norm
 
         if isinstance(x_dim, int):
             x_dim = (x_dim, x_dim)
+        assert x_dim[0] == x_dim[1]
         if edge_attr_dim is None:
             edge_attr_dim = 0
-        if residual:
-            assert x_dim[0] == x_dim[1]
 
         # updata function
         self.edge_func = nn.Sequential(
@@ -229,7 +153,7 @@ class EGNNConv(MessagePassing):
         for nf in self.node_func:
             out = nf(out)
         out = self.bn(out)
-        out = out + x if self.residual else out
+        out = out + x
         return out
 
     def message(

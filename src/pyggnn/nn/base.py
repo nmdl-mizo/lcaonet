@@ -4,19 +4,10 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from pyggnn.utils.resolve import activation_name_resolver
+from pyggnn.utils.resolve import activation_gain_resolver, activation_resolver
 
 
-__all__ = ["Dense"]
-
-GAIN_DICT = {
-    "sigmoid": "sigmoid",
-    "tanh": "tanh",
-    "relu": "relu",
-    "selu": "selu",
-    "leakyrelu": "leaky_relu",
-    "swish": "sigmoid",
-}
+__all__ = ["Dense", "ResidualBlock"]
 
 
 class Dense(nn.Linear):
@@ -41,18 +32,19 @@ class Dense(nn.Linear):
             out_dim (int): output dimension of tensor.
             bias (bool, optional): if `False`, the layer will not return an
                 additive bias. Defaults to `True`.
-            activation_name (str or `None`, optional): activation fucntion class
-                or activation fucntion name. Defaults to `None`.
-            weight_init (Callable, optional: Defaults to `nn.init.xavier_normal_`.
+            activation_name (str or nn.Module or `None`, optional): activation fucntion
+                class or activation fucntion name. Defaults to `None`.
+            weight_init (Callable, optional): Defaults to `nn.init.xavier_normal_`.
             bias_init (Callable, optional): Defaults to `nn.init.zeros_`.
         """
         self.activation_name = (
             "linear"
             if activation_name is None
-            else GAIN_DICT[activation_name_resolver(activation_name, **kwargs)]
+            else activation_gain_resolver(activation_name)
         )
         if self.activation_name == "leaky_relu":
-            self.negative_slope = kwargs["negative_slope"]
+            # if not set `negative_slople`, set default values of torch.nn.LeakyReLU
+            self.negative_slope = kwargs.get("negative_slope", 0.01)
         self.weight_init = weight_init
         if bias:
             assert bias_init is not None, "bias_init must not be None if set to bias"
@@ -76,10 +68,65 @@ class Dense(nn.Linear):
         forward calculation of Dense layer.
 
         Args:
-            x (torch.Tensor): input tensor.
+            x (torch.Tensor): input tensor shape of (* x in_dim).
 
         Returns:
-            torch.Tensor: Calculated tensor.
+            torch.Tensor: output tensor shape of (* x out_dim).
         """
         # compute linear layer y = xW^T + b
         return super().forward(x)
+
+
+class ResidualBlock(nn.Module):
+    """
+    The Blocks combining multiple Dense layers and ResNet.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        activation: Union[Any, str],
+        n_layers: int = 2,
+        **kwargs,
+    ):
+        """
+        Args:
+            hidden_dim (int): hidden dimension of the Dense layers.
+            activation (str): activation function of the Dense layers.
+            n_layers (int, optional): the number of Dense layers. Defaults to `2`.
+        """
+        super().__init__()
+        act = activation_resolver(activation, **kwargs)
+
+        denses = []
+        for _ in range(n_layers):
+            denses.append(
+                Dense(
+                    hidden_dim,
+                    hidden_dim,
+                    bias=True,
+                    activation_name=activation,
+                    **kwargs,
+                )
+            )
+            denses.append(act)
+        self.denses = nn.Sequential(*denses)
+
+        self.reset_parameters
+
+    def reset_parameters(self):
+        for ll in self.denses:
+            if hasattr(ll, "reset_parameters"):
+                ll.reset_parameters()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward caclulation of the residual block.
+
+        Args:
+            x (Tensor): input tensor shape of (* x hidden_dim).
+
+        Returns:
+            Tensor: output tensor shape of (* x hidden_dim).
+        """
+        return x + self.denses(x)
