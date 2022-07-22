@@ -46,7 +46,7 @@ class BaseGNN(nn.Module):
             - data_batch[DataKeys.Position][edge_src]
             + torch.einsum(
                 "ni,nij->nj",
-                data_batch[DataKeys.Edge_shift].float(),
+                data_batch[DataKeys.Edge_shift],
                 data_batch[DataKeys.Lattice][edge_batch],
             )
         )
