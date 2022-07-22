@@ -54,7 +54,7 @@ class GraphLoader(torch.utils.data.DataLoader):
         device: torch.device = torch.device("cpu"),
         **kwargs,
     ):
-        if kwargs.get("collate_fn") is None:
+        if kwargs.get("collate_fn") is not None:
             del kwargs["collate_fn"]
 
         super().__init__(
