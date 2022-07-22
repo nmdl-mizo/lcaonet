@@ -26,7 +26,6 @@ class Collater:
             )
             # shift the index of the edge
             edge_ind = b[DataKeys.Edge_index] + edge_ind_max
-            print(edge_ind.shape)
             # update all keys
             for k, v in b:
                 if k == DataKeys.Edge_index:
@@ -34,10 +33,11 @@ class Collater:
                         datas[k] = edge_ind
                     else:
                         datas[k] = torch.cat([datas[k], edge_ind], dim=1)
-                if datas.get(k) is None:
-                    datas[k] = v
                 else:
-                    datas[k] = torch.cat([datas[k], v], dim=0)
+                    if datas.get(k) is None:
+                        datas[k] = v
+                    else:
+                        datas[k] = torch.cat([datas[k], v], dim=0)
             n_batch += 1
             edge_ind_max += n_node
         # add batch index
