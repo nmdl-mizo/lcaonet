@@ -8,6 +8,7 @@ from torch_scatter import scatter
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.rbf import BesselRBF
 from pyggnn.nn.abf import BesselSBF
+from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
 from pyggnn.nn.edge_embed import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.out import Edge2NodeProperty
@@ -203,12 +204,12 @@ class DimeNet(BaseGNN):
         # layers
         self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
         self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
-        self.embed_block = EdgeEmbed(
+        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_z)
+        self.edge_embed = EdgeEmbed(
             node_dim,
             edge_dim,
             n_radial,
             activation,
-            max_z,
             **kwargs,
         )
         if share_weight:
@@ -257,7 +258,8 @@ class DimeNet(BaseGNN):
 
     def reset_parameters(self):
         self.rbf.reset_parameters()
-        self.embed_block.reset_parameters()
+        self.node_embed.reset_parameters()
+        self.edge_embed.reset_parameters()
         for ib in self.interaction_blocks:
             ib.reset_parameters()
         for ob in self.output_blocks:
@@ -286,12 +288,13 @@ class DimeNet(BaseGNN):
         a = (pos_ji * pos_kj).sum(dim=-1)
         b = torch.cross(pos_ji, pos_kj).norm(dim=-1)
         angle = torch.atan2(b, a)
-        # expand by radial and sperical basis
+        # expand by radial and spherical basis
         rbf = self.rbf(distances)
         sbf = self.sbf(distances, angle, edge_idx_kj)
 
         # embedding
-        x = self.embed_block(atomic_numbers, rbf, idx_i, idx_j)
+        x = self.node_embed(atomic_numbers)
+        x = self.edge_embed(x, rbf, idx_i, idx_j)
         out = self.output_blocks[0](x, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
         # interaction
