@@ -228,7 +228,7 @@ class List2GraphDataset(BaseGraphDataset):
 
     def __getitem__(self, idx):
         atoms = self.atoms_list[idx]
-        geometric_data = self._atom2geometricdata(atoms)
+        geometric_data = self._atoms2geometricdata(atoms)
         # add properties
         if self.property_names is not None:
             for k in self.property_names:
