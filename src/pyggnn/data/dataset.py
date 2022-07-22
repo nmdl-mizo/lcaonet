@@ -51,15 +51,17 @@ class BaseGraphDataset(torch.utils.data.Dataset):
             cutoff=self.cutoff_radi,
             self_interaction=False,
         )
-        # TODO: set data key names
         data = Data(
-            pos=torch.tensor(atoms.get_positions()),
-            lattice=torch.tensor(atoms.cell.array).unsqueeze(0),
-            atom_numbers=torch.tensor(atoms.numbers),
             edge_index=torch.stack(
                 [torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0
             ),
-            edge_shift=torch.tensor(edge_shift, dtype=torch.float64),
+        )
+        data[DataKeys.Position] = torch.tensor(atoms.get_positions())
+        data[DataKeys.Atomic_num] = torch.tensor(atoms.numbers)
+        # add batch dimension
+        data[DataKeys.Lattice] = torch.tensor(atoms.cell.array).unsqueeze(0)
+        data[DataKeys.Edge_shift] = torch.tensor(
+            edge_shift, dtype=torch.get_default_dtype()
         )
         return data
 
