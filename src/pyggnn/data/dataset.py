@@ -47,7 +47,6 @@ class BaseGraphDataset(torch.utils.data.Dataset):
         """
         # for edge_shift
         default_dtype = torch.float64
-        torch.set_default_dtype(default_dtype)
         edge_src, edge_dst, edge_shift = ase.neighborlist.neighbor_list(
             "ijS",
             a=atoms,
