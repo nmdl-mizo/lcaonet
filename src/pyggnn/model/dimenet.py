@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch_scatter import scatter
 
 from pyggnn.model.base import BaseGNN
-from pyggnn.nn.basis import BesselRB
+from pyggnn.nn.rbf import BesselRBF
 from pyggnn.nn.abf import BesselSBF
 from pyggnn.nn.embedding import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
@@ -201,7 +201,7 @@ class DimeNet(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.aggr = aggr
         # layers
-        self.rbf = BesselRB(n_radial, cutoff_radi, envelope_exponent)
+        self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
         self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
         self.embed_block = EdgeEmbed(
             node_dim,

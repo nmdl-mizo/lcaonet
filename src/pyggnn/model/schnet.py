@@ -7,7 +7,7 @@ from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.cutoff import CosineCutoff
 from pyggnn.nn.embedding import AtomicNum2NodeEmbed
-from pyggnn.nn.basis import GaussianRB
+from pyggnn.nn.rbf import GaussianRBF
 from pyggnn.nn.conv.schnet_conv import SchNetConv
 from pyggnn.nn.out import Node2Property2
 
@@ -84,7 +84,7 @@ class SchNet(BaseGNN):
         self.scaler = scaler
         # layers
         self.node_initialize = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
-        self.edge_rbf = GaussianRB(start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian)
+        self.edge_rbf = GaussianRBF(start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian)
 
         if share_weight:
             self.convs = nn.ModuleList(
