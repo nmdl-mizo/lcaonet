@@ -87,7 +87,6 @@ class ResidualBlock(nn.Module):
         hidden_dim: int,
         activation: Union[Any, str],
         n_layers: int = 2,
-        last_act: bool = True,
         **kwargs,
     ):
         """
@@ -95,14 +94,13 @@ class ResidualBlock(nn.Module):
             hidden_dim (int): hidden dimension of the Dense layers.
             activation (str): activation function of the Dense layers.
             n_layers (int, optional): the number of Dense layers. Defaults to `2`.
-            last_act (bool, optional): Defaults to `True`.
         """
         super().__init__()
         act = activation_resolver(activation, **kwargs)
 
-        lins = []
-        for _ in range(n_layers - 1):
-            lins.append(
+        denses = []
+        for _ in range(n_layers):
+            denses.append(
                 Dense(
                     hidden_dim,
                     hidden_dim,
@@ -111,21 +109,8 @@ class ResidualBlock(nn.Module):
                     **kwargs,
                 )
             )
-            lins.append(act)
-        if last_act:
-            lins.append(
-                Dense(
-                    hidden_dim,
-                    hidden_dim,
-                    bias=True,
-                    activation_name=activation,
-                    **kwargs,
-                )
-            )
-            lins.append(act)
-        else:
-            lins.append(Dense(hidden_dim, hidden_dim, bias=True))
-        self.denses = nn.Sequential(*lins)
+            denses.append(act)
+        self.denses = nn.Sequential(*denses)
 
         self.reset_parameters
 
