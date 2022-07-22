@@ -37,7 +37,7 @@ class Collater:
                     if datas.get(k) is None:
                         datas[k] = v
                     else:
-                        datas[k] = torch.cat([datas[k], v], dim=0)
+                        datas[k] = torch.cat([datas[k], v], dim=0).to(datas[k].dtype)
             n_batch += 1
             edge_ind_max += n_node
         # add batch index
