@@ -5,7 +5,7 @@ from torch import Tensor
 
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
-from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
+from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.conv.egnn_conv import EGNNConv
 from pyggnn.nn.node_out import Node2Prop1
 
@@ -71,7 +71,7 @@ class EGNN(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
         # layers
-        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
+        self.node_embed = AtomicNum2Node(node_dim, max_num=max_z)
 
         if share_weight:
             self.convs = nn.ModuleList(

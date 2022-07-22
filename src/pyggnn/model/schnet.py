@@ -6,7 +6,7 @@ import torch.nn as nn
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.cutoff import CosineCutoff
-from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
+from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.rbf import GaussianRBF
 from pyggnn.nn.conv.schnet_conv import SchNetConv
 from pyggnn.nn.node_out import Node2Prop2
@@ -83,7 +83,7 @@ class SchNet(BaseGNN):
         self.out_dim = out_dim
         self.scaler = scaler
         # layers
-        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
+        self.node_embed = AtomicNum2Node(node_dim, max_num=max_z)
         self.rbf = GaussianRBF(start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian)
 
         if share_weight:

@@ -4,10 +4,10 @@ import math
 from torch import Tensor
 import torch.nn as nn
 
-__all__ = ["AtomicNum2NodeEmbed"]
+__all__ = ["AtomicNum2Node"]
 
 
-class AtomicNum2NodeEmbed(nn.Embedding):
+class AtomicNum2Node(nn.Embedding):
     """
     The block to calculate initial node embeddings.
     Convert atomic numbers to a vector of arbitrary dimension.
