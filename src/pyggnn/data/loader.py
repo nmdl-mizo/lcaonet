@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 import torch
 import torch_geometric
@@ -47,14 +47,28 @@ class Collater:
 
 
 class GraphLoader(torch.utils.data.DataLoader):
+    """
+    Combines a Graphdataset or list of Dataset, and provides an iterable over the given
+    dataset.
+    """
+
     def __init__(
         self,
-        dataset: BaseGraphDataset,
+        dataset: Union[BaseGraphDataset, List[torch_geometric.data.Dataset]],
         batch_size: int = 1,
         shuffle: bool = False,
         device: torch.device = torch.device("cpu"),
         **kwargs,
     ):
+        """
+        Args:
+            dataset (BaseGraphDataset or List of torch_geometric.data.Dataset): dataset.
+            batch_size (int, optional): batch size. Defaults to 1.
+            shuffle (bool, optional): set to `True` to have the data reshuffled at every
+                epoch. Defaults to False.
+            device (torch.device, optional): device of dataset.
+                Defaults to `torch.device("cpu")`.
+        """
         if kwargs.get("collate_fn") is not None:
             del kwargs["collate_fn"]
 
