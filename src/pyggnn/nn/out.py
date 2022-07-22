@@ -15,7 +15,7 @@ __all__ = ["Node2Property1", "Node2Property2", "Edge2NodeProperty"]
 class Node2Property1(nn.Module):
     """
     The block to compute the global graph proptery from node embeddings.
-    In this block, after aggregation, two more FNNs are used to deform embeddings.
+    In this block, after aggregation, two more Dense layers are calculated.
     This block is used in EGNN.
     """
 
@@ -48,7 +48,7 @@ class Node2Property1(nn.Module):
             act,
             Dense(hidden_dim, hidden_dim, bias=True),
         )
-        self.predict = nn.Sequential(
+        self.output = nn.Sequential(
             Dense(
                 hidden_dim,
                 hidden_dim,
@@ -66,7 +66,7 @@ class Node2Property1(nn.Module):
         for layer in self.node_transform:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
-        for layer in self.predict:
+        for layer in self.output:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
 
@@ -75,22 +75,22 @@ class Node2Property1(nn.Module):
         Compute global property from node embeddings.
 
         Args:
-            x (Tensor): node embeddings shape of (num_node x in_dim).
+            x (Tensor): node embeddings shape of (n_node x in_dim).
             batch (Tensor, optional): batch index. Defaults to `None`.
 
         Returns:
-            Tensor: shape of (num_batch x out_dim).
+            Tensor: shape of (n_batch x out_dim).
         """
         out = self.node_transform(x)
         out = scatter(out, index=batch, dim=0, reduce=self.aggr)
-        return self.predict(out)
+        return self.output(out)
 
 
 class Node2Property2(nn.Module):
     """
     The block to compute the global graph proptery from node embeddings.
-    This block contains two FNN layers and aggregation block.
-    If set `scler`, scaling process before aggregation.
+    This block contains two Dense layers and aggregation block.
+    If set `scaler`, scaling process before aggregation.
     This block is used in SchNet.
     """
 
@@ -123,7 +123,7 @@ class Node2Property2(nn.Module):
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
-        self.predict = nn.Sequential(
+        self.output = nn.Sequential(
             Dense(in_dim, hidden_dim, bias=True, activation_name=activation, **kwargs),
             act,
             Dense(hidden_dim, out_dim, bias=False),
@@ -140,7 +140,7 @@ class Node2Property2(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        for layer in self.predict:
+        for layer in self.output:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
 
@@ -149,13 +149,13 @@ class Node2Property2(nn.Module):
         Compute global property from node embeddings.
 
         Args:
-            x (Tensor): node embeddings shape of (num_node x in_dim).
+            x (Tensor): node embeddings shape of (n_node x in_dim).
             batch (Tensor, optional): batch index. Defaults to `None`.
 
         Returns:
-            Tensor: shape of (num_batch x out_dim).
+            Tensor: shape of (n_batch x out_dim).
         """
-        out = self.predict(x)
+        out = self.output(x)
         if self.scaler is not None:
             out = self.scaler(out)
         return scatter(out, index=batch, dim=0, reduce=self.aggr)
@@ -164,7 +164,7 @@ class Node2Property2(nn.Module):
 class Edge2NodeProperty(nn.Module):
     """
     The block to compute the node-wise proptery from edge embeddings.
-    This block contains FNN layers and aggregation block of all neighbor.
+    This block contains some Dense layers and aggregation block of all neighbors.
     This block is used in Dimenet.
     """
 
@@ -183,10 +183,10 @@ class Edge2NodeProperty(nn.Module):
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
-        self.rbf_lin = Dense(n_radial, hidden_dim, bias=False)
-        lins = []
+        self.rbf_dense = Dense(n_radial, hidden_dim, bias=False)
+        denses = []
         for _ in range(n_layers):
-            lins.append(
+            denses.append(
                 Dense(
                     hidden_dim,
                     hidden_dim,
@@ -195,14 +195,15 @@ class Edge2NodeProperty(nn.Module):
                     **kwargs,
                 )
             )
-            lins.append(act)
-        lins.append(Dense(hidden_dim, out_dim, bias=False))
-        self.lins = nn.Sequential(*lins)
+            denses.append(act)
+        denses.append(Dense(hidden_dim, out_dim, bias=False))
+        self.denses = nn.Sequential(*denses)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        for ll in self.lins:
+        self.rbf_dense.reset_parameters()
+        for ll in self.denses:
             if hasattr(ll, "reset_parameters"):
                 ll.reset_parameters()
 
@@ -217,15 +218,15 @@ class Edge2NodeProperty(nn.Module):
         Compute node-wise property from edge embeddings.
 
         Args:
-            x (Tensor): edge embedding shape of (num_edge x hidden_dim).
-            rbf (Tensor): radial basis function shape of (num_node x n_radial).
-            idx_i (torch.LongTensor): node index center atom i shape of (num_edge).
+            x (Tensor): edge embedding shape of (n_edge x hidden_dim).
+            rbf (Tensor): radial basis function shape of (n_node x n_radial).
+            idx_i (torch.LongTensor): node index center atom i shape of (n_edge).
             num_nodes (Optional[int], optional): number of edge. Defaults to `None`.
 
         Returns:
-            Tensor: node-wise properties shape of (num_node x out_dim).
+            Tensor: node-wise properties shape of (n_node x out_dim).
         """
-        x = self.rbf_lin(rbf) * x
+        x = self.rbf_dense(rbf) * x
         # add all neighbor atoms
         x = scatter(x, idx_i, dim=0, dim_size=num_nodes, reduce=self.aggr)
-        return self.lins(x)
+        return self.denses(x)
