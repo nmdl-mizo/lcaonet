@@ -82,6 +82,7 @@ class EdgeEmbed(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+        self.node_embed.reset_parameters()
         self.rbf_lin.reset_parameters()
         for ee in self.edge_embed:
             if hasattr(ee, "reset_parameters"):
