@@ -125,12 +125,12 @@ class ResidualBlock(nn.Module):
             lins.append(act)
         else:
             lins.append(Dense(hidden_dim, hidden_dim, bias=True))
-        self.lins = nn.Sequential(*lins)
+        self.denses = nn.Sequential(*lins)
 
         self.reset_parameters
 
     def reset_parameters(self):
-        for ll in self.lins:
+        for ll in self.denses:
             if hasattr(ll, "reset_parameters"):
                 ll.reset_parameters()
 
@@ -144,4 +144,4 @@ class ResidualBlock(nn.Module):
         Returns:
             Tensor: output tensor shape of (* x hidden_dim).
         """
-        return x + self.lins(x)
+        return x + self.denses(x)
