@@ -8,8 +8,7 @@ from torch_scatter import scatter
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.basis import BesselRB, BesselSB
 from pyggnn.nn.embedding import EdgeEmbed
-from pyggnn.nn.base import Dense
-from pyggnn.nn.residual import ResidualBlock
+from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.out import Edge2NodeProperty
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.utils.resolve import activation_resolver
