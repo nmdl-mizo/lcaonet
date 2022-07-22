@@ -316,6 +316,8 @@ class DimeNet(BaseGNN):
             f"{self.__class__.__name__}("
             f"node_dim={self.node_dim}, "
             f"edge_dim={self.edge_dim}, "
+            f"n_radial={self.n_radial}, "
+            f"n_spherical={self.n_spherical}, "
             f"n_interaction={self.n_interaction}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"

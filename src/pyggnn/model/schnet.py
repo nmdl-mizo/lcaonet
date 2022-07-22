@@ -163,6 +163,7 @@ class SchNet(BaseGNN):
             f"{self.__class__.__name__}("
             f"node_dim={self.node_dim}, "
             f"edge_dim={self.edge_dim}, "
+            f"n_gaussian={self.n_gaussian}, "
             f"n_conv_layer={self.n_conv_layer}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
