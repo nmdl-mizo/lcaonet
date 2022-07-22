@@ -6,7 +6,8 @@ import torch.nn as nn
 from torch_scatter import scatter
 
 from pyggnn.model.base import BaseGNN
-from pyggnn.nn.basis import BesselRB, BesselSB
+from pyggnn.nn.basis import BesselRB
+from pyggnn.nn.abf import BesselSBF
 from pyggnn.nn.embedding import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.out import Edge2NodeProperty
@@ -30,11 +31,11 @@ class InteractionBlock(nn.Module):
         super().__init__()
         act = activation_resolver(activation, **kwargs)
 
-        self.rbf_lin = Dense(n_radial, hidden_dim, bias=False)
-        self.sbf_lin = Dense(n_spherical * n_radial, n_bilinear, bias=False)
+        self.rbf_dense = Dense(n_radial, hidden_dim, bias=False)
+        self.sbf_dense = Dense(n_spherical * n_radial, n_bilinear, bias=False)
 
         # Dense transformations of input messages.
-        self.lin_kj = nn.Sequential(
+        self.kj_dense = nn.Sequential(
             Dense(
                 hidden_dim,
                 hidden_dim,
@@ -44,7 +45,7 @@ class InteractionBlock(nn.Module):
             ),
             act,
         )
-        self.lin_ji = nn.Sequential(
+        self.ji_dense = nn.Sequential(
             Dense(
                 hidden_dim,
                 hidden_dim,
@@ -78,12 +79,12 @@ class InteractionBlock(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.rbf_lin.reset_parameters()
-        self.sbf_lin.reset_parameters()
-        for layer in self.lin_kj:
+        self.rbf_dense.reset_parameters()
+        self.sbf_dense.reset_parameters()
+        for layer in self.kj_dense:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
-        for layer in self.lin_ji:
+        for layer in self.ji_dense:
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
         self.bilinear.reset_parameters()
@@ -120,11 +121,11 @@ class InteractionBlock(nn.Module):
             Tensor: upadated edge message embedding shape of (num_edge x hidden_dim).
         """
         # linear transformation of basis
-        rbf = self.rbf_lin(rbf)
-        sbf = self.sbf_lin(sbf)
+        rbf = self.rbf_dense(rbf)
+        sbf = self.sbf_dense(sbf)
         # linear transformation of input messages
-        x_ji = self.lin_ji(x)
-        x_kj = self.lin_kj(x)
+        x_ji = self.ji_dense(x)
+        x_kj = self.kj_dense(x)
         # apply rbf and sbf to input messages
         x_kj = x_kj * rbf
         x_kj = self.bilinear(sbf, x_kj[edge_idx_kj])
@@ -201,7 +202,7 @@ class DimeNet(BaseGNN):
         self.aggr = aggr
         # layers
         self.rbf = BesselRB(n_radial, cutoff_radi, envelope_exponent)
-        self.sbf = BesselSB(n_spherical, n_radial, cutoff_radi, envelope_exponent)
+        self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
         self.embed_block = EdgeEmbed(
             node_dim,
             edge_dim,
