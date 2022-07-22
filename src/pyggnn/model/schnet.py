@@ -9,7 +9,7 @@ from pyggnn.nn.cutoff import CosineCutoff
 from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
 from pyggnn.nn.rbf import GaussianRBF
 from pyggnn.nn.conv.schnet_conv import SchNetConv
-from pyggnn.nn.out import Node2Property2
+from pyggnn.nn.node_out import Node2Prop2
 
 __all__ = ["SchNet"]
 
@@ -83,8 +83,8 @@ class SchNet(BaseGNN):
         self.out_dim = out_dim
         self.scaler = scaler
         # layers
-        self.node_initialize = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
-        self.edge_rbf = GaussianRBF(start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian)
+        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
+        self.rbf = GaussianRBF(start=0.0, stop=cutoff_radi, n_gaussian=n_gaussian)
 
         if share_weight:
             self.convs = nn.ModuleList(
@@ -121,7 +121,7 @@ class SchNet(BaseGNN):
                 ]
             )
 
-        self.output = Node2Property2(
+        self.output = Node2Prop2(
             in_dim=node_dim,
             hidden_dim=hidden_dim,
             out_dim=out_dim,
@@ -136,7 +136,7 @@ class SchNet(BaseGNN):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.node_initialize.reset_parameters()
+        self.node_embed.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
         self.output.reset_parameters()
@@ -148,9 +148,9 @@ class SchNet(BaseGNN):
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # expand with Gaussian radial basis
-        edge_basis = self.edge_rbf(distances)
+        edge_basis = self.rbf(distances)
         # initial embedding
-        x = self.node_initialize(atomic_numbers)
+        x = self.node_embed(atomic_numbers)
         # convolution
         for conv in self.convs:
             x = conv(x, distances, edge_basis, edge_index)

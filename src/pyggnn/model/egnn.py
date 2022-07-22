@@ -7,7 +7,7 @@ from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
 from pyggnn.nn.conv.egnn_conv import EGNNConv
-from pyggnn.nn.out import Node2Property1
+from pyggnn.nn.node_out import Node2Prop1
 
 __all__ = ["EGNN"]
 
@@ -71,7 +71,7 @@ class EGNN(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
         # layers
-        self.node_initialize = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
+        self.node_embed = AtomicNum2NodeEmbed(node_dim, max_num=max_z)
 
         if share_weight:
             self.convs = nn.ModuleList(
@@ -112,7 +112,7 @@ class EGNN(BaseGNN):
                 ]
             )
 
-        self.output = Node2Property1(
+        self.output = Node2Prop1(
             in_dim=node_dim,
             hidden_dim=hidden_dim,
             out_dim=out_dim,
@@ -124,7 +124,7 @@ class EGNN(BaseGNN):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.node_initialize.reset_parameters()
+        self.node_embed.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
         self.output.reset_parameters()
@@ -137,7 +137,7 @@ class EGNN(BaseGNN):
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # initial embedding
-        x = self.node_initialize(atomic_numbers)
+        x = self.node_embed(atomic_numbers)
         # convolution
         for conv in self.convs:
             x = conv(x, distances, edge_index, edge_attr)

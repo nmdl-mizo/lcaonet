@@ -4,6 +4,6 @@ from .base import *
 from .cutoff import *
 from .edge_embed import *
 from .node_embed import *
-from .out import *
+from .node_out import *
 from .rbf import *
 from .scale import *
