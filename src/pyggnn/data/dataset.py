@@ -45,6 +45,9 @@ class BaseGraphDataset(torch.utils.data.Dataset):
         Returns:
             data: torch_geometric.Data
         """
+        # for edge_shift
+        default_dtype = torch.float64
+        torch.set_default_dtype(default_dtype)
         edge_src, edge_dst, edge_shift = ase.neighborlist.neighbor_list(
             "ijS",
             a=atoms,
@@ -60,9 +63,7 @@ class BaseGraphDataset(torch.utils.data.Dataset):
         data[DataKeys.Atomic_num] = torch.tensor(atoms.numbers)
         # add batch dimension
         data[DataKeys.Lattice] = torch.tensor(atoms.cell.array).unsqueeze(0)
-        data[DataKeys.Edge_shift] = torch.tensor(
-            edge_shift, dtype=torch.get_default_dtype()
-        )
+        data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=default_dtype)
         return data
 
     def _set_properties(self, data, k: str, v: Union[int, float, ndarray, torch.Tensor]):
