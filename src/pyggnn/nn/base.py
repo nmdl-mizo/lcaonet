@@ -4,10 +4,10 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from pyggnn.utils.resolve import activation_gain_resolver
+from pyggnn.utils.resolve import activation_gain_resolver, activation_resolver
 
 
-__all__ = ["Dense"]
+__all__ = ["Dense", "ResidualBlock"]
 
 
 class Dense(nn.Linear):
@@ -32,8 +32,8 @@ class Dense(nn.Linear):
             out_dim (int): output dimension of tensor.
             bias (bool, optional): if `False`, the layer will not return an
                 additive bias. Defaults to `True`.
-            activation_name (str or `None`, optional): activation fucntion class
-                or activation fucntion name. Defaults to `None`.
+            activation_name (str or nn.Module or `None`, optional): activation fucntion
+                class or activation fucntion name. Defaults to `None`.
             weight_init (Callable, optional): Defaults to `nn.init.xavier_normal_`.
             bias_init (Callable, optional): Defaults to `nn.init.zeros_`.
         """
@@ -75,3 +75,73 @@ class Dense(nn.Linear):
         """
         # compute linear layer y = xW^T + b
         return super().forward(x)
+
+
+class ResidualBlock(nn.Module):
+    """
+    The Blocks combining multiple Dense layers and ResNet.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        activation: Union[Any, str],
+        n_layers: int = 2,
+        last_act: bool = True,
+        **kwargs,
+    ):
+        """
+        Args:
+            hidden_dim (int): hidden dimension of the Dense layers.
+            activation (str): activation function of the Dense layers.
+            n_layers (int, optional): the number of Dense layers. Defaults to `2`.
+            last_act (bool, optional): Defaults to `True`.
+        """
+        super().__init__()
+        act = activation_resolver(activation, **kwargs)
+
+        lins = []
+        for _ in range(n_layers - 1):
+            lins.append(
+                Dense(
+                    hidden_dim,
+                    hidden_dim,
+                    bias=True,
+                    activation_name=activation,
+                    **kwargs,
+                )
+            )
+            lins.append(act)
+        if last_act:
+            lins.append(
+                Dense(
+                    hidden_dim,
+                    hidden_dim,
+                    bias=True,
+                    activation_name=activation,
+                    **kwargs,
+                )
+            )
+            lins.append(act)
+        else:
+            lins.append(Dense(hidden_dim, hidden_dim, bias=True))
+        self.lins = nn.Sequential(*lins)
+
+        self.reset_parameters
+
+    def reset_parameters(self):
+        for ll in self.lins:
+            if hasattr(ll, "reset_parameters"):
+                ll.reset_parameters()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward caclulation of the residual block.
+
+        Args:
+            x (Tensor): input tensor shape of (* x hidden_dim).
+
+        Returns:
+            Tensor: output tensor shape of (* x hidden_dim).
+        """
+        return x + self.lins(x)
