@@ -6,7 +6,7 @@ import torch.nn as nn
 from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.cutoff import CosineCutoff
-from pyggnn.nn.embedding import AtomicNum2NodeEmbed
+from pyggnn.nn.node_embed import AtomicNum2NodeEmbed
 from pyggnn.nn.rbf import GaussianRBF
 from pyggnn.nn.conv.schnet_conv import SchNetConv
 from pyggnn.nn.out import Node2Property2
