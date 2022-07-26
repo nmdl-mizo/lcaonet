@@ -1,6 +1,11 @@
 import torch
 from torch import Tensor
 import torch.nn as nn
+import sympy as sym
+from torch_geometric.nn.models.dimenet_utils import (
+    bessel_basis,
+    real_sph_harm,
+)
 
 from pyggnn.nn.cutoff import EnvelopeCutoff
 
@@ -28,11 +33,6 @@ class BesselSBF(nn.Module):
                 Defaults to `5`.
         """
         super().__init__()
-        import sympy as sym
-        from torch_geometric.nn.models.dimenet_utils import (
-            bessel_basis,
-            real_sph_harm,
-        )
 
         assert n_radial <= 64, "n_radial must be under 64"
         self.n_radial = n_radial
