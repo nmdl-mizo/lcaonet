@@ -6,7 +6,7 @@ from torch.nn.init import calculate_gain
 
 from pyggnn.nn.activation import ShiftedSoftplus, Swish
 
-__all__ = ["activation_resolver", "activation_gain_resolver"]
+__all__ = ["activation_resolver", "activation_gain_resolver", "init_resolver"]
 
 
 def _normalize_string(s: str) -> str:
