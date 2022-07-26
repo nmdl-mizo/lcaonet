@@ -31,7 +31,7 @@ class SchNet(BaseGNN):
     def __init__(
         self,
         node_dim: int,
-        edge_dim: int,
+        edge_filter_dim: int,
         n_conv_layer: int,
         out_dim: int,
         n_gaussian: int,
@@ -50,7 +50,7 @@ class SchNet(BaseGNN):
         """
         Args:
             node_dim (int): node embedding dimension.
-            edge_dim (int): edge filter embedding dimension.
+            edge_filter_dim (int): edge filter embedding dimension.
             n_conv_layer (int): number of convolution layers.
             out_dim (int): output dimension.
             n_gaussian (int): number of gaussian radial basis.
@@ -76,7 +76,7 @@ class SchNet(BaseGNN):
         """
         super().__init__()
         self.node_dim = node_dim
-        self.edge_dim = edge_dim
+        self.edge_filter_dim = edge_filter_dim
         self.n_conv_layer = n_conv_layer
         self.n_gaussian = n_gaussian
         self.cutoff_radi = cutoff_radi
@@ -90,8 +90,8 @@ class SchNet(BaseGNN):
             self.convs = nn.ModuleList(
                 [
                     SchNetConv(
-                        x_dim=node_dim,
-                        edge_dim=edge_dim,
+                        node_dim=node_dim,
+                        edge_dim=edge_filter_dim,
                         n_gaussian=n_gaussian,
                         activation=activation,
                         node_hidden=hidden_dim,
@@ -107,8 +107,8 @@ class SchNet(BaseGNN):
             self.convs = nn.ModuleList(
                 [
                     SchNetConv(
-                        x_dim=node_dim,
-                        edge_dim=edge_dim,
+                        node_dim=node_dim,
+                        edge_dim=edge_filter_dim,
                         n_gaussian=n_gaussian,
                         activation=activation,
                         node_hidden=hidden_dim,
@@ -162,9 +162,10 @@ class SchNet(BaseGNN):
         return (
             f"{self.__class__.__name__}("
             f"node_dim={self.node_dim}, "
-            f"edge_dim={self.edge_dim}, "
+            f"edge_filter_dim={self.edge_filter_dim}, "
             f"n_gaussian={self.n_gaussian}, "
             f"n_conv_layer={self.n_conv_layer}, "
+            f"convolution:{self.convs[0].__class__.__name__}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
         )

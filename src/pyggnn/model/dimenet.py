@@ -22,7 +22,7 @@ __all__ = ["DimeNet"]
 class InteractionBlock(nn.Module):
     def __init__(
         self,
-        hidden_dim: int,
+        edge_message_dim: int,
         n_radial: int,
         n_spherical: int,
         n_bilinear: int,
@@ -32,14 +32,14 @@ class InteractionBlock(nn.Module):
         super().__init__()
         act = activation_resolver(activation, **kwargs)
 
-        self.rbf_dense = Dense(n_radial, hidden_dim, bias=False)
+        self.rbf_dense = Dense(n_radial, edge_message_dim, bias=False)
         self.sbf_dense = Dense(n_spherical * n_radial, n_bilinear, bias=False)
 
         # Dense transformations of input messages.
         self.kj_dense = nn.Sequential(
             Dense(
-                hidden_dim,
-                hidden_dim,
+                edge_message_dim,
+                edge_message_dim,
                 bias=True,
                 activation_name=activation,
                 **kwargs,
@@ -48,8 +48,8 @@ class InteractionBlock(nn.Module):
         )
         self.ji_dense = nn.Sequential(
             Dense(
-                hidden_dim,
-                hidden_dim,
+                edge_message_dim,
+                edge_message_dim,
                 bias=True,
                 activation_name=activation,
                 **kwargs,
@@ -58,14 +58,16 @@ class InteractionBlock(nn.Module):
         )
 
         # conbine rbf and sbf information
-        self.bilinear = nn.Bilinear(n_bilinear, hidden_dim, hidden_dim, bias=False)
+        self.bilinear = nn.Bilinear(
+            n_bilinear, edge_message_dim, edge_message_dim, bias=False
+        )
 
         # resnets
         self.res_before_skip = nn.Sequential(
-            ResidualBlock(hidden_dim, activation=activation, **kwargs),
+            ResidualBlock(edge_message_dim, activation=activation, **kwargs),
             Dense(
-                hidden_dim,
-                hidden_dim,
+                edge_message_dim,
+                edge_message_dim,
                 bias=True,
                 activation_name=activation,
                 **kwargs,
@@ -73,8 +75,8 @@ class InteractionBlock(nn.Module):
             act,
         )
         self.res_after_skip = nn.Sequential(
-            ResidualBlock(hidden_dim, activation=activation, **kwargs),
-            ResidualBlock(hidden_dim, activation=activation, **kwargs),
+            ResidualBlock(edge_message_dim, activation=activation, **kwargs),
+            ResidualBlock(edge_message_dim, activation=activation, **kwargs),
         )
 
         self.reset_parameters()
@@ -156,8 +158,7 @@ class DimeNet(BaseGNN):
 
     def __init__(
         self,
-        node_dim: int,
-        edge_dim: int,
+        edge_message_dim: int,
         n_interaction: int,
         out_dim: int,
         n_radial: int,
@@ -173,8 +174,7 @@ class DimeNet(BaseGNN):
     ):
         """
         Args:
-            node_dim (int): node embedding dimension.
-            edge_dim (int): edge message embedding dimension.
+            edge_messag_dim (int): edge message embedding dimension.
             n_interaction (int): number of interaction layers.
             out_dim (int): output dimension.
             n_radial (int): number of radial basis function.
@@ -192,8 +192,7 @@ class DimeNet(BaseGNN):
             max_z (int, optional): max atomic number. Defaults to `100`.
         """
         super().__init__()
-        self.node_dim = node_dim
-        self.edge_dim = edge_dim
+        self.edge_message_dim = edge_message_dim
         self.n_interaction = n_interaction
         self.out_dim = out_dim
         self.n_radial = n_radial
@@ -202,10 +201,10 @@ class DimeNet(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.aggr = aggr
         # layers
-        self.node_embed = AtomicNum2Node(node_dim, max_z)
+        self.node_embed = AtomicNum2Node(edge_message_dim, max_z)
         self.edge_embed = EdgeEmbed(
-            node_dim,
-            edge_dim,
+            edge_message_dim,
+            edge_message_dim,
             n_radial,
             activation,
             **kwargs,
@@ -217,7 +216,7 @@ class DimeNet(BaseGNN):
             self.interaction_blocks = nn.ModuleList(
                 [
                     InteractionBlock(
-                        hidden_dim=edge_dim,
+                        hidden_dim=edge_message_dim,
                         n_radial=n_radial,
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
@@ -231,7 +230,7 @@ class DimeNet(BaseGNN):
             self.interaction_blocks = nn.ModuleList(
                 [
                     InteractionBlock(
-                        hidden_dim=edge_dim,
+                        hidden_dim=edge_message_dim,
                         n_radial=n_radial,
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
@@ -245,7 +244,7 @@ class DimeNet(BaseGNN):
         self.output_blocks = nn.ModuleList(
             [
                 Edge2NodeProp(
-                    edge_dim=edge_dim,
+                    edge_dim=edge_message_dim,
                     n_radial=n_radial,
                     out_dim=out_dim,
                     activation=activation,
@@ -314,11 +313,11 @@ class DimeNet(BaseGNN):
     def __repr__(self):
         return (
             f"{self.__class__.__name__}("
-            f"node_dim={self.node_dim}, "
-            f"edge_dim={self.edge_dim}, "
+            f"edge_message_dim={self.edge_message_dim}, "
             f"n_radial={self.n_radial}, "
             f"n_spherical={self.n_spherical}, "
             f"n_interaction={self.n_interaction}, "
+            f"interaction blocks:{self.interaction_blocks[0].__class__.__name__}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
         )

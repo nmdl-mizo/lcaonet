@@ -77,7 +77,7 @@ class EGNN(BaseGNN):
             self.convs = nn.ModuleList(
                 [
                     EGNNConv(
-                        x_dim=node_dim,
+                        node_dim=node_dim,
                         edge_dim=edge_dim,
                         activation=activation,
                         edge_attr_dim=edge_attr_dim,
@@ -96,7 +96,7 @@ class EGNN(BaseGNN):
             self.convs = nn.ModuleList(
                 [
                     EGNNConv(
-                        x_dim=node_dim,
+                        node_dim=node_dim,
                         edge_dim=edge_dim,
                         activation=activation,
                         edge_attr_dim=edge_attr_dim,
@@ -151,6 +151,7 @@ class EGNN(BaseGNN):
             f"node_dim={self.node_dim}, "
             f"edge_dim={self.edge_dim}, "
             f"n_conv_layer={self.n_conv_layer}, "
+            f"convolution:{self.convs[0].__class__.__name__}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
         )
