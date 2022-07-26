@@ -216,7 +216,7 @@ class DimeNet(BaseGNN):
             self.interactions = nn.ModuleList(
                 [
                     InteractionBlock(
-                        hidden_dim=edge_message_dim,
+                        edge_message_dim=edge_message_dim,
                         n_radial=n_radial,
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
@@ -230,7 +230,7 @@ class DimeNet(BaseGNN):
             self.interactions = nn.ModuleList(
                 [
                     InteractionBlock(
-                        hidden_dim=edge_message_dim,
+                        edge_message_dim=edge_message_dim,
                         n_radial=n_radial,
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
