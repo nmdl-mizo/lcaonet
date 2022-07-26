@@ -316,7 +316,7 @@ class DimeNet(BaseGNN):
             f"edge_message_dim={self.edge_message_dim}, "
             f"n_radial={self.n_radial}, "
             f"n_spherical={self.n_spherical}, "
-            f"interaction_layers: {self.interactions[0].__class__.__name__} * {self.n_interaction}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
+            f"interaction_layers: {self.interactions[0].__class__.__name__} * {self.n_interaction}, "
         )
