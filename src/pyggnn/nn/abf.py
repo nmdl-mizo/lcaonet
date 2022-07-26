@@ -38,7 +38,7 @@ class BesselSBF(nn.Module):
         self.n_radial = n_radial
         self.n_spherical = n_spherical
         self.cutoff_radi = cutoff_radi
-        self.envelope = EnvelopeCutoff(cutoff_radi, envelope_exponent)
+        self.cutoff = EnvelopeCutoff(cutoff_radi, envelope_exponent)
 
         bessel_forms = bessel_basis(n_spherical, n_radial)
         sph_harm_forms = real_sph_harm(n_spherical)
@@ -81,7 +81,7 @@ class BesselSBF(nn.Module):
         rbf = torch.stack([f(dist) for f in self.bessel_funcs], dim=1)
         # apply cutoff
         # TODO: separeta cutoff function
-        rbf = self.envelope(dist).unsqueeze(-1) * rbf
+        rbf = self.cutoff(dist).unsqueeze(-1) * rbf
 
         cbf = torch.stack([f(angle) for f in self.sph_funcs], dim=1)
 
