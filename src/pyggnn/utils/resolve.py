@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Union, Any, List
+from typing import Callable, Optional, Tuple, Union, Any, List
 from inspect import getmembers, isfunction
 
 import torch
@@ -124,3 +124,8 @@ def init_resolver(
     funcs += [glorot, glorot_orthogonal]
 
     return _resolver(query, funcs, return_initialize=False)
+
+
+def init_param_resolver(query: Callable[[torch.Tensor], Any]) -> Tuple[str]:
+    params = query.__code__.co_varnames[: query.__code__.co_argcount]
+    return params
