@@ -1,12 +1,13 @@
-from typing import Literal, Optional, Union, Any
+from typing import Callable, Literal, Optional, Any
 
 import torch
 from torch import Tensor
 import torch.nn as nn
 from torch_scatter import scatter
+from torch_geometric.nn.inits import glorot_orthogonal
 
+from pyggnn.nn.activation import Swish
 from pyggnn.nn.base import Dense
-from pyggnn.utils.resolve import activation_resolver
 
 
 __all__ = ["Edge2NodeProp"]
@@ -25,16 +26,24 @@ class Edge2NodeProp(nn.Module):
         n_radial: int,
         out_dim: int = 1,
         n_layers: int = 3,
-        activation: Union[Any, str] = "swish",
+        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
         aggr: Literal["add", "mean"] = "add",
+        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
-        act = activation_resolver(activation, **kwargs)
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
-        self.rbf_dense = Dense(n_radial, edge_dim, bias=False)
+        # linear layer for radial basis
+        self.rbf_dense = Dense(
+            n_radial,
+            edge_dim,
+            bias=False,
+            weight_init=weight_init,
+            **kwargs,
+        )
+        # linear layer for edge embedding
         denses = []
         for _ in range(n_layers):
             denses.append(
@@ -42,21 +51,21 @@ class Edge2NodeProp(nn.Module):
                     edge_dim,
                     edge_dim,
                     bias=True,
-                    activation_name=activation,
+                    weight_init=weight_init,
                     **kwargs,
                 )
             )
-            denses.append(act)
-        denses.append(Dense(edge_dim, out_dim, bias=False))
+            denses.append(activation)
+        denses.append(
+            Dense(
+                edge_dim,
+                out_dim,
+                bias=False,
+                weight_init=weight_init,
+                **kwargs,
+            )
+        )
         self.denses = nn.Sequential(*denses)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.rbf_dense.reset_parameters()
-        for ll in self.denses:
-            if hasattr(ll, "reset_parameters"):
-                ll.reset_parameters()
 
     def forward(
         self,

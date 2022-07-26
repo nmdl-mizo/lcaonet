@@ -3,6 +3,7 @@ from inspect import getmembers, isfunction
 
 import torch
 from torch.nn.init import calculate_gain
+from torch_geometric.nn.inits import glorot, glorot_orthogonal
 
 from pyggnn.nn.activation import ShiftedSoftplus, Swish
 
@@ -20,6 +21,7 @@ def _resolver(
     return_initialize: bool = True,
     **kwargs,
 ) -> Union[Callable, Any]:
+    # query is a string
     if isinstance(query, str):
         for cls in classes:
             if cls.__name__.lower() == query:
@@ -28,6 +30,7 @@ def _resolver(
                 obj = cls(**kwargs)
                 assert callable(obj)
                 return obj
+    # query is some type
     elif isinstance(query, type):
         if query in classes:
             if not return_initialize:
@@ -35,18 +38,23 @@ def _resolver(
             obj = query(**kwargs)
             assert callable(obj)
             return obj
-    elif issubclass(query, base_cls) and base_cls is not None:
-        if not return_initialize:
+        if issubclass(query, base_cls) and base_cls is not None:
+            if not return_initialize:
+                return query
+            obj = query(**kwargs)
+            assert callable(obj)
+            return obj
+        elif isinstance(query, base_cls) and base_cls is not None:
+            if not return_initialize:
+                return query
+            obj = query(**kwargs)
+            assert callable(obj)
+            return obj
+    # query is callable
+    elif isinstance(query, Callable):
+        if query in classes:
+            assert callable(query)
             return query
-        obj = query(**kwargs)
-        assert callable(obj)
-        return obj
-    elif isinstance(query, base_cls) and base_cls is not None:
-        if not return_initialize:
-            return query
-        obj = query(**kwargs)
-        assert callable(obj)
-        return obj
     else:
         raise ValueError(f"{query} must be str or type or class")
     raise ValueError(f"{query} not found")
@@ -105,12 +113,14 @@ def activation_gain_resolver(
 
 
 def init_resolver(
-    query: Union[torch.nn.Module, str] = "orthogonal"
+    query: Union[Callable, str] = "orthogonal"
 ) -> Callable[[torch.Tensor], Any]:
-    if query[-1] != "_":
+    if isinstance(query, str) and query[-1] != "_":
         query = _normalize_string(query)
         query += "_"
 
     funcs = [f[1] for f in getmembers(torch.nn.init, isfunction)]
+    # add torch_geometric.nn.inits
+    funcs += [glorot, glorot_orthogonal]
 
     return _resolver(query, funcs, return_initialize=False)

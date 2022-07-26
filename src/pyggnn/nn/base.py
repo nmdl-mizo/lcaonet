@@ -1,10 +1,8 @@
-from typing import Callable, Optional, Union, Any
+from typing import Callable, Any
 
-import torch
 from torch import Tensor
 import torch.nn as nn
-
-from pyggnn.utils.resolve import activation_gain_resolver, activation_resolver
+from torch_geometric.nn.inits import glorot_orthogonal
 
 
 __all__ = ["Dense", "ResidualBlock"]
@@ -21,8 +19,7 @@ class Dense(nn.Linear):
         in_dim: int,
         out_dim: int,
         bias: bool = True,
-        activation_name: Optional[Union[Any, str]] = None,
-        weight_init: Callable[[Tensor], Tensor] = nn.init.xavier_normal_,
+        weight_init: Callable[[Tensor], Any] = nn.init.xavier_uniform_,
         bias_init: Callable[[Tensor], Tensor] = nn.init.zeros_,
         **kwargs,
     ):
@@ -30,42 +27,27 @@ class Dense(nn.Linear):
         Args:
             in_dim (int): input dimension of tensor.
             out_dim (int): output dimension of tensor.
-            bias (bool, optional): if `False`, the layer will not return an
-                additive bias. Defaults to `True`.
-            activation_name (str or nn.Module or `None`, optional): activation fucntion
-                class or activation fucntion name. Defaults to `None`.
-            weight_init (Callable, optional): Defaults to `nn.init.xavier_normal_`.
-            bias_init (Callable, optional): Defaults to `nn.init.zeros_`.
+            bias (bool, optional): if `False`, the layer will not return an additive bias. Defaults to `True`.
+            weight_init (Callable, optional): weight initialize methods. Defaults to `nn.init.xavier_uniform_`.
+            bias_init (Callable, optional): bias initialize methods. Defaults to `nn.init.zeros_`.
         """
-        self.activation_name = (
-            "linear"
-            if activation_name is None
-            else activation_gain_resolver(activation_name)
-        )
-        if self.activation_name == "leaky_relu":
-            # if not set `negative_slople`, set default values of torch.nn.LeakyReLU
-            self.negative_slope = kwargs.get("negative_slope", 0.01)
-        self.weight_init = weight_init
         if bias:
-            assert bias_init is not None, "bias_init must not be None if set to bias"
+            assert bias_init is not None, "bias_init must not be None if set bias"
         self.bias_init = bias_init
+        self.weight_init = weight_init
+        self.kwargs = kwargs
         super().__init__(in_dim, out_dim, bias)
+
         self.reset_parameters()
 
     def reset_parameters(self):
-        if self.activation_name == "leaky_relu":
-            gain = torch.nn.init.calculate_gain(
-                self.activation_name, self.negative_slope
-            )
-        else:
-            gain = torch.nn.init.calculate_gain(self.activation_name)
-        self.weight_init(self.weight, gain=gain)
+        self.weight_init(self.weight, **self.kwargs)
         if self.bias is not None:
             self.bias_init(self.bias)
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        forward calculation of Dense layer.
+        Forward calculation of the Dense layer.
 
         Args:
             x (torch.Tensor): input tensor shape of (* x in_dim).
@@ -79,14 +61,15 @@ class Dense(nn.Linear):
 
 class ResidualBlock(nn.Module):
     """
-    The Blocks combining multiple Dense layers and ResNet.
+    The Blocks combining the multiple Dense layers and ResNet.
     """
 
     def __init__(
         self,
         hidden_dim: int,
-        activation: Union[Any, str],
+        activation: Callable[[Tensor], Tensor] = nn.ReLU(),
         n_layers: int = 2,
+        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
         **kwargs,
     ):
         """
@@ -94,9 +77,10 @@ class ResidualBlock(nn.Module):
             hidden_dim (int): hidden dimension of the Dense layers.
             activation (str): activation function of the Dense layers.
             n_layers (int, optional): the number of Dense layers. Defaults to `2`.
+            weight_init (Callable, optional): weight initialize methods.
+                Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
         """
         super().__init__()
-        act = activation_resolver(activation, **kwargs)
 
         denses = []
         for _ in range(n_layers):
@@ -105,19 +89,12 @@ class ResidualBlock(nn.Module):
                     hidden_dim,
                     hidden_dim,
                     bias=True,
-                    activation_name=activation,
+                    weight_init=weight_init,
                     **kwargs,
                 )
             )
-            denses.append(act)
+            denses.append(activation)
         self.denses = nn.Sequential(*denses)
-
-        self.reset_parameters
-
-    def reset_parameters(self):
-        for ll in self.denses:
-            if hasattr(ll, "reset_parameters"):
-                ll.reset_parameters()
 
     def forward(self, x: Tensor) -> Tensor:
         """

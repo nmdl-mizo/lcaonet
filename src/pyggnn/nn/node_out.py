@@ -1,12 +1,13 @@
-from typing import Literal, Optional, Union, Any
+from typing import Callable, Literal, Optional, Any
 
 import torch
 from torch import Tensor
 import torch.nn as nn
 from torch_scatter import scatter
+from torch_geometric.nn.inits import glorot_orthogonal
 
+from pyggnn.nn.activation import ShiftedSoftplus, Swish
 from pyggnn.nn.base import Dense
-from pyggnn.utils.resolve import activation_resolver
 
 
 __all__ = ["Node2Prop1", "Node2Prop2"]
@@ -21,54 +22,38 @@ class Node2Prop1(nn.Module):
 
     def __init__(
         self,
-        in_dim: int,
+        node_dim: int,
         hidden_dim: int = 128,
         out_dim: int = 1,
-        activation: Union[Any, str] = "swish",
+        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
         aggr: Literal["add", "mean"] = "add",
+        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
         **kwargs,
     ):
         """
         Args:
-            in_dim (int): number of input dim.
-            hidden_dim (int, optional): number of hidden layers dim. Defaults to `128`.
-            out_dim (int, optional): number of output dim. Defaults to `1`.
-            activation: (str or nn.Module, optional): activation function class or name.
-                Defaults to `Swish`.
+            node_dim (int): number of input dimension.
+            hidden_dim (int, optional): number of hidden layers dimension. Defaults to `128`.
+            out_dim (int, optional): number of output dimension. Defaults to `1`.
+            activation: (Callable, optional): activation function. Defaults to `Swish()`.
             aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
+            weight_init (Callable, optional): weight initialization function.
+                Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
         """
         super().__init__()
-
-        act = activation_resolver(activation, **kwargs)
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.node_transform = nn.Sequential(
-            Dense(in_dim, hidden_dim, bias=True, activation_name=activation, **kwargs),
-            act,
-            Dense(hidden_dim, hidden_dim, bias=True),
+            Dense(node_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
+            activation,
+            Dense(hidden_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
         )
         self.output = nn.Sequential(
-            Dense(
-                hidden_dim,
-                hidden_dim,
-                bias=True,
-                activation_name=activation,
-                **kwargs,
-            ),
-            act,
-            Dense(hidden_dim, out_dim, bias=False),
+            Dense(hidden_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
+            activation,
+            Dense(hidden_dim, out_dim, bias=False, weight_init=weight_init, **kwargs),
         )
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        for layer in self.node_transform:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
-        for layer in self.output:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
 
     def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
         """
@@ -76,7 +61,7 @@ class Node2Prop1(nn.Module):
 
         Args:
             x (Tensor): node embeddings shape of (n_node x in_dim).
-            batch (Tensor, optional): batch index. Defaults to `None`.
+            batch (Tensor, optional): batch index shape of (n_node). Defaults to `None`.
 
         Returns:
             Tensor: shape of (n_batch x out_dim).
@@ -89,44 +74,44 @@ class Node2Prop1(nn.Module):
 class Node2Prop2(nn.Module):
     """
     The block to compute the global graph proptery from node embeddings.
-    This block contains two Dense layers and aggregation block.
-    If set `scaler`, scaling process before aggregation.
+    This block contains two Dense layers and aggregation block. If set `scaler`, scaling process before aggregation.
     This block is used in SchNet.
     """
 
     def __init__(
         self,
-        in_dim: int,
+        node_dim: int,
         hidden_dim: int = 128,
         out_dim: int = 1,
-        activation: Union[Any, str] = "shifted_softplus",
+        activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),
         aggr: Literal["add", "mean"] = "add",
         scaler: Optional[nn.Module] = None,
         mean: Optional[Tensor] = None,
         stddev: Optional[Tensor] = None,
+        weight_init: Callable[[Tensor], Any] = torch.nn.init.xavier_uniform_,
         **kwargs,
     ):
         """
         Args:
-            in_dim (int): number of input dim.
+            node_dim (int): number of input dim.
             hidden_dim (int, optional): number of hidden layers dim. Defaults to `128`.
             out_dim (int, optional): number of output dim. Defaults to `1`.
-            activation: (str or nn.Module, optional): activation function class or name.
-                Defaults to `shifted_softplus`.
+            activation: (Callable, optional): activation function. Defaults to `ShiftedSoftplus()`.
             aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
             scaler: (nn.Module, optional): scaler layer. Defaults to `None`.
             mean: (Tensor, optional): mean of the input tensor. Defaults to `None`.
             stddev: (Tensor, optional): stddev of the input tensor. Defaults to `None`.
+            weight_init (Callable, optional): weight initialization function.
+                Defaults to `torch.nn.init.xavier_uniform_`.
         """
         super().__init__()
-        act = activation_resolver(activation, **kwargs)
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.output = nn.Sequential(
-            Dense(in_dim, hidden_dim, bias=True, activation_name=activation, **kwargs),
-            act,
-            Dense(hidden_dim, out_dim, bias=False),
+            Dense(node_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
+            activation,
+            Dense(hidden_dim, out_dim, bias=False, weight_init=weight_init, **kwargs),
         )
         if scaler is None:
             self.scaler = None
@@ -137,20 +122,13 @@ class Node2Prop2(nn.Module):
                 stddev = torch.FloatTensor([1.0])
             self.scaler = scaler(mean, stddev)
 
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        for layer in self.output:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
-
     def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
         """
         Compute global property from node embeddings.
 
         Args:
             x (Tensor): node embeddings shape of (n_node x in_dim).
-            batch (Tensor, optional): batch index. Defaults to `None`.
+            batch (Tensor, optional): batch index shape of (n_node). Defaults to `None`.
 
         Returns:
             Tensor: shape of (n_batch x out_dim).
