@@ -1,11 +1,13 @@
-from typing import Union, Any
+from typing import Callable, Any
 
 import torch
 from torch import Tensor
 import torch.nn as nn
+from torch_geometric.nn.inits import glorot_orthogonal
 
+from pyggnn.nn.activation import Swish
 from pyggnn.nn.base import Dense
-from pyggnn.utils.resolve import activation_resolver
+
 
 __all__ = ["EdgeEmbed"]
 
@@ -16,31 +18,29 @@ class EdgeEmbed(nn.Module):
         node_dim: int,
         edge_dim: int,
         n_radial: int,
-        activation: Union[Any, str] = "swish",
+        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        weight_init: Callable[[nn.Module], Any] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
-        act = activation_resolver(activation, **kwargs)
 
-        self.rbf_lin = Dense(in_dim=n_radial, out_dim=edge_dim, bias=False)
+        self.rbf_lin = Dense(
+            n_radial,
+            edge_dim,
+            bias=False,
+            weight_init=weight_init,
+            **kwargs,
+        )
         self.edge_embed = nn.Sequential(
             Dense(
-                in_dim=2 * node_dim + edge_dim,
-                out_dim=edge_dim,
+                2 * node_dim + edge_dim,
+                edge_dim,
                 bias=True,
-                activation_name=activation,
+                weight_init=weight_init,
                 **kwargs,
             ),
-            act,
+            activation,
         )
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.rbf_lin.reset_parameters()
-        for ee in self.edge_embed:
-            if hasattr(ee, "reset_parameters"):
-                ee.reset_parameters()
 
     def forward(
         self,

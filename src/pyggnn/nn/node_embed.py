@@ -27,6 +27,7 @@ class AtomicNum2Node(nn.Embedding):
         if max_num is None:
             max_num = 100
         super().__init__(num_embeddings=max_num, embedding_dim=node_dim)
+
         self.reset_parameters()
 
     def reset_parameters(self):

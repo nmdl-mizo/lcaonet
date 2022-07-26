@@ -1,12 +1,12 @@
-from typing import Tuple, Union, Optional, Any
+from typing import Callable, Tuple, Union, Optional, Any, Literal
 
 from torch import Tensor
 import torch.nn as nn
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.typing import Adj
 
+from pyggnn.nn.activation import ShiftedSoftplus
 from pyggnn.nn.base import Dense
-from pyggnn.utils.resolve import activation_resolver
 
 
 __all__ = ["SchNetConv"]
@@ -16,55 +16,54 @@ class SchNetConv(MessagePassing):
     def __init__(
         self,
         x_dim: Union[int, Tuple[int, int]],
-        edge_dim: int,
+        edge_filter_dim: int,
         n_gaussian: int,
-        activation: Union[Any, str] = "shiftedsoftplus",
+        activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),
         node_hidden: int = 256,
         cutoff_net: Optional[nn.Module] = None,
-        cutoff_radi: float = 4.0,
-        aggr: str = "add",
+        aggr: Literal["add", "mean"] = "add",
+        weight_init: Callable[[Tensor], Any] = nn.init.xavier_uniform_,
         **kwargs,
     ):
+        assert aggr == "add" or aggr == "mean"
         # TODO: pass kwargs to superclass
         super().__init__(aggr=aggr)
-        act = activation_resolver(activation, **kwargs)
 
+        # name node_dim is already used in super class
         self.x_dim = x_dim
-        self.edge_dim = edge_dim
+        self.edge_filter_dim = edge_filter_dim
         self.node_hidden = node_hidden
         self.n_gaussian = n_gaussian
         if cutoff_net is not None:
-            self.cutoff_net = cutoff_net(cutoff_radi)
+            self.cutoff_net = cutoff_net
         else:
             self.cutoff_net = None
-        self.cutoff_radi = cutoff_radi
 
         # update functions
         # filter generator
         self.edge_filter_func = nn.Sequential(
-            Dense(n_gaussian, edge_dim, bias=True, activation_name=activation, **kwargs),
-            act,
-            Dense(edge_dim, edge_dim, bias=True, activation_name=activation, **kwargs),
-            act,
+            Dense(
+                n_gaussian, edge_filter_dim, bias=True, weight_init=weight_init, **kwargs
+            ),
+            activation,
+            Dense(
+                edge_filter_dim,
+                edge_filter_dim,
+                bias=True,
+                weight_init=weight_init,
+                **kwargs,
+            ),
+            activation,
         )
         # node fucntions
-        self.node_lin1 = Dense(x_dim, edge_dim, bias=True)
-        self.node_lin2 = nn.Sequential(
-            Dense(edge_dim, x_dim, bias=True, activation_name=activation, **kwargs),
-            act,
-            Dense(x_dim, x_dim, bias=True),
+        self.node_lin1 = Dense(
+            x_dim, edge_filter_dim, bias=True, weight_init=weight_init, **kwargs
         )
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        for ef in self.edge_filter_func:
-            if hasattr(ef, "reset_parameters"):
-                ef.reset_parameters()
-        self.node_lin1.reset_parameters()
-        for nf in self.node_lin2:
-            if hasattr(nf, "reset_parameters"):
-                nf.reset_parameters()
+        self.node_lin2 = nn.Sequential(
+            Dense(edge_filter_dim, x_dim, bias=True, weight_init=weight_init, **kwargs),
+            activation,
+            Dense(x_dim, x_dim, bias=True, weight_init=weight_init, **kwargs),
+        )
 
     def forward(
         self,
@@ -81,12 +80,7 @@ class SchNetConv(MessagePassing):
         # propagate_type:
         # (x: Tensor, W: Tensor)
         out = self.node_lin1(x)
-        out = self.propagate(
-            edge_index,
-            x=out,
-            W=W,
-            size=None,
-        )
+        out = self.propagate(edge_index, x=out, W=W, size=None)
         out = self.node_lin2(out)
         # residual network
         out = out + x
