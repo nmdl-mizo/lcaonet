@@ -8,6 +8,7 @@ from pyggnn.model.base import BaseGNN
 from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.conv.egnn_conv import EGNNConv
 from pyggnn.nn.node_out import Node2Prop1
+from pyggnn.utils.resolve import activation_resolver
 
 __all__ = ["EGNN"]
 
@@ -22,8 +23,7 @@ class EGNN(BaseGNN):
         https://pytorch-geometric.readthedocs.io/en/latest/
 
         EGNN:
-        [1] V. G. Satorras et al., arXiv (2021),
-            (available at http://arxiv.org/abs/2102.09844).
+        [1] V. G. Satorras et al., arXiv (2021), (available at http://arxiv.org/abs/2102.09844).
         [2] https://docs.e3nn.org/en/stable/index.html
     """
 
@@ -46,25 +46,24 @@ class EGNN(BaseGNN):
     ):
         """
         Args:
-            node_dim (int): number of node embedding dim.
-            edge_dim (int): number of edge embedding dim.
+            node_dim (int): number of node embedding dimension.
+            edge_dim (int): number of edge embedding dimension.
             n_conv_layer (int): number of convolutinal layers.
-            cutoff_radi (float): cutoff radious.
+            cutoff_radi (float): cutoff radious. Defaults to `None`.
             out_dim (int, optional): number of output property dimension.
-            activation (str or nn.Module, optional): activation function.
-            hidden_dim (int, optional): number of hidden layers.
-                Defaults to `256`.
-            aggr (`"add"` or `"mean"`, optional): if set to `"add"`, sumaggregation
-                is done along node dimension. Defaults to `"add"`.
-            batch_norm (bool, optional): if `False`, no batch normalization in
-                convolution layers. Defaults to `False`.
-            edge_attr_dim (int, optional): number of edge attrbute dim.
-                Defaults to `None`.
-            share_weight (bool, optional): if `True`, all convolution layers
-                share the parameters. Defaults to `False`.
+            activation (str or nn.Module, optional): activation function or function name.
+            cutoff_radi (float): cutoff radious. Defaults to `None`.
+            cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
+            hidden_dim (int, optional): number of hidden layers. Defaults to `256`.
+            aggr (`"add"` or `"mean"`, optional): aggregation method. Defaults to `"add"`.
+            batch_norm (bool, optional): if `False`, no batch normalization in convolution layers. Defaults to `False`.
+            edge_attr_dim (int, optional): number of another edge attrbute dimension. Defaults to `None`.
+            share_weight (bool, optional): if `True`, all convolution layers share the parameters. Defaults to `False`.
             max_z (int, optional): max number of atomic number. Defaults to `100`.
         """
         super().__init__()
+        act = activation_resolver(activation)
+
         self.node_dim = node_dim
         self.edge_dim = edge_dim
         self.n_conv_layer = n_conv_layer
@@ -72,6 +71,11 @@ class EGNN(BaseGNN):
         self.out_dim = out_dim
         # layers
         self.node_embed = AtomicNum2Node(node_dim, max_num=max_z)
+        if cutoff_net is None:
+            self.cutoff_net = None
+        else:
+            assert cutoff_radi is not None
+            self.cutoff_net = cutoff_net(cutoff_radi)
 
         if share_weight:
             self.convs = nn.ModuleList(
@@ -79,12 +83,11 @@ class EGNN(BaseGNN):
                     EGNNConv(
                         x_dim=node_dim,
                         edge_dim=edge_dim,
-                        activation=activation,
+                        activation=act,
                         edge_attr_dim=edge_attr_dim,
                         node_hidden=hidden_dim,
                         edge_hidden=hidden_dim,
-                        cutoff_net=cutoff_net,
-                        cutoff_radi=cutoff_radi,
+                        cutoff_net=self.cutoff_net,
                         aggr=aggr,
                         batch_norm=batch_norm,
                         **kwargs,
@@ -98,12 +101,11 @@ class EGNN(BaseGNN):
                     EGNNConv(
                         x_dim=node_dim,
                         edge_dim=edge_dim,
-                        activation=activation,
+                        activation=act,
                         edge_attr_dim=edge_attr_dim,
                         node_hidden=hidden_dim,
                         edge_hidden=hidden_dim,
-                        cutoff_net=cutoff_net,
-                        cutoff_radi=cutoff_radi,
+                        cutoff_net=self.cutoff_net,
                         aggr=aggr,
                         batch_norm=batch_norm,
                         **kwargs,
@@ -113,10 +115,10 @@ class EGNN(BaseGNN):
             )
 
         self.output = Node2Prop1(
-            in_dim=node_dim,
+            node_dim=node_dim,
             hidden_dim=hidden_dim,
             out_dim=out_dim,
-            activation=activation,
+            activation=act,
             aggr=aggr,
             **kwargs,
         )
@@ -124,10 +126,9 @@ class EGNN(BaseGNN):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.node_embed.reset_parameters()
-        for conv in self.convs:
-            conv.reset_parameters()
-        self.output.reset_parameters()
+        if self.cutoff_net is not None:
+            if hasattr(self.cutoff_net, "reset_parameters"):
+                self.cutoff_net.reset_parameters()
 
     def forward(self, data_batch) -> Tensor:
         batch = data_batch[DataKeys.Batch]

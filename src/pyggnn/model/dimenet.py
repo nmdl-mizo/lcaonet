@@ -1,11 +1,13 @@
-from typing import Union, Any, Optional, Literal
+from typing import Callable, Union, Any, Optional, Literal
 
 import torch
 from torch import Tensor
 import torch.nn as nn
 from torch_scatter import scatter
+from torch_geometric.nn.inits import glorot_orthogonal
 
 from pyggnn.model.base import BaseGNN
+from pyggnn.nn.activation import Swish
 from pyggnn.nn.rbf import BesselRBF
 from pyggnn.nn.abf import BesselSBF
 from pyggnn.nn.node_embed import AtomicNum2Node
@@ -19,21 +21,33 @@ from pyggnn.utils.resolve import activation_resolver
 __all__ = ["DimeNet"]
 
 
-class InteractionBlock(nn.Module):
+class DimNetInteraction(nn.Module):
     def __init__(
         self,
         edge_message_dim: int,
         n_radial: int,
         n_spherical: int,
         n_bilinear: int,
-        activation: Union[Any, str] = "swish",
+        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
-        act = activation_resolver(activation, **kwargs)
-
-        self.rbf_dense = Dense(n_radial, edge_message_dim, bias=False)
-        self.sbf_dense = Dense(n_spherical * n_radial, n_bilinear, bias=False)
+        # Dense transformation of basis
+        self.rbf_dense = Dense(
+            n_radial,
+            edge_message_dim,
+            bias=False,
+            weight_init=weight_init,
+            **kwargs,
+        )
+        self.sbf_dense = Dense(
+            n_spherical * n_radial,
+            n_bilinear,
+            bias=False,
+            weight_init=weight_init,
+            **kwargs,
+        )
 
         # Dense transformations of input messages.
         self.kj_dense = nn.Sequential(
@@ -41,20 +55,20 @@ class InteractionBlock(nn.Module):
                 edge_message_dim,
                 edge_message_dim,
                 bias=True,
-                activation_name=activation,
+                weight_init=weight_init,
                 **kwargs,
             ),
-            act,
+            activation,
         )
         self.ji_dense = nn.Sequential(
             Dense(
                 edge_message_dim,
                 edge_message_dim,
                 bias=True,
-                activation_name=activation,
+                weight_init=weight_init,
                 **kwargs,
             ),
-            act,
+            activation,
         )
 
         # conbine rbf and sbf information
@@ -64,39 +78,42 @@ class InteractionBlock(nn.Module):
 
         # resnets
         self.res_before_skip = nn.Sequential(
-            ResidualBlock(edge_message_dim, activation=activation, **kwargs),
+            ResidualBlock(
+                edge_message_dim,
+                activation=activation,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             Dense(
                 edge_message_dim,
                 edge_message_dim,
                 bias=True,
-                activation_name=activation,
+                weight_init=weight_init,
                 **kwargs,
             ),
-            act,
+            activation,
         )
         self.res_after_skip = nn.Sequential(
-            ResidualBlock(edge_message_dim, activation=activation, **kwargs),
-            ResidualBlock(edge_message_dim, activation=activation, **kwargs),
+            ResidualBlock(
+                edge_message_dim,
+                activation=activation,
+                weight_init=weight_init,
+                **kwargs,
+            ),
+            ResidualBlock(
+                edge_message_dim,
+                activation=activation,
+                weight_init=weight_init,
+                **kwargs,
+            ),
         )
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.rbf_dense.reset_parameters()
-        self.sbf_dense.reset_parameters()
-        for layer in self.kj_dense:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
-        for layer in self.ji_dense:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
-        self.bilinear.reset_parameters()
-        for layer in self.res_before_skip:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
-        for layer in self.res_after_skip:
-            if hasattr(layer, "reset_parameters"):
-                layer.reset_parameters()
+        torch.nn.init.normal_(
+            self.bilinear.weight, mean=0, std=2.0 / self.bilinear.weight.size(0)
+        )
 
     def forward(
         self,
@@ -115,10 +132,8 @@ class InteractionBlock(nn.Module):
             x (Tensor): edge_embeddings of the graph shape of (num_edge x hidden_dim).
             rbf (Tensor): radial basis function shape of (num_edge x n_radial).
             sbf (Tensor): spherical basis function shape of (num_edge x n_spherical).
-            edge_idx_kj (torch.LongTensor): edge index from atom k to j
-                shape of (n_triplets).
-            edge_idx_ji (torch.LongTensor): edge index from atom j to i
-                shape of (n_triplets).
+            edge_idx_kj (torch.LongTensor): edge index from atom k to j shape of (n_triplets).
+            edge_idx_ji (torch.LongTensor): edge index from atom j to i shape of (n_triplets).
 
         Returns:
             Tensor: upadated edge message embedding shape of (num_edge x hidden_dim).
@@ -150,8 +165,7 @@ class DimeNet(BaseGNN):
         https://pytorch-geometric.readthedocs.io/en/latest/
 
         DimeNet:
-        [1] J. Klicpera et al., arXiv [cs.LG] (2020),
-            (available at http://arxiv.org/abs/2003.03123).
+        [1] J. Klicpera et al., arXiv [cs.LG] (2020), (available at http://arxiv.org/abs/2003.03123).
         [2] https://github.com/pyg-team/pytorch_geometric
         [3] https://github.com/gasteigerjo/dimenet
     """
@@ -164,10 +178,11 @@ class DimeNet(BaseGNN):
         n_radial: int,
         n_spherical: int,
         n_bilinear: int,
-        activation: Union[Any, str] = "swish",
+        activation: Union[str, nn.Module] = "swish",
         cutoff_radi: float = 4.0,
         envelope_exponent: int = 5,
         aggr: Literal["add", "mean"] = "add",
+        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
         share_weight: bool = False,
         max_z: Optional[int] = 100,
         **kwargs,
@@ -180,18 +195,17 @@ class DimeNet(BaseGNN):
             n_radial (int): number of radial basis function.
             n_spherical (int): number of spherical basis function.
             n_bilinear (int): embedding of spherical basis.
-            activation (str or nn.Module, optional): activation fucntion.
-                Defaults to `"swish"`.
+            activation (str or nn.Module, optional): activation fucntion. Defaults to `"swish"`.
             cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
-            envelope_exponent (int, optional): exponent of envelope cutoff funcs.
-                Defaults to `6`.
-            aggr ("add" or "mean", optional): aggregation mehod.
-                Defaults to `"add"`.
-            share_weight (bool, optional): share weight parameter all interaction layers.
-                Defaults to `False`.
+            envelope_exponent (int, optional): exponent of envelope cutoff funcs. Defaults to `5`.
+            aggr ("add" or "mean", optional): aggregation mehod. Defaults to `"add"`.
+            weight_init (Callable, optional): weight initialization. Defaults to `glorot_orthogonal`.
+            share_weight (bool, optional): share weight parameter all interaction layers. Defaults to `False`.
             max_z (int, optional): max atomic number. Defaults to `100`.
         """
         super().__init__()
+        act = activation_resolver(activation)
+
         self.edge_message_dim = edge_message_dim
         self.n_interaction = n_interaction
         self.out_dim = out_dim
@@ -203,10 +217,11 @@ class DimeNet(BaseGNN):
         # layers
         self.node_embed = AtomicNum2Node(edge_message_dim, max_z)
         self.edge_embed = EdgeEmbed(
-            edge_message_dim,
-            edge_message_dim,
-            n_radial,
-            activation,
+            node_dim=edge_message_dim,
+            edge_dim=edge_message_dim,
+            n_radial=n_radial,
+            activation=act,
+            weight_init=weight_init,
             **kwargs,
         )
         self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
@@ -215,12 +230,13 @@ class DimeNet(BaseGNN):
         if share_weight:
             self.interactions = nn.ModuleList(
                 [
-                    InteractionBlock(
+                    DimNetInteraction(
                         edge_message_dim=edge_message_dim,
                         n_radial=n_radial,
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
-                        activation=activation,
+                        activation=act,
+                        weight_init=weight_init,
                         **kwargs,
                     )
                     * n_interaction
@@ -229,12 +245,13 @@ class DimeNet(BaseGNN):
         else:
             self.interactions = nn.ModuleList(
                 [
-                    InteractionBlock(
+                    DimNetInteraction(
                         edge_message_dim=edge_message_dim,
                         n_radial=n_radial,
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
-                        activation=activation,
+                        activation=act,
+                        weight_init=weight_init,
                         **kwargs,
                     )
                     for _ in range(n_interaction)
@@ -247,24 +264,14 @@ class DimeNet(BaseGNN):
                     edge_dim=edge_message_dim,
                     n_radial=n_radial,
                     out_dim=out_dim,
-                    activation=activation,
+                    activation=act,
+                    weight_init=weight_init,
                     aggr=aggr,
                     **kwargs,
                 )
                 for _ in range(n_interaction + 1)
             ]
         )
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.node_embed.reset_parameters()
-        self.edge_embed.reset_parameters()
-        self.rbf.reset_parameters()
-        for ib in self.interactions:
-            ib.reset_parameters()
-        for ob in self.outputs:
-            ob.reset_parameters()
 
     def forward(self, data_batch) -> Tensor:
         batch = data_batch[DataKeys.Batch]
