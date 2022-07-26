@@ -144,13 +144,6 @@ class DimNetPPInteraction(nn.Module):
             ),
         )
 
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        torch.nn.init.normal_(
-            self.bilinear.weight, mean=0, std=2.0 / self.bilinear.weight.size(0)
-        )
-
     def forward(
         self,
         x: Tensor,
