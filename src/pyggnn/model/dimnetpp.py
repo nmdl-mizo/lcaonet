@@ -45,7 +45,7 @@ class DimNetPPInteraction(nn.Module):
             ),
             Dense(
                 basis_embed_dim,
-                edge_down_dim,
+                edge_message_dim,
                 bias=False,
                 weight_init=weight_init,
                 **kwargs,
