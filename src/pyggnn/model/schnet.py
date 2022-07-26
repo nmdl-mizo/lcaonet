@@ -90,7 +90,7 @@ class SchNet(BaseGNN):
             self.convs = nn.ModuleList(
                 [
                     SchNetConv(
-                        node_dim=node_dim,
+                        x_dim=node_dim,
                         edge_filter_dim=edge_filter_dim,
                         n_gaussian=n_gaussian,
                         activation=activation,
@@ -107,7 +107,7 @@ class SchNet(BaseGNN):
             self.convs = nn.ModuleList(
                 [
                     SchNetConv(
-                        node_dim=node_dim,
+                        x_dim=node_dim,
                         edge_filter_dim=edge_filter_dim,
                         n_gaussian=n_gaussian,
                         activation=activation,

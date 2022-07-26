@@ -15,7 +15,7 @@ __all__ = ["SchNetConv"]
 class SchNetConv(MessagePassing):
     def __init__(
         self,
-        node_dim: Union[int, Tuple[int, int]],
+        x_dim: Union[int, Tuple[int, int]],
         edge_filter_dim: int,
         n_gaussian: int,
         activation: Union[Any, str] = "shiftedsoftplus",
@@ -29,7 +29,8 @@ class SchNetConv(MessagePassing):
         super().__init__(aggr=aggr)
         act = activation_resolver(activation, **kwargs)
 
-        self.node_dim = node_dim
+        # name node_dim is already used in super class
+        self.x_dim = x_dim
         self.edge_filter_dim = edge_filter_dim
         self.node_hidden = node_hidden
         self.n_gaussian = n_gaussian
@@ -60,17 +61,17 @@ class SchNetConv(MessagePassing):
             act,
         )
         # node fucntions
-        self.node_lin1 = Dense(node_dim, edge_filter_dim, bias=True)
+        self.node_lin1 = Dense(x_dim, edge_filter_dim, bias=True)
         self.node_lin2 = nn.Sequential(
             Dense(
                 edge_filter_dim,
-                node_dim,
+                x_dim,
                 bias=True,
                 activation_name=activation,
                 **kwargs,
             ),
             act,
-            Dense(node_dim, node_dim, bias=True),
+            Dense(x_dim, x_dim, bias=True),
         )
 
         self.reset_parameters()

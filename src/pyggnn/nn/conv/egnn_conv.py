@@ -21,7 +21,7 @@ class EGNNConv(MessagePassing):
 
     def __init__(
         self,
-        node_dim: Union[int, Tuple[int, int]],
+        x_dim: Union[int, Tuple[int, int]],
         edge_dim: int,
         activation: Union[Any, str] = "swish",
         edge_attr_dim: Optional[int] = None,
@@ -35,7 +35,7 @@ class EGNNConv(MessagePassing):
     ):
         """
         Args:
-            node_dim (int or Tuple[int, int]]): number of node dimnsion. if set to tuple
+            x_dim (int or Tuple[int, int]]): number of node dimnsion. if set to tuple
                 object, the first one is input dim, and second one is output dim.
             edge_dim (int): number of edge dim.
             activation (str or nn.Module): activation function. Defaults to `swish`.
@@ -55,7 +55,8 @@ class EGNNConv(MessagePassing):
         super().__init__(aggr=aggr)
         act = activation_resolver(activation, **kwargs)
 
-        self.node_dim = node_dim
+        # name node_dim is already used in super class
+        self.x_dim = x_dim
         self.edge_dim = edge_dim
         self.edge_attr_dim = edge_attr_dim
         self.node_hidden = node_hidden
@@ -69,16 +70,16 @@ class EGNNConv(MessagePassing):
             self.cutoff_net = cutoff_net(cutoff_radi)
         self.batch_norm = batch_norm
 
-        if isinstance(node_dim, int):
-            node_dim = (node_dim, node_dim)
-        assert node_dim[0] == node_dim[1]
+        if isinstance(x_dim, int):
+            x_dim = (x_dim, x_dim)
+        assert x_dim[0] == x_dim[1]
         if edge_attr_dim is None:
             edge_attr_dim = 0
 
         # updata function
         self.edge_func = nn.Sequential(
             Dense(
-                node_dim[0] * 2 + 1 + edge_attr_dim,
+                x_dim[0] * 2 + 1 + edge_attr_dim,
                 edge_hidden,
                 bias=True,
                 activation_name=activation,
@@ -96,14 +97,14 @@ class EGNNConv(MessagePassing):
         )
         self.node_func = nn.Sequential(
             Dense(
-                node_dim[0] + edge_dim,
+                x_dim[0] + edge_dim,
                 node_hidden,
                 bias=True,
                 activation_name=activation,
                 **kwargs,
             ),
             act,
-            Dense(node_hidden, node_dim[1], bias=True),
+            Dense(node_hidden, x_dim[1], bias=True),
         )
         # attention the edge
         self.atten = nn.Sequential(
@@ -112,7 +113,7 @@ class EGNNConv(MessagePassing):
         )
         # batch normalization
         if batch_norm:
-            self.bn = nn.BatchNorm1d(node_dim[1])
+            self.bn = nn.BatchNorm1d(x_dim[1])
         else:
             self.bn = nn.Identity()
 
