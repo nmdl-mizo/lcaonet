@@ -54,7 +54,7 @@ def _resolver(
 
 def activation_resolver(
     query: Union[torch.nn.Module, str] = "relu", **kwargs
-) -> Callable:
+) -> Callable[[torch.Tensor], torch.Tensor]:
     if isinstance(query, str):
         query = _normalize_string(query)
     base_cls = torch.nn.Module
@@ -95,15 +95,18 @@ def activation_gain_resolver(
         "shiftedsoftplus": "linear",
     }
     # if query is not found, return "linear" gain
-    return calculate_gain(
-        gain_dict.get(
+    try:
+        nonlinearity = gain_dict.get(
             _resolver(query, acts, base_cls, False).__name__.lower(), "linear"
-        ),
-        **kwargs,
-    )
+        )
+    except ValueError:
+        nonlinearity = "linear"
+    return calculate_gain(nonlinearity, **kwargs)
 
 
-def init_resolver(query: Union[torch.nn.Module, str] = "orthogonal"):
+def init_resolver(
+    query: Union[torch.nn.Module, str] = "orthogonal"
+) -> Callable[[torch.Tensor], Any]:
     if query[-1] != "_":
         query = _normalize_string(query)
         query += "_"
