@@ -324,6 +324,6 @@ class DimeNet(BaseGNN):
             f"n_radial={self.n_radial}, "
             f"n_spherical={self.n_spherical}, "
             f"cutoff={self.cutoff_radi}, "
-            f"out_dim={self.out_dim})"
-            f"interaction_layers: {self.interactions[0].__class__.__name__} * {self.n_interaction}, "
+            f"out_dim={self.out_dim},"
+            f"interaction_layers: {self.interactions[0].__class__.__name__} * {self.n_interaction})"
         )
