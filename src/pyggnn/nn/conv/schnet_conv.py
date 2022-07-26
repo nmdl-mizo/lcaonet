@@ -15,8 +15,8 @@ __all__ = ["SchNetConv"]
 class SchNetConv(MessagePassing):
     def __init__(
         self,
-        x_dim: Union[int, Tuple[int, int]],
-        edge_dim: int,
+        node_dim: Union[int, Tuple[int, int]],
+        edge_filter_dim: int,
         n_gaussian: int,
         activation: Union[Any, str] = "shiftedsoftplus",
         node_hidden: int = 256,
@@ -29,8 +29,8 @@ class SchNetConv(MessagePassing):
         super().__init__(aggr=aggr)
         act = activation_resolver(activation, **kwargs)
 
-        self.x_dim = x_dim
-        self.edge_dim = edge_dim
+        self.node_dim = node_dim
+        self.edge_filter_dim = edge_filter_dim
         self.node_hidden = node_hidden
         self.n_gaussian = n_gaussian
         if cutoff_net is not None:
@@ -42,17 +42,35 @@ class SchNetConv(MessagePassing):
         # update functions
         # filter generator
         self.edge_filter_func = nn.Sequential(
-            Dense(n_gaussian, edge_dim, bias=True, activation_name=activation, **kwargs),
+            Dense(
+                n_gaussian,
+                edge_filter_dim,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
             act,
-            Dense(edge_dim, edge_dim, bias=True, activation_name=activation, **kwargs),
+            Dense(
+                edge_filter_dim,
+                edge_filter_dim,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
             act,
         )
         # node fucntions
-        self.node_lin1 = Dense(x_dim, edge_dim, bias=True)
+        self.node_lin1 = Dense(node_dim, edge_filter_dim, bias=True)
         self.node_lin2 = nn.Sequential(
-            Dense(edge_dim, x_dim, bias=True, activation_name=activation, **kwargs),
+            Dense(
+                edge_filter_dim,
+                node_dim,
+                bias=True,
+                activation_name=activation,
+                **kwargs,
+            ),
             act,
-            Dense(x_dim, x_dim, bias=True),
+            Dense(node_dim, node_dim, bias=True),
         )
 
         self.reset_parameters()
