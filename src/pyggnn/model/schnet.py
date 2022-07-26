@@ -91,7 +91,7 @@ class SchNet(BaseGNN):
                 [
                     SchNetConv(
                         node_dim=node_dim,
-                        edge_dim=edge_filter_dim,
+                        edge_filter_dim=edge_filter_dim,
                         n_gaussian=n_gaussian,
                         activation=activation,
                         node_hidden=hidden_dim,
@@ -108,7 +108,7 @@ class SchNet(BaseGNN):
                 [
                     SchNetConv(
                         node_dim=node_dim,
-                        edge_dim=edge_filter_dim,
+                        edge_filter_dim=edge_filter_dim,
                         n_gaussian=n_gaussian,
                         activation=activation,
                         node_hidden=hidden_dim,
@@ -164,8 +164,7 @@ class SchNet(BaseGNN):
             f"node_dim={self.node_dim}, "
             f"edge_filter_dim={self.edge_filter_dim}, "
             f"n_gaussian={self.n_gaussian}, "
-            f"n_conv_layer={self.n_conv_layer}, "
-            f"convolution:{self.convs[0].__class__.__name__}, "
+            f"convolution_layers: {self.convs[0].__class__.__name__} * {self.n_conv_layer}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
         )

@@ -213,7 +213,7 @@ class DimeNet(BaseGNN):
         self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
 
         if share_weight:
-            self.interaction_blocks = nn.ModuleList(
+            self.interactions = nn.ModuleList(
                 [
                     InteractionBlock(
                         hidden_dim=edge_message_dim,
@@ -227,7 +227,7 @@ class DimeNet(BaseGNN):
                 ]
             )
         else:
-            self.interaction_blocks = nn.ModuleList(
+            self.interactions = nn.ModuleList(
                 [
                     InteractionBlock(
                         hidden_dim=edge_message_dim,
@@ -241,7 +241,7 @@ class DimeNet(BaseGNN):
                 ]
             )
 
-        self.output_blocks = nn.ModuleList(
+        self.outputs = nn.ModuleList(
             [
                 Edge2NodeProp(
                     edge_dim=edge_message_dim,
@@ -261,9 +261,9 @@ class DimeNet(BaseGNN):
         self.node_embed.reset_parameters()
         self.edge_embed.reset_parameters()
         self.rbf.reset_parameters()
-        for ib in self.interaction_blocks:
+        for ib in self.interactions:
             ib.reset_parameters()
-        for ob in self.output_blocks:
+        for ob in self.outputs:
             ob.reset_parameters()
 
     def forward(self, data_batch) -> Tensor:
@@ -296,10 +296,10 @@ class DimeNet(BaseGNN):
         # embedding and firset output
         x = self.node_embed(atomic_numbers)
         m = self.edge_embed(x, rbf, idx_i, idx_j)
-        out = self.output_blocks[0](m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
+        out = self.outputs[0](m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
         # interaction and outputs
-        for ib, ob in zip(self.interaction_blocks, self.output_blocks[1:]):
+        for ib, ob in zip(self.interactions, self.outputs[1:]):
             m = ib(m, rbf, sbf, edge_idx_kj, edge_idx_ji)
             out += ob(m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
 
@@ -316,8 +316,7 @@ class DimeNet(BaseGNN):
             f"edge_message_dim={self.edge_message_dim}, "
             f"n_radial={self.n_radial}, "
             f"n_spherical={self.n_spherical}, "
-            f"n_interaction={self.n_interaction}, "
-            f"interaction blocks:{self.interaction_blocks[0].__class__.__name__}, "
+            f"interaction_layers: {self.interactions[0].__class__.__name__} * {self.n_interaction}, "
             f"cutoff={self.cutoff_radi}, "
             f"out_dim={self.out_dim})"
         )
