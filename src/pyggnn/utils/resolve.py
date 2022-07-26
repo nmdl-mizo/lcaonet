@@ -1,4 +1,8 @@
-from typing import Optional, Union, Any, List
+from typing import Callable, Optional, Union, Any, List
+from inspect import getmembers, isfunction
+
+import torch
+from torch.nn.init import calculate_gain
 
 from pyggnn.nn.activation import ShiftedSoftplus, Swish
 
@@ -13,40 +17,46 @@ def _resolver(
     query: Union[Any, str],
     classes: List[Any],
     base_cls: Optional[Any] = None,
-    return_cls: bool = False,
+    return_initialize: bool = True,
     **kwargs,
-):
-    if isinstance(query, str):
-        query = _normalize_string(query)
+) -> Union[Callable, Any]:
     if isinstance(query, str):
         for cls in classes:
             if cls.__name__.lower() == query:
-                if return_cls:
+                if not return_initialize:
                     return cls
                 obj = cls(**kwargs)
                 assert callable(obj)
                 return obj
     elif isinstance(query, type):
         if query in classes:
-            if return_cls:
-                return cls
+            if not return_initialize:
+                return query
             obj = query(**kwargs)
             assert callable(obj)
             return obj
-    elif isinstance(query, base_cls):
-        if return_cls:
-            return cls
+    elif issubclass(query, base_cls) and base_cls is not None:
+        if not return_initialize:
+            return query
+        obj = query(**kwargs)
+        assert callable(obj)
+        return obj
+    elif isinstance(query, base_cls) and base_cls is not None:
+        if not return_initialize:
+            return query
         obj = query(**kwargs)
         assert callable(obj)
         return obj
     else:
-        raise ValueError("query must be str or type or class")
-    raise ValueError("query not found")
+        raise ValueError(f"{query} must be str or type or class")
+    raise ValueError(f"{query} not found")
 
 
-def activation_resolver(query: Union[Any, str] = "relu", **kwargs):
-    import torch
-
+def activation_resolver(
+    query: Union[torch.nn.Module, str] = "relu", **kwargs
+) -> Callable:
+    if isinstance(query, str):
+        query = _normalize_string(query)
     base_cls = torch.nn.Module
     # activation classes
     acts = [
@@ -59,9 +69,11 @@ def activation_resolver(query: Union[Any, str] = "relu", **kwargs):
     return _resolver(query, acts, base_cls, **kwargs)
 
 
-def activation_gain_resolver(query: Union[Any, str] = "relu") -> str:
-    import torch
-
+def activation_gain_resolver(
+    query: Union[torch.nn.Module, str] = "relu", **kwargs
+) -> float:
+    if isinstance(query, str):
+        query = _normalize_string(query)
     base_cls = torch.nn.Module
     # activation classes
     acts = [
@@ -82,7 +94,20 @@ def activation_gain_resolver(query: Union[Any, str] = "relu") -> str:
         # shifted softplus using linear gain
         "shiftedsoftplus": "linear",
     }
-    # if not found, return "linear"
-    return gain_dict.get(
-        _resolver(query, acts, base_cls, True).__name__.lower(), "linear"
+    # if query is not found, return "linear" gain
+    return calculate_gain(
+        gain_dict.get(
+            _resolver(query, acts, base_cls, False).__name__.lower(), "linear"
+        ),
+        **kwargs,
     )
+
+
+def init_resolver(query: Union[torch.nn.Module, str] = "orthogonal"):
+    if query[-1] != "_":
+        query = _normalize_string(query)
+        query += "_"
+
+    funcs = [f[1] for f in getmembers(torch.nn.init, isfunction)]
+
+    return _resolver(query, funcs, return_initialize=False)
