@@ -166,7 +166,7 @@ class DimeNet(BaseGNN):
 
         DimeNet:
         [1] J. Klicpera et al., arXiv [cs.LG] (2020), (available at http://arxiv.org/abs/2003.03123).
-        [2] https://github.com/pyg-team/pytorch_geometric
+        [2] https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
         [3] https://github.com/gasteigerjo/dimenet
     """
 
