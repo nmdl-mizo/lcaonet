@@ -19,7 +19,7 @@ class Collater:
         batch_ind = torch.empty(0).to(torch.long)
         datas = torch_geometric.data.Data()
         for b in batch:
-            n_node = b[DataKeys.Atomic_num].size(0)
+            n_node = b[DataKeys.Atom_numbers].size(0)
             # add batch index
             batch_ind = torch.cat(
                 [batch_ind, torch.full((n_node,), n_batch, dtype=torch.long)], dim=0
