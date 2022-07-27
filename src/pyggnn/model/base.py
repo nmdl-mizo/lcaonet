@@ -80,7 +80,7 @@ class BaseGNN(nn.Module):
         idx_j, idx_i = data_batch[DataKeys.Edge_index]  # j->i
 
         value = torch.arange(idx_j.size(0), device=idx_j.device)
-        num_nodes = data_batch[DataKeys.Atomic_num].size(0)
+        num_nodes = data_batch[DataKeys.Atom_numbers].size(0)
         adj_t = SparseTensor(
             row=idx_i,
             col=idx_j,

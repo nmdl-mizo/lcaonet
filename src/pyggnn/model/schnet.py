@@ -145,7 +145,7 @@ class SchNet(BaseGNN):
 
     def forward(self, data_batch) -> Tensor:
         batch = data_batch[DataKeys.Batch]
-        atomic_numbers = data_batch[DataKeys.Atomic_num]
+        atomic_numbers = data_batch[DataKeys.Atom_numbers]
         edge_index = data_batch[DataKeys.Edge_index]
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
