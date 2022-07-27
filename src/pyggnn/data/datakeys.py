@@ -6,7 +6,7 @@ class DataKeys:
     Batch = "batch"
     Edge_index = "edge_index"
     Position = "pos"
-    Atomic_num = "atom_numbers"
+    Atom_numbers = "atom_numbers"
     Lattice = "lattice"
     PBC = "pbc"
     Edge_shift = "edge_shift"
