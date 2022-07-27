@@ -14,7 +14,6 @@ from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.edge_embed import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.edge_out import Edge2NodeProp1
-from pyggnn.data.datakeys import DataKeys
 from pyggnn.utils.resolve import activation_resolver
 
 
@@ -275,9 +274,9 @@ class DimeNet(BaseGNN):
         )
 
     def forward(self, data_batch) -> Tensor:
-        batch = data_batch[DataKeys.Batch]
-        atomic_numbers = data_batch[DataKeys.Atom_numbers]
-        pos = data_batch[DataKeys.Position]
+        batch, pos, atom_numbers = self.get_data(
+            data_batch, batch_index=True, position=True, atom_numbers=True
+        )
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # get triplets
@@ -302,14 +301,14 @@ class DimeNet(BaseGNN):
         sbf = self.sbf(distances, angle, edge_idx_kj)
 
         # embedding and firset output
-        x = self.node_embed(atomic_numbers)
+        x = self.node_embed(atom_numbers)
         m = self.edge_embed(x, rbf, idx_i, idx_j)
-        out = self.outputs[0](m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
+        out = self.outputs[0](m, rbf, idx_i, num_nodes=atom_numbers.size(0))
 
         # interaction and outputs
         for ib, ob in zip(self.interactions, self.outputs[1:]):
             m = ib(m, rbf, sbf, edge_idx_kj, edge_idx_ji)
-            out += ob(m, rbf, idx_i, num_nodes=atomic_numbers.size(0))
+            out += ob(m, rbf, idx_i, num_nodes=atom_numbers.size(0))
 
         # aggregation each batch
         return (
