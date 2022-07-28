@@ -124,6 +124,8 @@ class Db2GraphDataset(BaseGraphDataset):
                     v = row.get(k)
                 elif row.data.get(k) is not None:
                     v = row.data.get(k)
+                elif atoms.info.get(k) is not None:
+                    v = atoms.info.get(k)
                 else:
                     raise KeyError(f"{k} is not found in the {self.db_path}.")
                 self._set_properties(geometric_data, k, v)
