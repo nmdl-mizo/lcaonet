@@ -130,7 +130,7 @@ class AtomicDict2Node(nn.Module):
         Args:
             node_dim (int): embedding node dimension.
             max_num (int, optional): number of max value of atomic number.
-                if set to`None`, `max_num=100`. Defaults to `None`.
+                if set to`None`, `max_num=56`. Defaults to `None`.
         """
         if max_num is None:
             max_num = 56
