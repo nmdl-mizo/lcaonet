@@ -108,13 +108,14 @@ SPOOKYNET_DICT = torch.tensor(
         [52, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 4, 0, 0, 0, 0, 2, 4, 10, 0],
         [53, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 5, 0, 0, 0, 0, 2, 5, 10, 0],
         [54, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 0, 0, 0, 0, 2, 6, 10, 0],
-        [54, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 1, 0, 0, 0, 1, 6, 10, 0],
-        [54, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 0, 0, 0, 2, 6, 10, 0],
+        [55, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 1, 0, 0, 0, 1, 6, 10, 0],
+        [56, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 0, 0, 0, 2, 6, 10, 0],
+        [86, 2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 6, 10, 14],
     ]
 )
 
 
-class AtomicDict2Node(AtomicNum2Node):
+class AtomicDict2Node(nn.Module):
     """
     The block to calculate initial node embeddings.
     Convert atomic numbers to a vector of arbitrary dimension.
@@ -133,14 +134,17 @@ class AtomicDict2Node(AtomicNum2Node):
         """
         if max_num is None:
             max_num = 56
-        super().__init__(node_dim, max_num=max_num)
+        else:
+            assert max_num <= 56
+        super().__init__()
+        self.embed = nn.Embedding(max_num, node_dim)
         self.M = nn.Parameter(torch.Tensor(node_dim, 20))
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        super().reset_parameters()
-        self.M = glorot_orthogonal(self.M, scale=2.0)
+        self.embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
+        glorot_orthogonal(self.M, scale=2.0)
 
     def forward(self, z: Tensor) -> Tensor:
         """
@@ -153,5 +157,7 @@ class AtomicDict2Node(AtomicNum2Node):
             Tensor: embedding nodes shape of (n_node x node_dim).
         """
         device = z.device
-        z = self.M * SPOOKYNET_DICT[z].to(device) + super().forward(z)
+        z = torch.einsum(
+            "fd, bd->bf", self.M, (SPOOKYNET_DICT[z] / SPOOKYNET_DICT[-1]).to(device)
+        ) + self.embed(z)
         return z
