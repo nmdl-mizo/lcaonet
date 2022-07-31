@@ -92,8 +92,8 @@ class EGNN(BaseGNN):
                         batch_norm=batch_norm,
                         **kwargs,
                     )
-                    * n_conv_layer
                 ]
+                * n_conv_layer
             )
         else:
             self.convs = nn.ModuleList(

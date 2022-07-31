@@ -101,8 +101,8 @@ class SchNet(BaseGNN):
                         aggr=aggr,
                         **kwargs,
                     )
-                    * n_conv_layer
                 ]
+                * n_conv_layer
             )
         else:
             self.convs = nn.ModuleList(

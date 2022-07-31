@@ -239,8 +239,8 @@ class DimeNet(BaseGNN):
                         weight_init=weight_init,
                         **kwargs,
                     )
-                    * n_interaction
                 ]
+                * n_interaction
             )
         else:
             self.interactions = nn.ModuleList(
