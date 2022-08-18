@@ -19,12 +19,13 @@ class AtomicNum2Node(nn.Embedding):
         self,
         node_dim: int,
         max_num: Optional[int] = None,
+        charge:bool=False,
     ):
         """
         Args:
             node_dim (int): embedding node dimension.
-            max_num (int, optional): number of max value of atomic number.
-                if set to`None`, `max_num=100`. Defaults to `None`.
+            max_num (int, optional): number of max value of atomic number. if set to``None``, ``max_num=100``. Defaults to ``None``.
+            charge (bool, optional): if set to ``True``, use charge to initialize node embedding. Defaults to ``False``.
         """
         if max_num is None:
             max_num = 100
@@ -38,17 +39,22 @@ class AtomicNum2Node(nn.Embedding):
         # https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
         self.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
-    def forward(self, z: Tensor) -> Tensor:
+    def forward(self, z: Tensor, c:Optional[Tensor]=None) -> Tensor:
         """
         Computed the initial node embedding.
 
         Args:
             z (Tensor): atomic numbers shape of (n_node).
+            c (Tensor, optional): charge shape of (n_node). Defaults to ``None``.
 
         Returns:
             Tensor: embedding nodes shape of (n_node x node_dim).
         """
+        if self.charge:
+            assert c is not None, "charge tensor must not be None"
         z = super().forward(z)
+        if self.charge:
+            z = torch.concat([z, c.unsqueeze(-1)], dim=1)
         return z
 
 
@@ -125,12 +131,13 @@ class AtomicDict2Node(nn.Module):
         self,
         node_dim: int,
         max_num: Optional[int] = None,
+        charge:bool=False,
     ):
         """
         Args:
             node_dim (int): embedding node dimension.
-            max_num (int, optional): number of max value of atomic number.
-                if set to`None`, `max_num=56`. Defaults to `None`.
+            max_num (int, optional): number of max value of atomic number. if set to``None``, ``max_num=56``. Defaults to ``None``.
+            charge (bool, optional): whether to add charge. Defaults to ``False``.
         """
         if max_num is None:
             max_num = 56
@@ -139,6 +146,7 @@ class AtomicDict2Node(nn.Module):
         super().__init__()
         self.embed = nn.Embedding(max_num, node_dim)
         self.M = nn.Parameter(torch.Tensor(node_dim, 20))
+        self.charge = charge
 
         self.reset_parameters()
 
@@ -146,18 +154,23 @@ class AtomicDict2Node(nn.Module):
         self.embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
         glorot_orthogonal(self.M, scale=2.0)
 
-    def forward(self, z: Tensor) -> Tensor:
+    def forward(self, z: Tensor, c:Optional[Tensor]=None) -> Tensor:
         """
         Computed the initial node embedding.
 
         Args:
             z (Tensor): atomic numbers shape of (n_node).
+            c (Tensor, optional): charges shape of (n_node). Defaults to ``None``.
 
         Returns:
             Tensor: embedding nodes shape of (n_node x node_dim).
         """
+        if self.charge:
+            assert c is not None, "charge tensor must not be None"
         device = z.device
         z = torch.einsum(
             "fd, bd->bf", self.M, (SPOOKYNET_DICT[z] / SPOOKYNET_DICT[-1]).to(device)
         ) + self.embed(z)
+        if self.charge:
+            z = torch.concat([z, c.unsqueeze(-1)], dim=1)
         return z
