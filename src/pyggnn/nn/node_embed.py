@@ -19,7 +19,7 @@ class AtomicNum2Node(nn.Embedding):
         self,
         node_dim: int,
         max_num: Optional[int] = None,
-        charge:bool=False,
+        charge: bool = False,
     ):
         """
         Args:
@@ -30,6 +30,7 @@ class AtomicNum2Node(nn.Embedding):
         if max_num is None:
             max_num = 100
         super().__init__(num_embeddings=max_num, embedding_dim=node_dim)
+        self.charge = charge
 
         self.reset_parameters()
 
@@ -39,7 +40,7 @@ class AtomicNum2Node(nn.Embedding):
         # https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
         self.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
-    def forward(self, z: Tensor, c:Optional[Tensor]=None) -> Tensor:
+    def forward(self, z: Tensor, c: Optional[Tensor] = None) -> Tensor:
         """
         Computed the initial node embedding.
 
@@ -131,7 +132,7 @@ class AtomicDict2Node(nn.Module):
         self,
         node_dim: int,
         max_num: Optional[int] = None,
-        charge:bool=False,
+        charge: bool = False,
     ):
         """
         Args:
@@ -154,7 +155,7 @@ class AtomicDict2Node(nn.Module):
         self.embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
         glorot_orthogonal(self.M, scale=2.0)
 
-    def forward(self, z: Tensor, c:Optional[Tensor]=None) -> Tensor:
+    def forward(self, z: Tensor, c: Optional[Tensor] = None) -> Tensor:
         """
         Computed the initial node embedding.
 
@@ -168,9 +169,7 @@ class AtomicDict2Node(nn.Module):
         if self.charge:
             assert c is not None, "charge tensor must not be None"
         device = z.device
-        z = torch.einsum(
-            "fd, bd->bf", self.M, (SPOOKYNET_DICT[z] / SPOOKYNET_DICT[-1]).to(device)
-        ) + self.embed(z)
+        z = torch.einsum("fd, bd->bf", self.M, (SPOOKYNET_DICT[z] / SPOOKYNET_DICT[-1]).to(device)) + self.embed(z)
         if self.charge:
             z = torch.concat([z, c.unsqueeze(-1)], dim=1)
         return z
