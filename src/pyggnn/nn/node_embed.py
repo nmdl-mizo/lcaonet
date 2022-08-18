@@ -26,7 +26,7 @@ class AtomicNum2Node(nn.Embedding):
             node_dim (int): embedding node dimension.
             max_num (int, optional): number of max value of atomic number. if set to``None``, ``max_num=100``. Defaults to ``None``.
             charge (bool, optional): if set to ``True``, use charge to initialize node embedding. Defaults to ``False``.
-        """
+        """  # noqa: E501
         if max_num is None:
             max_num = 100
         super().__init__(num_embeddings=max_num, embedding_dim=node_dim)
@@ -139,7 +139,7 @@ class AtomicDict2Node(nn.Module):
             node_dim (int): embedding node dimension.
             max_num (int, optional): number of max value of atomic number. if set to``None``, ``max_num=56``. Defaults to ``None``.
             charge (bool, optional): whether to add charge. Defaults to ``False``.
-        """
+        """  # noqa: E501
         if max_num is None:
             max_num = 56
         else:

@@ -35,112 +35,43 @@ class DimNetPPInteraction(nn.Module):
         super().__init__()
         # Dense transformation of basis
         self.rbf_denses = nn.Sequential(
-            Dense(
-                n_radial,
-                basis_embed_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
-            Dense(
-                basis_embed_dim,
-                edge_message_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(n_radial, basis_embed_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(basis_embed_dim, edge_message_dim, bias=False, weight_init=weight_init, **kwargs),
         )
         self.sbf_denses = nn.Sequential(
-            Dense(
-                n_spherical * n_radial,
-                basis_embed_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
-            Dense(
-                basis_embed_dim,
-                edge_down_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(n_spherical * n_radial, basis_embed_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(basis_embed_dim, edge_down_dim, bias=False, weight_init=weight_init, **kwargs),
         )
 
         # Dense transformations of input messages.
         self.kj_dense = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, bias=True, weight_init=weight_init, **kwargs),
             activation,
         )
         self.ji_dense = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, bias=True, weight_init=weight_init, **kwargs),
             activation,
         )
 
         # down and up projection of edge message embedding
         self.down_dense = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_down_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_down_dim, bias=False, weight_init=weight_init, **kwargs),
             activation,
         )
         self.up_dense = nn.Sequential(
-            Dense(
-                edge_down_dim,
-                edge_message_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_down_dim, edge_message_dim, bias=False, weight_init=weight_init, **kwargs),
             activation,
         )
 
         # resnets
         self.res_before_skip = nn.Sequential(
-            ResidualBlock(
-                edge_message_dim,
-                activation=activation,
-                weight_init=weight_init,
-                **kwargs,
-            ),
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            ResidualBlock(edge_message_dim, activation=activation, weight_init=weight_init, **kwargs),
+            Dense(edge_message_dim, edge_message_dim, bias=True, weight_init=weight_init, **kwargs),
             activation,
         )
         self.res_after_skip = nn.Sequential(
-            ResidualBlock(
-                edge_message_dim,
-                activation=activation,
-                weight_init=weight_init,
-                **kwargs,
-            ),
-            ResidualBlock(
-                edge_message_dim,
-                activation=activation,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            ResidualBlock(edge_message_dim, activation=activation, weight_init=weight_init, **kwargs),
+            ResidualBlock(edge_message_dim, activation=activation, weight_init=weight_init, **kwargs),
         )
 
     def forward(
@@ -319,21 +250,13 @@ class DimeNetPlusPlus(BaseGNN):
         )
 
     def forward(self, data_batch) -> Tensor:
-        batch, pos, atom_numbers = self.get_data(
-            data_batch, batch_index=True, position=True, atom_numbers=True
-        )
+        batch, pos, atom_numbers = self.get_data(data_batch, batch_index=True, position=True, atom_numbers=True)
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # get triplets
-        (
-            idx_i,
-            idx_j,
-            triple_idx_i,
-            triple_idx_j,
-            triple_idx_k,
-            edge_idx_kj,
-            edge_idx_ji,
-        ) = self.get_triplets(data_batch)
+        (idx_i, idx_j, triple_idx_i, triple_idx_j, triple_idx_k, edge_idx_kj, edge_idx_ji) = self.get_triplets(
+            data_batch
+        )
         # calc angle each triplets
         # arctan is more stable than arccos
         pos_i = pos[triple_idx_i]
@@ -345,7 +268,7 @@ class DimeNetPlusPlus(BaseGNN):
         rbf = self.rbf(distances)
         sbf = self.sbf(distances, angle, edge_idx_kj)
 
-        # embedding and firset output
+        # embedding and get first output
         x = self.node_embed(atom_numbers)
         m = self.edge_embed(x, rbf, idx_i, idx_j)
         out = self.outputs[0](m, rbf, idx_i, num_nodes=atom_numbers.size(0))
@@ -356,11 +279,7 @@ class DimeNetPlusPlus(BaseGNN):
             out += ob(m, rbf, idx_i, num_nodes=atom_numbers.size(0))
 
         # aggregation each batch
-        return (
-            out.sum(dim=0)
-            if batch is None
-            else scatter(out, batch, dim=0, reduce=self.aggr)
-        )
+        return out.sum(dim=0) if batch is None else scatter(out, batch, dim=0, reduce=self.aggr)
 
     def __repr__(self):
         return (
