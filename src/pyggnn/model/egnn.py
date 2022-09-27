@@ -3,7 +3,6 @@ from typing import Literal, Optional, Union, Any
 import torch.nn as nn
 from torch import Tensor
 
-from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.conv.egnn_conv import EGNNConv
@@ -69,6 +68,7 @@ class EGNN(BaseGNN):
         self.n_conv_layer = n_conv_layer
         self.cutoff_radi = cutoff_radi
         self.out_dim = out_dim
+        self.edge_attr = edge_attr_dim
         # layers
         self.node_embed = AtomicNum2Node(node_dim, max_num=max_z)
         if cutoff_net is None:
@@ -92,8 +92,8 @@ class EGNN(BaseGNN):
                         batch_norm=batch_norm,
                         **kwargs,
                     )
-                    * n_conv_layer
                 ]
+                * n_conv_layer
             )
         else:
             self.convs = nn.ModuleList(
@@ -131,14 +131,26 @@ class EGNN(BaseGNN):
                 self.cutoff_net.reset_parameters()
 
     def forward(self, data_batch) -> Tensor:
-        batch = data_batch[DataKeys.Batch]
-        atomic_numbers = data_batch[DataKeys.Atomic_num]
-        edge_index = data_batch[DataKeys.Edge_index]
-        edge_attr = data_batch.get(DataKeys.Edge_attr, None)
+        if self.edge_attr is not None:
+            batch, edge_index, atom_numbers, edge_attr = self.get_data(
+                data_batch,
+                batch_index=True,
+                edge_index=True,
+                atom_numbers=True,
+                edge_attr=True,
+            )
+        else:
+            batch, edge_index, atom_numbers = self.get_data(
+                data_batch,
+                batch_index=True,
+                edge_index=True,
+                atom_numbers=True,
+            )
+            edge_attr = None
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # initial embedding
-        x = self.node_embed(atomic_numbers)
+        x = self.node_embed(atom_numbers)
         # convolution
         for conv in self.convs:
             x = conv(x, distances, edge_index, edge_attr)

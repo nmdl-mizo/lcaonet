@@ -59,7 +59,7 @@ class BaseGraphDataset(torch.utils.data.Dataset):
             ),
         )
         data[DataKeys.Position] = torch.tensor(atoms.get_positions())
-        data[DataKeys.Atomic_num] = torch.tensor(atoms.numbers)
+        data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers)
         # add batch dimension
         data[DataKeys.Lattice] = torch.tensor(atoms.cell.array).unsqueeze(0)
         data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=default_dtype)
@@ -188,7 +188,7 @@ class Hdf2GraphDataset(BaseGraphDataset):
         # get positions
         positions = system_group[DataKeys.Position][...]
         # get atomic numbers
-        atomic_num = system_group[DataKeys.Atomic_num][...]
+        atomic_num = system_group[DataKeys.Atom_numbers][...]
         # make atoms object
         atoms = ase.Atoms(
             positions=positions,

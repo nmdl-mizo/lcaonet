@@ -3,7 +3,6 @@ from typing import Union, Optional, Literal, Any, Callable
 from torch import Tensor
 import torch.nn as nn
 
-from pyggnn.data.datakeys import DataKeys
 from pyggnn.model.base import BaseGNN
 from pyggnn.nn.cutoff import CosineCutoff
 from pyggnn.nn.node_embed import AtomicNum2Node
@@ -102,8 +101,8 @@ class SchNet(BaseGNN):
                         aggr=aggr,
                         **kwargs,
                     )
-                    * n_conv_layer
                 ]
+                * n_conv_layer
             )
         else:
             self.convs = nn.ModuleList(
@@ -144,15 +143,15 @@ class SchNet(BaseGNN):
                 self.cutoff_net.reset_parameters()
 
     def forward(self, data_batch) -> Tensor:
-        batch = data_batch[DataKeys.Batch]
-        atomic_numbers = data_batch[DataKeys.Atomic_num]
-        edge_index = data_batch[DataKeys.Edge_index]
+        batch, edge_index, atom_numbers = self.get_data(
+            data_batch, batch_index=True, edge_index=True, atom_numbers=True
+        )
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # expand with Gaussian radial basis
         edge_basis = self.rbf(distances)
         # initial embedding
-        x = self.node_embed(atomic_numbers)
+        x = self.node_embed(atom_numbers)
         # convolution
         for conv in self.convs:
             x = conv(x, distances, edge_basis, edge_index)

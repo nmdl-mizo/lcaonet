@@ -80,7 +80,7 @@ class BaseGNN(nn.Module):
         idx_j, idx_i = data_batch[DataKeys.Edge_index]  # j->i
 
         value = torch.arange(idx_j.size(0), device=idx_j.device)
-        num_nodes = data_batch[DataKeys.Atomic_num].size(0)
+        num_nodes = data_batch[DataKeys.Atom_numbers].size(0)
         adj_t = SparseTensor(
             row=idx_i,
             col=idx_j,
@@ -115,3 +115,35 @@ class BaseGNN(nn.Module):
             edge_idx_kj,
             edge_idx_ji,
         )
+
+    def get_data(
+        self,
+        data_batch,
+        batch_index: bool = False,
+        edge_index: bool = False,
+        position: bool = False,
+        atom_numbers: bool = False,
+        lattice: bool = False,
+        pbc: bool = False,
+        edge_shift: bool = False,
+        edge_attr: bool = False,
+    ) -> Tuple[Tensor]:
+        # TODO: returns order
+        returns = []
+        if batch_index:
+            returns.append(data_batch[DataKeys.Batch])
+        if edge_index:
+            returns.append(data_batch[DataKeys.Edge_index])
+        if position:
+            returns.append(data_batch[DataKeys.Position])
+        if atom_numbers:
+            returns.append(data_batch[DataKeys.Atom_numbers])
+        if lattice:
+            returns.append(data_batch[DataKeys.Lattice])
+        if pbc:
+            returns.append(data_batch[DataKeys.PBC])
+        if edge_shift:
+            returns.append(data_batch[DataKeys.Edge_shift])
+        if edge_attr:
+            returns.append(data_batch[DataKeys.Edge_attr])
+        return tuple(returns)
