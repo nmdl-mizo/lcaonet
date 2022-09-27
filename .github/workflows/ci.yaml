@@ -34,7 +34,7 @@ jobs:
       with:
         options: "--check --verbose --diff -l 120"
         src: "./src/pyggnn"
-        version: "21.5b1"
+        version: "22.3.0"
 
     - name: Install pyggnn
       run: |
