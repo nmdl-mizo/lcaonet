@@ -32,6 +32,13 @@ jobs:
     - name: Formatting with Black
       uses: psf/black@stable
       with:
+        options: "-l 120"
+        src: "./src/pyggnn"
+        version: "22.3.0"
+    
+    - name: Checking with Black
+      uses: psf/black@stable
+      with:
         options: "--check --verbose --diff -l 120"
         src: "./src/pyggnn"
         version: "22.3.0"
