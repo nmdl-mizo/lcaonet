@@ -1,4 +1,7 @@
-from typing import Callable, Tuple, Union, Optional, Any, Literal
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
 
 from torch import Tensor
 import torch.nn as nn
@@ -15,13 +18,13 @@ __all__ = ["SchNetConv"]
 class SchNetConv(MessagePassing):
     def __init__(
         self,
-        x_dim: Union[int, Tuple[int, int]],
+        x_dim: int | tuple[int, int],
         edge_filter_dim: int,
         n_gaussian: int,
         activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),
         node_hidden: int = 256,
-        cutoff_net: Optional[nn.Module] = None,
-        aggr: Literal["add", "mean"] = "add",
+        cutoff_net: nn.Module | None = None,
+        aggr: str = "add",
         weight_init: Callable[[Tensor], Any] = nn.init.xavier_uniform_,
         **kwargs,
     ):
@@ -86,9 +89,5 @@ class SchNetConv(MessagePassing):
         out = out + x
         return out
 
-    def message(
-        self,
-        x_j: Tensor,
-        W: Tensor,
-    ) -> Tensor:
+    def message(self, x_j: Tensor, W: Tensor) -> Tensor:
         return x_j * W

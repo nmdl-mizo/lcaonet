@@ -1,4 +1,6 @@
-from typing import Literal, Optional, Union, Any
+from __future__ import annotations
+
+from typing import Any
 
 import torch.nn as nn
 from torch import Tensor
@@ -17,6 +19,22 @@ class EGNN(BaseGNN):
     EGNN implemeted by using PyTorch Geometric.
     From atomic structure, predict global property such as energy.
 
+    Args:
+        node_dim (int): number of node embedding dimension.
+        edge_dim (int): number of edge embedding dimension.
+        n_conv_layer (int): number of convolutinal layers.
+        cutoff_radi (float): cutoff radious. Defaults to `None`.
+        out_dim (int, optional): number of output property dimension.
+        activation (str or nn.Module, optional): activation function or function name.
+        cutoff_radi (float): cutoff radious. Defaults to `None`.
+        cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
+        hidden_dim (int, optional): number of hidden layers. Defaults to `256`.
+        aggr (`"add"` or `"mean"`, optional): aggregation method. Defaults to `"add"`.
+        batch_norm (bool, optional): if `False`, no batch normalization in convolution layers. Defaults to `False`.
+        edge_attr_dim (int, optional): number of another edge attrbute dimension. Defaults to `None`.
+        share_weight (bool, optional): if `True`, all convolution layers share the parameters. Defaults to `False`.
+        max_z (int, optional): max number of atomic number. Defaults to `100`.
+
     Notes:
         PyTorch Geometric:
         https://pytorch-geometric.readthedocs.io/en/latest/
@@ -32,34 +50,17 @@ class EGNN(BaseGNN):
         edge_dim: int,
         n_conv_layer: int,
         out_dim: int,
-        activation: Union[Any, str] = "swish",
-        cutoff_net: Optional[nn.Module] = None,
-        cutoff_radi: Optional[float] = None,
+        activation: Any | str = "swish",
+        cutoff_net: nn.Module | None = None,
+        cutoff_radi: float | None = None,
         hidden_dim: int = 256,
-        aggr: Literal["add", "mean"] = "add",
+        aggr: str = "add",
         batch_norm: bool = False,
-        edge_attr_dim: Optional[int] = None,
+        edge_attr_dim: int | None = None,
         share_weight: bool = False,
-        max_z: Optional[int] = 100,
+        max_z: int | None = 100,
         **kwargs,
     ):
-        """
-        Args:
-            node_dim (int): number of node embedding dimension.
-            edge_dim (int): number of edge embedding dimension.
-            n_conv_layer (int): number of convolutinal layers.
-            cutoff_radi (float): cutoff radious. Defaults to `None`.
-            out_dim (int, optional): number of output property dimension.
-            activation (str or nn.Module, optional): activation function or function name.
-            cutoff_radi (float): cutoff radious. Defaults to `None`.
-            cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
-            hidden_dim (int, optional): number of hidden layers. Defaults to `256`.
-            aggr (`"add"` or `"mean"`, optional): aggregation method. Defaults to `"add"`.
-            batch_norm (bool, optional): if `False`, no batch normalization in convolution layers. Defaults to `False`.
-            edge_attr_dim (int, optional): number of another edge attrbute dimension. Defaults to `None`.
-            share_weight (bool, optional): if `True`, all convolution layers share the parameters. Defaults to `False`.
-            max_z (int, optional): max number of atomic number. Defaults to `100`.
-        """
         super().__init__()
         act = activation_resolver(activation)
 

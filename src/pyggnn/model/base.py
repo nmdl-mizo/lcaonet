@@ -1,4 +1,4 @@
-from typing import Tuple
+from __future__ import annotations
 
 import torch
 from torch import Tensor
@@ -32,9 +32,7 @@ class BaseGNN(nn.Module):
         if data_batch.get(DataKeys.Batch) is not None:
             batch = data_batch[DataKeys.Batch]
         else:
-            batch = data_batch[DataKeys.Position].new_zeros(
-                data_batch[DataKeys.Position].shape[0], dtype=torch.long
-            )
+            batch = data_batch[DataKeys.Position].new_zeros(data_batch[DataKeys.Position].shape[0], dtype=torch.long)
 
         edge_src, edge_dst = (
             data_batch[DataKeys.Edge_index][0],
@@ -45,17 +43,13 @@ class BaseGNN(nn.Module):
             data_batch[DataKeys.Position][edge_dst]
             - data_batch[DataKeys.Position][edge_src]
             # TODO: einsum can use only Double, change float
-            + torch.einsum(
-                "ni,nij->nj",
-                data_batch[DataKeys.Edge_shift],
-                data_batch[DataKeys.Lattice][edge_batch],
-            )
+            + torch.einsum("ni,nij->nj", data_batch[DataKeys.Edge_shift], data_batch[DataKeys.Lattice][edge_batch])
         )
         return torch.norm(edge_vec, dim=1)
 
     def get_triplets(
         self, data_batch
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """
         Convert edge_index to triplets.
 
@@ -127,7 +121,7 @@ class BaseGNN(nn.Module):
         pbc: bool = False,
         edge_shift: bool = False,
         edge_attr: bool = False,
-    ) -> Tuple[Tensor]:
+    ) -> tuple[Tensor, ...]:
         # TODO: returns order
         returns = []
         if batch_index:
