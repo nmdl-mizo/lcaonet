@@ -1,0 +1,26 @@
+# @package _global_
+
+defaults:
+  - data: data
+  - model: dimenetpp
+  - optimizer: adam
+  - scheduler: cosine_annealing  # nullable
+  - loss_fn: rmse
+  - plmodule: gnn_module
+  - callbacks:
+      - early_stopping
+      - lr_monitor
+  - loggers: 
+      - csv
+      - tensorboard
+  - trainer: default_trainer_gpu
+
+training:
+  gpus: 1
+  num_workers: 4
+  seed: 42
+  batch_size: 32
+  max_epochs: 1000
+  amp_level: null  # nullable
+  lr: 0.001
+  weight_decay: 0.0
