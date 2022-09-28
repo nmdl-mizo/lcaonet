@@ -4,7 +4,7 @@ from collections import Callable
 import logging
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning import seed_everything

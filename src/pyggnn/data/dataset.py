@@ -1,6 +1,7 @@
-from os import PathLike
+from __future__ import annotations
+
 import pathlib
-from typing import List, Optional, Tuple, Union
+import logging
 
 import h5py
 import ase
@@ -8,9 +9,11 @@ import ase.neighborlist
 from ase.db import connect
 from numpy import ndarray
 import torch
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Dataset
 
 from pyggnn.data.datakeys import DataKeys
+
+log = logging.getLogger(__name__)
 
 
 __all__ = [
@@ -19,31 +22,30 @@ __all__ = [
     "Hdf2GraphDataset",
     "List2GraphDataset",
 ]
-# TODO: load missing data values from hdf5 or db file
 
 
-class BaseGraphDataset(torch.utils.data.Dataset):
-    def __init__(self, cutoff_radi: float, property_names: List[str], pbc: bool = True):
+class BaseGraphDataset(Dataset):
+    def __init__(self, cutoff_radi: float, property_names: list[str], pbc: bool | tuple[bool, ...] = True):
+        super().__init__()
         self.cutoff_radi = cutoff_radi
         self.property_names = property_names
         self.pbc = pbc
 
-    def __len__(self):
+    def len(self) -> int:
         raise NotImplementedError
 
-    def __getitem__(self, idx):
+    def getitem(self, idx) -> Data:
         raise NotImplementedError
 
-    def _atoms2geometricdata(self, atoms: ase.Atoms):
+    def _atoms2geometricdata(self, atoms: ase.Atoms) -> Data:
         """
-        Helper function to convet one Atoms object to torch_geometric.Data.
+        Helper function to convet one Atoms object to torch_geometric.data.Data.
 
         Args:
             atoms (ase.Atoms): one atoms object.
-            cutoff_radi (float): cutoff radious.
 
         Returns:
-            data: torch_geometric.Data
+            data: torch_geometric.data.Data
         """
         # for edge_shift
         default_dtype = torch.float64
@@ -54,9 +56,7 @@ class BaseGraphDataset(torch.utils.data.Dataset):
             self_interaction=False,
         )
         data = Data(
-            edge_index=torch.stack(
-                [torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0
-            ),
+            edge_index=torch.stack([torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0),
         )
         data[DataKeys.Position] = torch.tensor(atoms.get_positions())
         data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers)
@@ -65,7 +65,7 @@ class BaseGraphDataset(torch.utils.data.Dataset):
         data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=default_dtype)
         return data
 
-    def _set_properties(self, data, k: str, v: Union[int, float, ndarray, torch.Tensor]):
+    def _set_properties(self, data: torch, k: str, v: int | float | ndarray | torch.Tensor):
         # add a dimension for batching
         if isinstance(v, int) or isinstance(v, float):
             # for value
@@ -78,96 +78,42 @@ class BaseGraphDataset(torch.utils.data.Dataset):
             data[k] = torch.tensor(v).unsqueeze(0)
 
 
-class Db2GraphDataset(BaseGraphDataset):
-    """
-    Dataset for graph data such as crystal or molecule by using atoms object
-    from db file. This dataset corresponds to periodic boundary conditions.
-    """
-
-    def __init__(
-        self,
-        db_path: PathLike,
-        cutoff_radi: float,
-        property_names: Optional[List[str]] = None,
-        pbc: Union[bool, Tuple[bool]] = True,
-    ):
-        """
-        Args:
-            db_path (Pathlike): path to the database.
-            cutoff_radi (float): cutoff radius.
-            property_names (List[str], optional): property names to add to the
-                dataset. Defaults to `None`.
-            pbc (bool, optional): whether to use periodic boundary conditions.
-                Defaults to `True`.
-        """
-        if isinstance(db_path, str):
-            db_path = pathlib.Path(db_path)
-        if not db_path.exists():
-            raise FileNotFoundError(f"{db_path} does not exist.")
-        self.db_path = str(db_path)
-        super().__init__(cutoff_radi, property_names, pbc)
-
-    def __len__(self):
-        with connect(self.db_path) as db:
-            return db.count()
-
-    def __getitem__(self, idx):
-        with connect(self.db_path) as db:
-            row = db.get(idx + 1)
-        atoms = row.toatoms()
-        atoms.pbc = self.pbc
-        geometric_data = self._atoms2geometricdata(atoms)
-        # add properties
-        if self.property_names is not None:
-            for k in self.property_names:
-                if row.get(k) is not None:
-                    v = row.get(k)
-                elif row.data.get(k) is not None:
-                    v = row.data.get(k)
-                else:
-                    raise KeyError(f"{k} is not found in the {self.db_path}.")
-                self._set_properties(geometric_data, k, v)
-        return geometric_data
-
-
 class Hdf2GraphDataset(BaseGraphDataset):
     """
-    Dataset for graph data such as crystal or molecule by using atoms object
-    from hdf5 file. This dataset corresponds to periodic boundary conditions.
+    Dataset for graph data such as crystal or molecule by using atoms object from hdf5 file.
+    This dataset corresponds to periodic boundary conditions.
+
+    Args:
+        hdf5_path (str or pathlib.Path): path to the database.
+        cutoff_radi (float): cutoff radius.
+        property_names (List[str], optional): properties to add to the dataset. Defaults to `None`.
+        pbc (bool, optional): whether to use periodic boundary conditions. Defaults to `True`.
     """
 
     def __init__(
         self,
-        hdf5_path: PathLike,
+        hdf5_path: str | pathlib.Path,
         cutoff_radi: float,
-        property_names: Optional[List[str]] = None,
-        pbc: Union[bool, Tuple[bool]] = True,
+        property_names: list[str] | None = None,
+        pbc: bool | tuple[bool, ...] = True,
     ):
-        """
-        Args:
-            hdf5_path (Pathlike): path to the database.
-            cutoff_radi (float): cutoff radius.
-            property_names (List[str], optional): properties to add to the dataset.
-                Defaults to `None`.
-            pbc (bool, optional): whether to use periodic boundary conditions.
-                Defaults to `True`.
-        """
+        super().__init__(cutoff_radi, property_names, pbc)
         if isinstance(hdf5_path, str):
             hdf5_path = pathlib.Path(hdf5_path)
         if not hdf5_path.exists():
+            log.error(f"{hdf5_path} is not found.")
             raise FileNotFoundError(f"{hdf5_path} does not exist.")
         self.hdf5_path = str(hdf5_path)
         # open file
-        self.hdf5_file = h5py.File(self.hdf5_path, "r")
-        super().__init__(cutoff_radi, property_names, pbc)
+        self.hdf5_file = h5py.File(self.hdf5_path, "r", locking=False)
 
-    def __len__(self):
+    def len(self) -> int:
         return len(self.hdf5_file)
 
-    def __getitem__(self, idx):
+    def get(self, idx) -> Data:
         # each system is a group in the hdf5 file
         system_group = self.hdf5_file[list(self.hdf5_file.keys())[idx]]
-        atoms = self._make_atoms(system_group)
+        atoms: ase.Atoms = self._make_atoms(system_group)
         geometric_data = self._atoms2geometricdata(atoms)
         # add properties
         if self.property_names is not None:
@@ -202,35 +148,81 @@ class Hdf2GraphDataset(BaseGraphDataset):
         self.hdf5_file.close()
 
 
-class List2GraphDataset(BaseGraphDataset):
+class Db2GraphDataset(BaseGraphDataset):
     """
-    Dataset for graph data such as crystal or molecule from list of Atoms object.
+    Dataset for graph data such as crystal or molecule by using atoms object from db file.
     This dataset corresponds to periodic boundary conditions.
+
+    Args:
+        db_path (str or pathlib.Path): path to the database.
+        cutoff_radi (float): cutoff radius.
+        property_names (list[str], optional): property names to add to the dataset. Defaults to `None`.
+        pbc (bool or tuple[bool], optional): whether to use periodic boundary conditions. Defaults to `True`
     """
 
     def __init__(
         self,
-        atoms_list: List[ase.Atoms],
+        db_path: str | pathlib.Path,
         cutoff_radi: float,
-        property_names: Optional[List[str]] = None,
-        pbc: Union[bool, Tuple[bool]] = True,
+        property_names: list[str] | None = None,
+        pbc: bool | tuple[bool, ...] = True,
     ):
-        """
-        Args:
-            atoms_list (list of ase.Atoms): list of ase.Atoms object.
-            cutoff_radi (float): cutoff radius.
-            property_names (List[str], optional): properties to add to the dataset.
-                Defaults to `None`.
-            pbc (bool, optional): whether to use periodic boundary conditions.
-                Defaults to `True`.
-        """
-        self.atoms_list = atoms_list
         super().__init__(cutoff_radi, property_names, pbc)
+        if isinstance(db_path, str):
+            db_path = pathlib.Path(db_path)
+        if not db_path.exists():
+            raise FileNotFoundError(f"{db_path} does not exist.")
+        self.db_path = str(db_path)
 
-    def __len__(self):
+    def len(self) -> int:
+        with connect(self.db_path) as db:
+            return db.count()
+
+    def get(self, idx) -> Data:
+        with connect(self.db_path) as db:
+            row = db.get(idx + 1)
+        atoms: ase.Atoms = row.toatoms()
+        atoms.pbc = self.pbc
+        geometric_data = self._atoms2geometricdata(atoms)
+        # add properties
+        if self.property_names is not None:
+            for k in self.property_names:
+                if row.get(k) is not None:
+                    v = row.get(k)
+                elif row.data.get(k) is not None:
+                    v = row.data.get(k)
+                else:
+                    raise KeyError(f"{k} is not found in the {self.db_path}.")
+                self._set_properties(geometric_data, k, v)
+        return geometric_data
+
+
+class List2GraphDataset(BaseGraphDataset):
+    """
+    Dataset for graph data such as crystal or molecule from list of Atoms object.
+    This dataset corresponds to periodic boundary conditions.
+
+    Args:
+        atoms_list (list[ase.Atoms]): list of ase.Atoms object.
+        cutoff_radi (float): cutoff radius.
+        property_names (list[str], optional): properties to add to the dataset. Defaults to `None`.
+        pbc (bool or tuple[bool], optional): whether to use periodic boundary conditions. Defaults to `True`.
+    """
+
+    def __init__(
+        self,
+        atoms_list: list[ase.Atoms],
+        cutoff_radi: float,
+        property_names: list[str] | None = None,
+        pbc: bool | tuple[bool, ...] = True,
+    ):
+        super().__init__(cutoff_radi, property_names, pbc)
+        self.atoms_list = atoms_list
+
+    def len(self) -> int:
         return len(self.atoms_list)
 
-    def __getitem__(self, idx):
+    def get(self, idx) -> Data:
         atoms = self.atoms_list[idx]
         geometric_data = self._atoms2geometricdata(atoms)
         # add properties
