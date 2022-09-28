@@ -16,7 +16,7 @@ from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.edge_embed import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.edge_out import Edge2NodeProp1
-from pyggnn.utils.resolve import activation_resolver
+from pyggnn.utils.resolve import activation_resolver, init_resolver
 
 
 __all__ = ["DimeNet"]
@@ -165,11 +165,11 @@ class DimeNet(BaseGNN):
             n_radial (int): number of radial basis function.
             n_spherical (int): number of spherical basis function.
             n_bilinear (int): embedding of spherical basis.
-            activation (str or nn.Module, optional): activation fucntion. Defaults to `"swish"`.
+            activation (str, optional): activation fucntion. Defaults to `"swish"`.
             cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
             envelope_exponent (int, optional): exponent of envelope cutoff funcs. Defaults to `5`.
             aggr ("add" or "mean", optional): aggregation mehod. Defaults to `"add"`.
-            weight_init (Callable, optional): weight initialization. Defaults to `glorot_orthogonal`.
+            weight_init (str, optional): weight initialization. Defaults to `"glorot_orthogonal"`.
             share_weight (bool, optional): share weight parameter all interaction layers. Defaults to `False`.
             max_z (int, optional): max atomic number. Defaults to `100`.
 
@@ -191,17 +191,18 @@ class DimeNet(BaseGNN):
         n_radial: int,
         n_spherical: int,
         n_bilinear: int,
-        activation: str | nn.Module = "swish",
+        activation: str = "swish",
         cutoff_radi: float = 4.0,
         envelope_exponent: int = 5,
         aggr: str = "add",
-        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
+        weight_init: str = "glorot_orthogonal",
         share_weight: bool = False,
         max_z: int | None = 100,
         **kwargs,
     ):
         super().__init__()
         act = activation_resolver(activation)
+        weight_init = init_resolver(weight_init)
 
         self.edge_message_dim = edge_message_dim
         self.n_interaction = n_interaction
