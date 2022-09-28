@@ -19,7 +19,7 @@ class Node2Prop1(nn.Module):
     """
     The block to compute the global graph proptery from node embeddings. In this block, after aggregation, two more Dense layers are calculated.
     This block is used in EGNN.
-    
+
     Args:
         node_dim (int): number of input dimension.
         hidden_dim (int, optional): number of hidden layers dimension. Defaults to `128`.

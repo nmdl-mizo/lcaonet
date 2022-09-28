@@ -19,7 +19,7 @@ class AtomicNum2Node(nn.Embedding):
         node_dim (int): embedding node dimension.
         max_num (int, optional): number of max value of atomic number. if set to`None`, `max_num=100`. Defaults to `None`.
         charge (bool, optional): if set to `True`, use charge to initialize node embedding. Defaults to `False`.
-    """ # NOQA: E501
+    """  # NOQA: E501
 
     def __init__(
         self,

@@ -47,9 +47,7 @@ class BaseGNN(nn.Module):
         )
         return torch.norm(edge_vec, dim=1)
 
-    def get_triplets(
-        self, data_batch
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def get_triplets(self, data_batch) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """
         Convert edge_index to triplets.
 

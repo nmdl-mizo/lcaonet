@@ -23,6 +23,7 @@ class BesselSBF(nn.Module):
         cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
         envelope_exponent (int, optional): exponent of envelope cutoff fucntion. Defaults to `5`.
     """
+
     def __init__(
         self,
         n_radial: int,

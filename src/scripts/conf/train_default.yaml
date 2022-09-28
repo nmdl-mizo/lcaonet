@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - data: data
+  - data: graphdatamodule
   - model: dimenetpp
   - optimizer: adam
   - scheduler: cosine_annealing  # nullable
@@ -17,6 +17,9 @@ defaults:
 
 configs:
   job_name: "dimenetpp"
+  data_file: "data/CH4.hdf5"
+  file_type: "hdf5"
+  property_names: ["e_formation"]
   gpus: 1
   num_workers: 4
   prediction_key: "formation_energy"
@@ -28,3 +31,7 @@ training:
   max_epochs: 1000
   lr: 0.001
   weight_decay: 0.0
+
+params:
+  cutoff_radi: 5.0
+

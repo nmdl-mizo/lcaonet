@@ -72,9 +72,7 @@ def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> Call
     base_cls = torch.nn.Module
     # activation classes
     acts = [
-        act
-        for act in vars(torch.nn.modules.activation).values()
-        if isinstance(act, type) and issubclass(act, base_cls)
+        act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
     ]
     # add Swish and ShiftedSoftplus
     acts += [Swish, ShiftedSoftplus]
@@ -87,9 +85,7 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
     base_cls = torch.nn.Module
     # activation classes
     acts = [
-        act
-        for act in vars(torch.nn.modules.activation).values()
-        if isinstance(act, type) and issubclass(act, base_cls)
+        act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
     ]
     # add Swish and ShiftedSoftplus
     acts += [Swish, ShiftedSoftplus]
@@ -106,9 +102,7 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
     }
     # if query is not found, return "linear" gain
     try:
-        nonlinearity = gain_dict.get(
-            _resolver(query, acts, base_cls, False).__name__.lower(), "linear"
-        )
+        nonlinearity = gain_dict.get(_resolver(query, acts, base_cls, False).__name__.lower(), "linear")
     except ValueError:
         nonlinearity = "linear"
     return calculate_gain(nonlinearity, **kwargs)
