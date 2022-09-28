@@ -27,7 +27,10 @@ def _resolver(
     # query is a string
     if isinstance(query, str):
         for cls in classes:
-            if cls.__name__.lower() == query:
+            if _normalize_string(cls.__name__.lower()) == query:
+                # deprecated function is not used
+                if "deprecated" in cls.__str__():
+                    continue
                 if not return_initialize:
                     return cls
                 obj = cls(**kwargs)
@@ -112,14 +115,13 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
 
 
 def init_resolver(query: Callable | str = "orthogonal") -> Callable[[torch.Tensor], torch.Tensor]:
-    if isinstance(query, str) and query[-1] != "_":
+    if isinstance(query, str):
         query = _normalize_string(query)
-        query += "_"
 
     funcs = [f[1] for f in getmembers(torch.nn.init, isfunction)]
     # add torch_geometric.nn.inits
     funcs += [glorot, glorot_orthogonal]
-
+    # Since the list contains callable instead of class, return without initialize.
     return _resolver(query, funcs, return_initialize=False)
 
 
