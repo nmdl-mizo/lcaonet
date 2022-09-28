@@ -13,8 +13,16 @@ __all__ = ["BesselSBF"]
 
 
 class BesselSBF(nn.Module):
-    """Bessel Spherical basis functions"""
+    """
+    Bessel Spherical basis functions.
+    Expand inter atomic distances and angles by Bessel spherical and radial basis.
 
+    Args:
+        n_radial (int): number of radial basis.
+        n_spherical (int): number of spherical basis.
+        cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
+        envelope_exponent (int, optional): exponent of envelope cutoff fucntion. Defaults to `5`.
+    """
     def __init__(
         self,
         n_radial: int,
@@ -22,16 +30,6 @@ class BesselSBF(nn.Module):
         cutoff_radi: float = 5.0,
         envelope_exponent: int = 5,
     ):
-        """
-        Expand inter atomic distances and angles by Bessel spherical and radial basis.
-
-        Args:
-            n_radial (int): number of radial basis.
-            n_spherical (int): number of spherical basis.
-            cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
-            envelope_exponent (int, optional): exponent of envelope cutoff fucntion.
-                Defaults to `5`.
-        """
         super().__init__()
 
         assert n_radial <= 64, "n_radial must be under 64"
@@ -70,12 +68,10 @@ class BesselSBF(nn.Module):
         Args:
             dist (Tensor): interatomic distance values shape of (n_edge).
             angle (Tensor): angles of triplets shape of (n_triplets).
-            edge_idx_kj (torch.LongTensor): edge index from atom k to j
-                shape of (n_triplets).
+            edge_idx_kj (torch.LongTensor): edge index from atom k to j shape of (n_triplets).
 
         Returns:
-            Tensor: extended distances and angles of
-                (n_triplets x (n_spherical x n_radial)) shape.
+            Tensor: extended distances and angles of (n_triplets x (n_spherical x n_radial)) shape.
         """
         dist = dist / self.cutoff_radi
         rbf = torch.stack([f(dist) for f in self.bessel_funcs], dim=1)

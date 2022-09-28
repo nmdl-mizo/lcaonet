@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 import torch
 from torch import Tensor
@@ -31,7 +30,7 @@ class DimNetInteraction(nn.Module):
         n_spherical: int,
         n_bilinear: int,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
@@ -196,7 +195,7 @@ class DimeNet(BaseGNN):
         cutoff_radi: float = 4.0,
         envelope_exponent: int = 5,
         aggr: str = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         share_weight: bool = False,
         max_z: int | None = 100,
         **kwargs,

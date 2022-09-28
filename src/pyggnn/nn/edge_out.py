@@ -1,4 +1,6 @@
-from typing import Callable, Literal, Optional, Any
+from __future__ import annotations
+
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
@@ -18,7 +20,16 @@ class Edge2NodeProp1(nn.Module):
     The block to compute the node-wise proptery from edge embeddings.
     This block contains some Dense layers and aggregation block of all neighbors.
     This block is used in Dimenet.
-    """
+
+    Args:
+        edge_dim (int): number of input edge dimension.
+        n_radial (int): number of radial basis function.
+        out_dim (int, optional): number of output dimension. Defaults to `1`.
+        n_layers (int, optional): number of Dense layers. Defaults to `3`.
+        activation (Callable[[Tensor], Tensor], optional): activation function. Defaults to `Swish(beta=1.0)`.
+        aggr (str, optional): aggregation method. Defaults to `"add"`.
+        weight_init (Callable[[Tensor], Tensor], optional): weight initialization method. Defaults to `glorot_orthogonal`.
+    """  # NOQA: E501
 
     def __init__(
         self,
@@ -27,8 +38,8 @@ class Edge2NodeProp1(nn.Module):
         out_dim: int = 1,
         n_layers: int = 3,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        aggr: Literal["add", "mean"] = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        aggr: str = "add",
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
@@ -72,7 +83,7 @@ class Edge2NodeProp1(nn.Module):
         x: Tensor,
         rbf: Tensor,
         idx_i: torch.LongTensor,
-        num_nodes: Optional[int] = None,
+        num_nodes: int | None = None,
     ) -> Tensor:
         """
         Compute node-wise property from edge embeddings.
@@ -108,7 +119,7 @@ class Edge2NodeProp2(nn.Module):
         n_layers: int = 3,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
         aggr: Literal["add", "mean"] = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()

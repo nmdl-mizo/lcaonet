@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 
 import torch.nn as nn
 from torch import Tensor
@@ -50,7 +49,7 @@ class EGNN(BaseGNN):
         edge_dim: int,
         n_conv_layer: int,
         out_dim: int,
-        activation: Any | str = "swish",
+        activation: nn.Module | str = "swish",
         cutoff_net: nn.Module | None = None,
         cutoff_radi: float | None = None,
         hidden_dim: int = 256,

@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 
 import numpy as np
 import torch
@@ -7,13 +7,13 @@ import torch.nn as nn
 
 
 class BaseCutoff(nn.Module):
-    """BaseCutoff Network"""
+    """
+    BaseCutoff Network
 
-    def __init__(self, cutoff_radi: Optional[float] = None):
-        """
-        Args:
-            cutoff_radi (float, optional): cutoff radious.
-        """
+    Args:
+        cutoff_radi (float, optional): cutoff radious.
+    """
+    def __init__(self, cutoff_radi: float | None = None):
         super().__init__()
         self.cutoff_radi = cutoff_radi
 
@@ -31,13 +31,13 @@ class BaseCutoff(nn.Module):
 
 
 class CosineCutoff(BaseCutoff):
-    """CosineCutoff Network"""
+    """
+    CosineCutoff Network
 
+    Args:
+        cutoff_radi (float): cutoff radious
+    """
     def __init__(self, cutoff_radi: float):
-        """
-        Args:
-            cutoff_radi (float): cutoff radious.
-        """
         super().__init__(cutoff_radi)
 
     def forward(self, dist: Tensor) -> Tensor:
@@ -57,19 +57,18 @@ class CosineCutoff(BaseCutoff):
 
 
 class EnvelopeCutoff(BaseCutoff):
-    """EnvelopeCutoff Network"""
+    """
+    EnvelopeCutoff Network
 
+    Args:
+        exponent (int, optional): Order of the envelope function. Defaults to `5`.
+
+    Notes:
+        reference:
+        [1] J. Klicpera et al., arXiv [cs.LG] (2020),
+            (available at http://arxiv.org/abs/2003.03123).
+    """
     def __init__(self, cutoff_radi: float, exponent: int = 5):
-        """
-        Args:
-            exponent (int, optional): Order of the envelope function.
-                Defaults to `5`.
-
-        Notes:
-            reference:
-            [1] J. Klicpera et al., arXiv [cs.LG] (2020),
-                (available at http://arxiv.org/abs/2003.03123).
-        """
         super().__init__(cutoff_radi)
         self.p = exponent + 1
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 import torch
 from torch import Tensor
@@ -47,7 +46,7 @@ class EGNNConv(MessagePassing):
         cutoff_net: nn.Module | None = None,
         batch_norm: bool = False,
         aggr: str = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
         assert aggr == "add" or aggr == "mean"

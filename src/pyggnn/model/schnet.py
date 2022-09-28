@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from tkinter import N
-from typing import Any
 
 from torch import Tensor
 import torch.nn as nn
@@ -65,7 +63,7 @@ class SchNet(BaseGNN):
         scaler: nn.Module | None = None,
         mean: float | None = None,
         stddev: float | None = None,
-        weight_init: Callable[[Tensor], Any] = nn.init.xavier_uniform_,
+        weight_init: Callable[[Tensor], Tensor] = nn.init.xavier_uniform_,
         share_weight: bool = False,
         max_z: int | None = 100,
         **kwargs,

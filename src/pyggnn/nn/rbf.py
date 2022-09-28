@@ -40,7 +40,16 @@ def gaussian_rbf(
 
 
 class GaussianRBF(nn.Module):
-    """Gassian radial basis function"""
+    """Gassian radial basis function.
+    Expand interatomic distance values using Gaussian radial basis.
+
+    Args:
+        start (float, optional): start value of shift of Gaussian. Defaults to `0.0`.
+        stop (float, optional): end value of shift of Gaussian. Defaults to `6.0`.
+        n_gaussian (int, optional): number of gaussian radial basis. Defaults to `20`.
+        centered (bool, optional): if set to `True`, using 0 centered gaussian function. Defaults to `False`.
+        trainable (bool, optional): whether gaussian params trainable. Defaults to `True`.
+    """
 
     def __init__(
         self,
@@ -50,19 +59,6 @@ class GaussianRBF(nn.Module):
         centered: bool = False,
         trainable: bool = True,
     ):
-        """
-        Expand interatomic distance values using Gaussian radial basis.
-
-        Args:
-            start (float, optional): start value of shift of Gaussian. Defaults to `0.0`.
-            stop (float, optional): end value of shift of Gaussian. Defaults to `6.0`.
-            n_gaussian (int, optional): number of gaussian radial basis.
-                Defaults to `20`.
-            centered (bool, optional): if set to `True`, using 0 centered
-                gaussian function. Defaults to `False`.
-            trainable (bool, optional): whether gaussian params trainable.
-                Defaults to `True`.
-        """
         super().__init__()
         offset = torch.linspace(start=start, end=stop, steps=n_gaussian)
         width = torch.ones_like(offset, dtype=offset.dtype) * (offset[1] - offset[0])
@@ -90,7 +86,15 @@ class GaussianRBF(nn.Module):
 
 
 class BesselRBF(torch.nn.Module):
-    """Bessel radial basis functions"""
+    """
+    Bessel radial basis functions.
+    Expand inter atomic distances by Bessel radial basis.
+
+    Args:
+        n_radial (int): number of radial basis.
+        cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
+        envelope_exponent (int, optional): exponent of cutoff envelope function. Defaults to `5`.
+    """
 
     def __init__(
         self,
@@ -98,15 +102,6 @@ class BesselRBF(torch.nn.Module):
         cutoff_radi: float = 5.0,
         envelope_exponent: int = 5,
     ):
-        """
-        Expand inter atomic distances by Bessel radial basis.
-
-        Args:
-            n_radial (int): number of radial basis.
-            cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
-            envelope_exponent (int, optional): exponent of cutoff envelope function.
-                Defaults to `5`.
-        """
         super().__init__()
         self.cutoff_radi = cutoff_radi
         # TODO: separate the cutoff function

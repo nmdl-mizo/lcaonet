@@ -9,6 +9,7 @@ __all__ = ["ScaleShift", "Standarize"]
 class ScaleShift(nn.Module):
     r"""
     The block to scale and shift input tensor.
+
     .. math::
        out = x \times \sigma + \mu
 
@@ -41,6 +42,7 @@ class ScaleShift(nn.Module):
 class Standarize(nn.Module):
     r"""
     The block to standardize input tensor.
+
     .. math::
        out = \frac{x - \mu}{\sigma}
 

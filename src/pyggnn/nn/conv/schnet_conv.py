@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from torch import Tensor
 import torch.nn as nn
@@ -25,7 +24,7 @@ class SchNetConv(MessagePassing):
         node_hidden: int = 256,
         cutoff_net: nn.Module | None = None,
         aggr: str = "add",
-        weight_init: Callable[[Tensor], Any] = nn.init.xavier_uniform_,
+        weight_init: Callable[[Tensor], Tensor] = nn.init.xavier_uniform_,
         **kwargs,
     ):
         assert aggr == "add" or aggr == "mean"

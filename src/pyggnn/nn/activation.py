@@ -27,6 +27,10 @@ class Swish(nn.Module):
     """
     Activation function of Swish which reported on ref[1].
 
+    Args:
+        beta (float, optional): Coefficent of beta value. Defaults to `1.0`.
+        train_beta (bool, optional): if set to `False`, beta is not learnable. Defaults to `True`.
+
     Notes:
         reference:
         [1] P. Ramachandran et al., arXiv [cs.NE] (2017),
@@ -36,14 +40,6 @@ class Swish(nn.Module):
     """
 
     def __init__(self, beta: float = 1.0, train_beta: bool = True):
-        """
-        Activation function of Swish which reported on ref[1].
-
-        Args:
-            beta (float, optional): Coefficent of beta value. Defaults to 1.0.
-            train_beta (bool, optional): if set to `False`, beta is not learnable.
-                Defaults to `True`.
-        """
         super().__init__()
         if train_beta:
             self.beta_coeff = nn.Parameter(torch.tensor(float(beta)))

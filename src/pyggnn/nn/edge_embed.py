@@ -1,4 +1,6 @@
-from typing import Callable, Any
+from __future__ import annotations
+
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
@@ -19,7 +21,7 @@ class EdgeEmbed(nn.Module):
         edge_dim: int,
         n_radial: int,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        weight_init: Callable[[nn.Module], Any] = glorot_orthogonal,
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
