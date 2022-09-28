@@ -1,4 +1,6 @@
-from typing import Callable, Union, Any, Optional, Literal
+from __future__ import annotations
+
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
@@ -29,7 +31,7 @@ class DimNetPPInteraction(nn.Module):
         edge_down_dim: int,
         basis_embed_dim: int,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
@@ -126,6 +128,23 @@ class DimeNetPlusPlus(BaseGNN):
     DimeNet implemeted by using PyTorch Geometric.
     From atomic structure, predict global property such as energy.
 
+    Args:
+        edge_messag_dim (int): edge message embedding dimension.
+        n_interaction (int): number of interaction layers.
+        out_dim (int): output dimension.
+        n_radial (int): number of radial basis function.
+        n_spherical (int): number of spherical basis function.
+        edge_down_dim (int): edge down projection dimension. Defaults to  `64`.
+        basis_embed_dim (int): basis embedding dimension. Defaults to `128`.
+        out_up_dim (int): output up projection dimension. Defaults to `256`.
+        activation (str or nn.Module, optional): activation fucntion. Defaults to `"swish"`.
+        cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
+        envelope_exponent (int, optional): exponent of envelope cutoff funcs. Defaults to `5`.
+        aggr ("add" or "mean", optional): aggregation mehod. Defaults to `"add"`.
+        weight_init (Callable, optional): weight initialization. Defaults to `glorot_orthogonal`.
+        share_weight (bool, optional): share weight parameter all interaction layers. Defaults to `False`.
+        max_z (int, optional): max atomic number. Defaults to `100`.
+
     Notes:
         PyTorch Geometric:
         https://pytorch-geometric.readthedocs.io/en/latest/
@@ -146,33 +165,15 @@ class DimeNetPlusPlus(BaseGNN):
         edge_down_dim: int = 64,
         basis_embed_dim: int = 128,
         out_up_dim: int = 256,
-        activation: Union[str, nn.Module] = "swish",
+        activation: str | nn.Module = "swish",
         cutoff_radi: float = 4.0,
         envelope_exponent: int = 5,
-        aggr: Literal["add", "mean"] = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        aggr: str = "add",
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         share_weight: bool = False,
-        max_z: Optional[int] = 100,
+        max_z: int | None = 100,
         **kwargs,
     ):
-        """
-        Args:
-            edge_messag_dim (int): edge message embedding dimension.
-            n_interaction (int): number of interaction layers.
-            out_dim (int): output dimension.
-            n_radial (int): number of radial basis function.
-            n_spherical (int): number of spherical basis function.
-            edge_down_dim (int): edge down projection dimension. Defaults to  `64`.
-            basis_embed_dim (int): basis embedding dimension. Defaults to `128`.
-            out_up_dim (int): output up projection dimension. Defaults to `256`.
-            activation (str or nn.Module, optional): activation fucntion. Defaults to `"swish"`.
-            cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
-            envelope_exponent (int, optional): exponent of envelope cutoff funcs. Defaults to `5`.
-            aggr ("add" or "mean", optional): aggregation mehod. Defaults to `"add"`.
-            weight_init (Callable, optional): weight initialization. Defaults to `glorot_orthogonal`.
-            share_weight (bool, optional): share weight parameter all interaction layers. Defaults to `False`.
-            max_z (int, optional): max atomic number. Defaults to `100`.
-        """
         super().__init__()
         act = activation_resolver(activation)
 

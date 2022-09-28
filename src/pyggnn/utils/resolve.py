@@ -1,4 +1,7 @@
-from typing import Callable, Optional, Tuple, Union, Any, List
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
 from inspect import getmembers, isfunction
 
 import torch
@@ -15,12 +18,12 @@ def _normalize_string(s: str) -> str:
 
 
 def _resolver(
-    query: Union[Any, str],
-    classes: List[Any],
-    base_cls: Optional[Any] = None,
+    query: Any | str,
+    classes: list[Any],
+    base_cls: Any | None = None,
     return_initialize: bool = True,
     **kwargs,
-) -> Union[Callable, Any]:
+) -> Callable | Any:
     # query is a string
     if isinstance(query, str):
         for cls in classes:
@@ -60,9 +63,7 @@ def _resolver(
     raise ValueError(f"{query} not found")
 
 
-def activation_resolver(
-    query: Union[torch.nn.Module, str] = "relu", **kwargs
-) -> Callable[[torch.Tensor], torch.Tensor]:
+def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> Callable[[torch.Tensor], torch.Tensor]:
     if isinstance(query, str):
         query = _normalize_string(query)
     base_cls = torch.nn.Module
@@ -77,9 +78,7 @@ def activation_resolver(
     return _resolver(query, acts, base_cls, **kwargs)
 
 
-def activation_gain_resolver(
-    query: Union[torch.nn.Module, str] = "relu", **kwargs
-) -> float:
+def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> float:
     if isinstance(query, str):
         query = _normalize_string(query)
     base_cls = torch.nn.Module
@@ -112,9 +111,7 @@ def activation_gain_resolver(
     return calculate_gain(nonlinearity, **kwargs)
 
 
-def init_resolver(
-    query: Union[Callable, str] = "orthogonal"
-) -> Callable[[torch.Tensor], Any]:
+def init_resolver(query: Callable | str = "orthogonal") -> Callable[[torch.Tensor], torch.Tensor]:
     if isinstance(query, str) and query[-1] != "_":
         query = _normalize_string(query)
         query += "_"
@@ -126,6 +123,6 @@ def init_resolver(
     return _resolver(query, funcs, return_initialize=False)
 
 
-def init_param_resolver(query: Callable[[torch.Tensor], Any]) -> Tuple[str]:
+def init_param_resolver(query: Callable[[torch.Tensor], torch.Tensor]) -> tuple[str]:
     params = query.__code__.co_varnames[: query.__code__.co_argcount]
     return params

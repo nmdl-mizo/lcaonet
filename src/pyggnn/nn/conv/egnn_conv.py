@@ -1,4 +1,6 @@
-from typing import Callable, Tuple, Union, Optional, Literal, Any
+from __future__ import annotations
+
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
@@ -18,36 +20,35 @@ class EGNNConv(MessagePassing):
     """
     The block to calculate massage passing and update node embeddings.
     It is implemented in the manner of PyTorch Geometric.
+
+    Args:
+        x_dim (int or Tuple[int, int]]): number of node dimension. if set to tuple object,
+            the first one is input dim, and second one is output dim.
+        edge_dim (int): number of edge dimension.
+        activation (Callable, optional): activation function. Defaults to `Swish()`.
+        edge_attr_dim (int or `None`, optional): number of another edge attribute dimension. Defaults to `None`.
+        node_hidden (int, optional): dimension of node hidden layers. Defaults to `256`.
+        edge_hidden (int, optional): dimension of edge hidden layers. Defaults to `256`.
+        cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
+        batch_norm (bool, optional): if set to `False`, no batch normalization is used. Defaults to `False`.
+        aggr ("add" or "mean", optional): aggregation method. Defaults to `"add"`.
+        weight_init (Callable, optional): weight initialization function. Defaults to `glorot_orthogonal`.
     """
 
     def __init__(
         self,
-        x_dim: Union[int, Tuple[int, int]],
+        x_dim: int | tuple[int, int],
         edge_dim: int,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        edge_attr_dim: Optional[int] = None,
+        edge_attr_dim: int | None = None,
         node_hidden: int = 256,
         edge_hidden: int = 256,
-        cutoff_net: Optional[nn.Module] = None,
+        cutoff_net: nn.Module | None = None,
         batch_norm: bool = False,
-        aggr: Literal["add", "mean"] = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        aggr: str = "add",
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
-        """
-        Args:
-            x_dim (int or Tuple[int, int]]): number of node dimension. if set to tuple object,
-                the first one is input dim, and second one is output dim.
-            edge_dim (int): number of edge dimension.
-            activation (Callable, optional): activation function. Defaults to `Swish()`.
-            edge_attr_dim (int or `None`, optional): number of another edge attribute dimension. Defaults to `None`.
-            node_hidden (int, optional): dimension of node hidden layers. Defaults to `256`.
-            edge_hidden (int, optional): dimension of edge hidden layers. Defaults to `256`.
-            cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
-            batch_norm (bool, optional): if set to `False`, no batch normalization is used. Defaults to `False`.
-            aggr ("add" or "mean", optional): aggregation method. Defaults to `"add"`.
-            weight_init (Callable, optional): weight initialization function. Defaults to `glorot_orthogonal`.
-        """
         assert aggr == "add" or aggr == "mean"
         # TODO: pass kwargs to superclass
         super().__init__(aggr=aggr)
@@ -123,7 +124,7 @@ class EGNNConv(MessagePassing):
         x: Tensor,
         dist: Tensor,
         edge_index: Adj,
-        edge_attr: Optional[Tensor] = None,
+        edge_attr: Tensor | None = None,
     ) -> Tensor:
         # propagate_type:
         # (x: Tensor, dist: Tensor, edge_attr: Optional[Tensor])
@@ -140,7 +141,7 @@ class EGNNConv(MessagePassing):
         x_i: Tensor,
         x_j: Tensor,
         dist: Tensor,
-        edge_attr: Optional[Tensor],
+        edge_attr: Tensor | None = None,
     ) -> Tensor:
         # update edge
         if edge_attr is None:

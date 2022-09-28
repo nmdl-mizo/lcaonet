@@ -1,4 +1,6 @@
-from typing import Callable, Literal, Optional, Any
+from __future__ import annotations
+
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
@@ -15,10 +17,17 @@ __all__ = ["Node2Prop1", "Node2Prop2"]
 
 class Node2Prop1(nn.Module):
     """
-    The block to compute the global graph proptery from node embeddings.
-    In this block, after aggregation, two more Dense layers are calculated.
+    The block to compute the global graph proptery from node embeddings. In this block, after aggregation, two more Dense layers are calculated.
     This block is used in EGNN.
-    """
+    
+    Args:
+        node_dim (int): number of input dimension.
+        hidden_dim (int, optional): number of hidden layers dimension. Defaults to `128`.
+        out_dim (int, optional): number of output dimension. Defaults to `1`.
+        activation: (Callable, optional): activation function. Defaults to `Swish(beta=1.0)`.
+        aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
+        weight_init (Callable, optional): weight initialization function. Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
+    """  # NOQA: E501
 
     def __init__(
         self,
@@ -26,20 +35,10 @@ class Node2Prop1(nn.Module):
         hidden_dim: int = 128,
         out_dim: int = 1,
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        aggr: Literal["add", "mean"] = "add",
-        weight_init: Callable[[Tensor], Any] = glorot_orthogonal,
+        aggr: str = "add",
+        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
-        """
-        Args:
-            node_dim (int): number of input dimension.
-            hidden_dim (int, optional): number of hidden layers dimension. Defaults to `128`.
-            out_dim (int, optional): number of output dimension. Defaults to `1`.
-            activation: (Callable, optional): activation function. Defaults to `Swish()`.
-            aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
-            weight_init (Callable, optional): weight initialization function.
-                Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
-        """
         super().__init__()
 
         assert aggr == "add" or aggr == "mean"
@@ -55,7 +54,7 @@ class Node2Prop1(nn.Module):
             Dense(hidden_dim, out_dim, bias=False, weight_init=weight_init, **kwargs),
         )
 
-    def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
+    def forward(self, x: Tensor, batch: Tensor | None = None) -> Tensor:
         """
         Compute global property from node embeddings.
 
@@ -76,6 +75,17 @@ class Node2Prop2(nn.Module):
     The block to compute the global graph proptery from node embeddings.
     This block contains two Dense layers and aggregation block. If set `scaler`, scaling process before aggregation.
     This block is used in SchNet.
+
+    Args:
+        node_dim (int): number of input dim.
+        hidden_dim (int, optional): number of hidden layers dim. Defaults to `128`.
+        out_dim (int, optional): number of output dim. Defaults to `1`.
+        activation: (Callable, optional): activation function. Defaults to `ShiftedSoftplus()`.
+        aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
+        scaler: (nn.Module, optional): scaler layer. Defaults to `None`.
+        mean: (Tensor, optional): mean of the input tensor. Defaults to `None`.
+        stddev: (Tensor, optional): stddev of the input tensor. Defaults to `None`.
+        weight_init (Callable, optional): weight initialization function. Defaults to `torch.nn.init.xavier_uniform_`.
     """
 
     def __init__(
@@ -84,26 +94,13 @@ class Node2Prop2(nn.Module):
         hidden_dim: int = 128,
         out_dim: int = 1,
         activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),
-        aggr: Literal["add", "mean"] = "add",
-        scaler: Optional[nn.Module] = None,
-        mean: Optional[Tensor] = None,
-        stddev: Optional[Tensor] = None,
-        weight_init: Callable[[Tensor], Any] = torch.nn.init.xavier_uniform_,
+        aggr: str = "add",
+        scaler: nn.Module | None = None,
+        mean: Tensor | None = None,
+        stddev: Tensor | None = None,
+        weight_init: Callable[[Tensor], Tensor] = torch.nn.init.xavier_uniform_,
         **kwargs,
     ):
-        """
-        Args:
-            node_dim (int): number of input dim.
-            hidden_dim (int, optional): number of hidden layers dim. Defaults to `128`.
-            out_dim (int, optional): number of output dim. Defaults to `1`.
-            activation: (Callable, optional): activation function. Defaults to `ShiftedSoftplus()`.
-            aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
-            scaler: (nn.Module, optional): scaler layer. Defaults to `None`.
-            mean: (Tensor, optional): mean of the input tensor. Defaults to `None`.
-            stddev: (Tensor, optional): stddev of the input tensor. Defaults to `None`.
-            weight_init (Callable, optional): weight initialization function.
-                Defaults to `torch.nn.init.xavier_uniform_`.
-        """
         super().__init__()
 
         assert aggr == "add" or aggr == "mean"
@@ -122,7 +119,7 @@ class Node2Prop2(nn.Module):
                 stddev = torch.FloatTensor([1.0])
             self.scaler = scaler(mean, stddev)
 
-    def forward(self, x: Tensor, batch: Optional[Tensor] = None) -> Tensor:
+    def forward(self, x: Tensor, batch: Tensor | None = None) -> Tensor:
         """
         Compute global property from node embeddings.
 

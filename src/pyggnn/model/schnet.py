@@ -1,4 +1,6 @@
-from typing import Union, Optional, Literal, Any, Callable
+from __future__ import annotations
+
+from collections.abc import Callable
 
 from torch import Tensor
 import torch.nn as nn
@@ -16,8 +18,26 @@ __all__ = ["SchNet"]
 
 class SchNet(BaseGNN):
     """
-    SchNet implemeted by using PyTorch Geometric.
-    From atomic structure, predict global property such as energy.
+    SchNet implemeted by using PyTorch Geometric. From atomic structure, predict global property such as energy.
+
+    Args:
+        node_dim (int): node embedding dimension.
+        edge_filter_dim (int): edge filter embedding dimension.
+        n_conv_layer (int): number of convolution layers.
+        out_dim (int): output dimension.
+        n_gaussian (int): number of gaussian radial basis.
+        activation (str or nn.Module, optional): activation function or function name.
+            Defaults to `"shifted_softplus"`.
+        cutoff_net (nn.Module, optional): cutoff networck. Defaults to `CosineCutoff`.
+        cutoff_radi (float, optional): cutoff radius. Defaults to `4.0`.
+        hidden_dim (int, optional): hidden dimension in convolution layers. Defaults to `256`.
+        aggr ("add" or "mean", optional): aggregation method. Defaults to `"add"`.
+        scaler (nn.Module, optional): scaler network. Defaults to `None`.
+        mean (float, optional): mean of node property. Defaults to `None`.
+        stddev (float, optional): standard deviation of node property. Defaults to `None`.
+        weight_init (Callable, optional): weight initialization function. Defaults to `nn.init.xavier_uniform_`.
+        share_weight (bool, optional): share weight parameter all convolution. Defaults to `False`.
+        max_z (int, optional): max atomic number. Defaults to `100`.
 
     Notes:
         PyTorch Geometric:
@@ -35,39 +55,19 @@ class SchNet(BaseGNN):
         n_conv_layer: int,
         out_dim: int,
         n_gaussian: int,
-        activation: Union[str, nn.Module] = "shifted_softplus",
-        cutoff_net: Optional[nn.Module] = CosineCutoff,
-        cutoff_radi: Optional[float] = 4.0,
+        activation: str | nn.Module = "shifted_softplus",
+        cutoff_net: nn.Module | None = CosineCutoff,
+        cutoff_radi: float | None = 4.0,
         hidden_dim: int = 256,
-        aggr: Literal["add", "mean"] = "add",
-        scaler: Optional[nn.Module] = None,
-        mean: Optional[float] = None,
-        stddev: Optional[float] = None,
-        weight_init: Callable[[Tensor], Any] = nn.init.xavier_uniform_,
+        aggr: str = "add",
+        scaler: nn.Module | None = None,
+        mean: float | None = None,
+        stddev: float | None = None,
+        weight_init: Callable[[Tensor], Tensor] = nn.init.xavier_uniform_,
         share_weight: bool = False,
-        max_z: Optional[int] = 100,
+        max_z: int | None = 100,
         **kwargs,
     ):
-        """
-        Args:
-            node_dim (int): node embedding dimension.
-            edge_filter_dim (int): edge filter embedding dimension.
-            n_conv_layer (int): number of convolution layers.
-            out_dim (int): output dimension.
-            n_gaussian (int): number of gaussian radial basis.
-            activation (str or nn.Module, optional): activation function or function name.
-                Defaults to `"shifted_softplus"`.
-            cutoff_net (nn.Module, optional): cutoff networck. Defaults to `CosineCutoff`.
-            cutoff_radi (float, optional): cutoff radius. Defaults to `4.0`.
-            hidden_dim (int, optional): hidden dimension in convolution layers. Defaults to `256`.
-            aggr ("add" or "mean", optional): aggregation method. Defaults to `"add"`.
-            scaler (nn.Module, optional): scaler network. Defaults to `None`.
-            mean (float, optional): mean of node property. Defaults to `None`.
-            stddev (float, optional): standard deviation of node property. Defaults to `None`.
-            weight_init (Callable, optional): weight initialization function. Defaults to `nn.init.xavier_uniform_`.
-            share_weight (bool, optional): share weight parameter all convolution. Defaults to `False`.
-            max_z (int, optional): max atomic number. Defaults to `100`.
-        """
         super().__init__()
         act = activation_resolver(activation)
 

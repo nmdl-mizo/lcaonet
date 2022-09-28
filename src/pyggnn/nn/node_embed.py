@@ -1,4 +1,5 @@
-from typing import Optional
+from __future__ import annotations
+
 import math
 
 import torch
@@ -13,20 +14,19 @@ class AtomicNum2Node(nn.Embedding):
     """
     The block to calculate initial node embeddings.
     Convert atomic numbers to a vector of arbitrary dimension.
-    """
+
+    Args:
+        node_dim (int): embedding node dimension.
+        max_num (int, optional): number of max value of atomic number. if set to`None`, `max_num=100`. Defaults to `None`.
+        charge (bool, optional): if set to `True`, use charge to initialize node embedding. Defaults to `False`.
+    """ # NOQA: E501
 
     def __init__(
         self,
         node_dim: int,
-        max_num: Optional[int] = None,
+        max_num: int | None = None,
         charge: bool = False,
     ):
-        """
-        Args:
-            node_dim (int): embedding node dimension.
-            max_num (int, optional): number of max value of atomic number. if set to``None``, ``max_num=100``. Defaults to ``None``.
-            charge (bool, optional): if set to ``True``, use charge to initialize node embedding. Defaults to ``False``.
-        """  # noqa: E501
         if max_num is None:
             max_num = 100
         super().__init__(num_embeddings=max_num, embedding_dim=node_dim)
@@ -36,17 +36,16 @@ class AtomicNum2Node(nn.Embedding):
 
     def reset_parameters(self):
         super().reset_parameters()
-        # ref:
-        # https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
+        # ref: https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html # NOQA: E501
         self.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
-    def forward(self, z: Tensor, c: Optional[Tensor] = None) -> Tensor:
+    def forward(self, z: Tensor, c: Tensor | None = None) -> Tensor:
         """
         Computed the initial node embedding.
 
         Args:
             z (Tensor): atomic numbers shape of (n_node).
-            c (Tensor, optional): charge shape of (n_node). Defaults to ``None``.
+            c (Tensor, optional): charge shape of (n_node). Defaults to `None`.
 
         Returns:
             Tensor: embedding nodes shape of (n_node x node_dim).
@@ -126,20 +125,19 @@ class AtomicDict2Node(nn.Module):
     """
     The block to calculate initial node embeddings.
     Convert atomic numbers to a vector of arbitrary dimension.
-    """
+
+    Args:
+        node_dim (int): embedding node dimension.
+        max_num (int, optional): number of max value of atomic number. if set to`None`, `max_num=56`. Defaults to `None`.
+        charge (bool, optional): whether to add charge. Defaults to `False`.
+    """  # NOQA: E501
 
     def __init__(
         self,
         node_dim: int,
-        max_num: Optional[int] = None,
+        max_num: int | None = None,
         charge: bool = False,
     ):
-        """
-        Args:
-            node_dim (int): embedding node dimension.
-            max_num (int, optional): number of max value of atomic number. if set to``None``, ``max_num=56``. Defaults to ``None``.
-            charge (bool, optional): whether to add charge. Defaults to ``False``.
-        """  # noqa: E501
         if max_num is None:
             max_num = 56
         else:
@@ -155,7 +153,7 @@ class AtomicDict2Node(nn.Module):
         self.embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
         glorot_orthogonal(self.M, scale=2.0)
 
-    def forward(self, z: Tensor, c: Optional[Tensor] = None) -> Tensor:
+    def forward(self, z: Tensor, c: Tensor | None = None) -> Tensor:
         """
         Computed the initial node embedding.
 
