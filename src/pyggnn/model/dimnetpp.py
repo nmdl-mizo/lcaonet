@@ -16,7 +16,7 @@ from pyggnn.nn.node_embed import AtomicNum2Node
 from pyggnn.nn.edge_embed import EdgeEmbed
 from pyggnn.nn.base import Dense, ResidualBlock
 from pyggnn.nn.edge_out import Edge2NodeProp2
-from pyggnn.utils.resolve import activation_resolver
+from pyggnn.utils.resolve import activation_resolver, init_resolver
 
 
 __all__ = ["DimeNetPlusPlus"]
@@ -137,11 +137,11 @@ class DimeNetPlusPlus(BaseGNN):
         edge_down_dim (int): edge down projection dimension. Defaults to  `64`.
         basis_embed_dim (int): basis embedding dimension. Defaults to `128`.
         out_up_dim (int): output up projection dimension. Defaults to `256`.
-        activation (str or nn.Module, optional): activation fucntion. Defaults to `"swish"`.
+        activation (str, optional): activation fucntion. Defaults to `"swish"`.
         cutoff_radi (float, optional): cutoff radius. Defaults to `5.0`.
         envelope_exponent (int, optional): exponent of envelope cutoff funcs. Defaults to `5`.
         aggr ("add" or "mean", optional): aggregation mehod. Defaults to `"add"`.
-        weight_init (Callable, optional): weight initialization. Defaults to `glorot_orthogonal`.
+        weight_init (str, optional): weight initialization. Defaults to `"glorot_orthogonal"`.
         share_weight (bool, optional): share weight parameter all interaction layers. Defaults to `False`.
         max_z (int, optional): max atomic number. Defaults to `100`.
 
@@ -165,17 +165,18 @@ class DimeNetPlusPlus(BaseGNN):
         edge_down_dim: int = 64,
         basis_embed_dim: int = 128,
         out_up_dim: int = 256,
-        activation: str | nn.Module = "swish",
+        activation: str = "swish",
         cutoff_radi: float = 4.0,
         envelope_exponent: int = 5,
         aggr: str = "add",
-        weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
+        weight_init: str = "glorot_orthogonal",
         share_weight: bool = False,
         max_z: int | None = 100,
         **kwargs,
     ):
         super().__init__()
         act = activation_resolver(activation)
+        weight_init: Callable[[torch.Tensor], torch.Tensor] = init_resolver(weight_init)
 
         self.edge_message_dim = edge_message_dim
         self.n_interaction = n_interaction

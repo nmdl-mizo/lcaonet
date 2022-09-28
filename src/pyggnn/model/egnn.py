@@ -24,7 +24,7 @@ class EGNN(BaseGNN):
         n_conv_layer (int): number of convolutinal layers.
         cutoff_radi (float): cutoff radious. Defaults to `None`.
         out_dim (int, optional): number of output property dimension.
-        activation (str or nn.Module, optional): activation function or function name.
+        activation (str, optional): activation function name. Defaults to `"swish"`.
         cutoff_radi (float): cutoff radious. Defaults to `None`.
         cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
         hidden_dim (int, optional): number of hidden layers. Defaults to `256`.
@@ -49,7 +49,7 @@ class EGNN(BaseGNN):
         edge_dim: int,
         n_conv_layer: int,
         out_dim: int,
-        activation: nn.Module | str = "swish",
+        activation: str = "swish",
         cutoff_net: nn.Module | None = None,
         cutoff_radi: float | None = None,
         hidden_dim: int = 256,

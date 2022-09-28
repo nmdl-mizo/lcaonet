@@ -26,8 +26,7 @@ class SchNet(BaseGNN):
         n_conv_layer (int): number of convolution layers.
         out_dim (int): output dimension.
         n_gaussian (int): number of gaussian radial basis.
-        activation (str or nn.Module, optional): activation function or function name.
-            Defaults to `"shifted_softplus"`.
+        activation (str, optional): activation function or function name. Defaults to `"shifted_softplus"`.
         cutoff_net (nn.Module, optional): cutoff networck. Defaults to `CosineCutoff`.
         cutoff_radi (float, optional): cutoff radius. Defaults to `4.0`.
         hidden_dim (int, optional): hidden dimension in convolution layers. Defaults to `256`.
@@ -35,7 +34,7 @@ class SchNet(BaseGNN):
         scaler (nn.Module, optional): scaler network. Defaults to `None`.
         mean (float, optional): mean of node property. Defaults to `None`.
         stddev (float, optional): standard deviation of node property. Defaults to `None`.
-        weight_init (Callable, optional): weight initialization function. Defaults to `nn.init.xavier_uniform_`.
+        weight_init (str, optional): weight initialization function. Defaults to `"xavier_uniform_"`.
         share_weight (bool, optional): share weight parameter all convolution. Defaults to `False`.
         max_z (int, optional): max atomic number. Defaults to `100`.
 
@@ -55,7 +54,7 @@ class SchNet(BaseGNN):
         n_conv_layer: int,
         out_dim: int,
         n_gaussian: int,
-        activation: str | nn.Module = "shifted_softplus",
+        activation: str = "shifted_softplus",
         cutoff_net: nn.Module | None = CosineCutoff,
         cutoff_radi: float | None = 4.0,
         hidden_dim: int = 256,
@@ -63,7 +62,7 @@ class SchNet(BaseGNN):
         scaler: nn.Module | None = None,
         mean: float | None = None,
         stddev: float | None = None,
-        weight_init: Callable[[Tensor], Tensor] = nn.init.xavier_uniform_,
+        weight_init: str = "xavier_uniform_",
         share_weight: bool = False,
         max_z: int | None = 100,
         **kwargs,
