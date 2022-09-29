@@ -1,20 +1,19 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
 
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 from torch_geometric.nn.inits import glorot_orthogonal
 
 from pyggnns.utils.resolve import init_param_resolver
-
 
 __all__ = ["Dense", "ResidualBlock"]
 
 
 class Dense(nn.Linear):
-    """
-    Applies a linear transformation to the incoming data, and using weight initialize method.
+    """Applies a linear transformation to the incoming data, and using weight
+    initialize method.
 
     Args:
         in_dim (int): input dimension of tensor.
@@ -38,8 +37,8 @@ class Dense(nn.Linear):
         self.bias_init = bias_init
         self.weight_init = weight_init
         # gain and scale paramer is set to default values
-        if self.weight_init is not None: 
-            params = init_param_resolver(weight_init)
+        if self.weight_init is not None:
+            params = init_param_resolver(self.weight_init)
             for p in params:
                 if p in kwargs:
                     continue
@@ -60,8 +59,7 @@ class Dense(nn.Linear):
             self.bias_init(self.bias)
 
     def forward(self, x: Tensor) -> Tensor:
-        """
-        Forward calculation of the Dense layer.
+        """Forward calculation of the Dense layer.
 
         Args:
             x (torch.Tensor): input tensor shape of (* x in_dim).
@@ -74,8 +72,7 @@ class Dense(nn.Linear):
 
 
 class ResidualBlock(nn.Module):
-    """
-    The Blocks combining the multiple Dense layers and ResNet.
+    """The Blocks combining the multiple Dense layers and ResNet.
 
     Args:
         hidden_dim (int): hidden dimension of the Dense layers.
@@ -94,7 +91,7 @@ class ResidualBlock(nn.Module):
     ):
         super().__init__()
 
-        denses = []
+        denses: list[nn.Module] = []
         for _ in range(n_layers):
             denses.append(
                 Dense(
@@ -109,8 +106,7 @@ class ResidualBlock(nn.Module):
         self.denses = nn.Sequential(*denses)
 
     def forward(self, x: Tensor) -> Tensor:
-        """
-        Forward caclulation of the residual block.
+        """Forward caclulation of the residual block.
 
         Args:
             x (Tensor): input tensor shape of (* x hidden_dim).

@@ -1,24 +1,25 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
+from typing import Any
 
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 
 from pyggnns.model.base import BaseGNN
+from pyggnns.nn.conv.schnet_conv import SchNetConv
 from pyggnns.nn.cutoff import CosineCutoff
 from pyggnns.nn.node_embed import AtomicNum2Node
-from pyggnns.nn.rbf import GaussianRBF
-from pyggnns.nn.conv.schnet_conv import SchNetConv
 from pyggnns.nn.node_out import Node2Prop2
-from pyggnns.utils.resolve import activation_resolver
+from pyggnns.nn.rbf import GaussianRBF
+from pyggnns.utils.resolve import activation_resolver, init_resolver
 
 __all__ = ["SchNet"]
 
 
 class SchNet(BaseGNN):
-    """
-    SchNet implemeted by using PyTorch Geometric. From atomic structure, predict global property such as energy.
+    """SchNet implemeted by using PyTorch Geometric. From atomic structure,
+    predict global property such as energy.
 
     Args:
         node_dim (int): node embedding dimension.
@@ -56,7 +57,7 @@ class SchNet(BaseGNN):
         n_gaussian: int,
         activation: str = "shifted_softplus",
         cutoff_net: nn.Module | None = CosineCutoff,
-        cutoff_radi: float | None = 4.0,
+        cutoff_radi: float = 4.0,
         hidden_dim: int = 256,
         aggr: str = "add",
         scaler: nn.Module | None = None,
@@ -69,6 +70,7 @@ class SchNet(BaseGNN):
     ):
         super().__init__()
         act = activation_resolver(activation)
+        wi: Callable[[Any], Any] = init_resolver(weight_init)
 
         self.node_dim = node_dim
         self.edge_filter_dim = edge_filter_dim
@@ -96,7 +98,7 @@ class SchNet(BaseGNN):
                         activation=act,
                         node_hidden=hidden_dim,
                         cutoff_net=self.cutoff_net,
-                        weight_init=weight_init,
+                        weight_init=wi,
                         aggr=aggr,
                         **kwargs,
                     )
@@ -113,7 +115,7 @@ class SchNet(BaseGNN):
                         activation=act,
                         node_hidden=hidden_dim,
                         cutoff_net=self.cutoff_net,
-                        weight_init=weight_init,
+                        weight_init=wi,
                         aggr=aggr,
                         **kwargs,
                     )
@@ -130,7 +132,7 @@ class SchNet(BaseGNN):
             scaler=scaler,
             mean=mean,
             stddev=stddev,
-            weight_init=weight_init,
+            weight_init=wi,
             **kwargs,
         )
 

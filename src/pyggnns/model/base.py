@@ -1,12 +1,11 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 import torch
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 from torch_sparse import SparseTensor
 
 from pyggnns.data.datakeys import DataKeys
-
 
 __all__ = ["BaseGNN"]
 
@@ -20,8 +19,7 @@ class BaseGNN(nn.Module):
         return NotImplementedError
 
     def calc_atomic_distances(self, data_batch) -> Tensor:
-        """
-        calculate atomic distances for periodic boundary conditions.
+        """calculate atomic distances for periodic boundary conditions.
 
         Args:
             data_batch (Dataloader): one batch.
@@ -52,8 +50,7 @@ class BaseGNN(nn.Module):
         return torch.norm(edge_vec, dim=1)
 
     def get_triplets(self, data_batch) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
-        """
-        Convert edge_index to triplets.
+        """Convert edge_index to triplets.
 
         Args:
             data_batch (Dataloader): one batch.

@@ -1,14 +1,13 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 import numpy as np
 import torch
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 
 
 class BaseCutoff(nn.Module):
-    """
-    BaseCutoff Network
+    """BaseCutoff Network.
 
     Args:
         cutoff_radi (float, optional): cutoff radious.
@@ -19,8 +18,7 @@ class BaseCutoff(nn.Module):
         self.cutoff_radi = cutoff_radi
 
     def forward(self, dist: Tensor) -> Tensor:
-        """
-        forward calculation of CosineNetwork.
+        """forward calculation of CosineNetwork.
 
         Args:
             dist (Tensor): inter atomic distances shape of (n_edge)
@@ -32,8 +30,7 @@ class BaseCutoff(nn.Module):
 
 
 class CosineCutoff(BaseCutoff):
-    """
-    CosineCutoff Network
+    """CosineCutoff Network.
 
     Args:
         cutoff_radi (float): cutoff radious
@@ -43,8 +40,7 @@ class CosineCutoff(BaseCutoff):
         super().__init__(cutoff_radi)
 
     def forward(self, dist: Tensor) -> Tensor:
-        """
-        forward calculation of CosineNetwork.
+        """forward calculation of CosineNetwork.
 
         Args:
             dist (Tensor): inter atomic distances shape of (n_edge)
@@ -59,8 +55,7 @@ class CosineCutoff(BaseCutoff):
 
 
 class EnvelopeCutoff(BaseCutoff):
-    """
-    EnvelopeCutoff Network
+    """EnvelopeCutoff Network.
 
     Args:
         exponent (int, optional): Order of the envelope function. Defaults to `5`.
@@ -76,8 +71,7 @@ class EnvelopeCutoff(BaseCutoff):
         self.p = exponent + 1
 
     def forward(self, dist: Tensor) -> Tensor:
-        """
-        forward calculation of EnvelopeCutoffNetwork.
+        """forward calculation of EnvelopeCutoffNetwork.
 
         Args:
             dist (Tensor): inter atomic distances normalized by cutoff radius

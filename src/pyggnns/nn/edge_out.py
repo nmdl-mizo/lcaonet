@@ -1,24 +1,22 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
 
 import torch
-from torch import Tensor
 import torch.nn as nn
-from torch_scatter import scatter
+from torch import Tensor
 from torch_geometric.nn.inits import glorot_orthogonal
+from torch_scatter import scatter
 
 from pyggnns.nn.activation import Swish
 from pyggnns.nn.base import Dense
-
 
 __all__ = ["Edge2NodeProp1", "Edge2NodeProp2"]
 
 
 class Edge2NodeProp1(nn.Module):
-    """
-    The block to compute the node-wise proptery from edge embeddings.
-    This block contains some Dense layers and aggregation block of all neighbors.
+    """The block to compute the node-wise proptery from edge embeddings. This
+    block contains some Dense layers and aggregation block of all neighbors.
     This block is used in Dimenet.
 
     Args:
@@ -55,7 +53,7 @@ class Edge2NodeProp1(nn.Module):
             **kwargs,
         )
         # linear layer for edge embedding
-        denses = []
+        denses: list[nn.Module] = []
         for _ in range(n_layers):
             denses.append(
                 Dense(
@@ -85,8 +83,7 @@ class Edge2NodeProp1(nn.Module):
         idx_i: torch.LongTensor,
         num_nodes: int | None = None,
     ) -> Tensor:
-        """
-        Compute node-wise property from edge embeddings.
+        """Compute node-wise property from edge embeddings.
 
         Args:
             x (Tensor): edge embedding shape of (n_edge x edge_dim).
@@ -104,10 +101,10 @@ class Edge2NodeProp1(nn.Module):
 
 
 class Edge2NodeProp2(nn.Module):
-    """
-    The block to compute the node-wise proptery from edge embeddings.
-    This block contains some Dense layers and aggregation block of all neighbors.
-    This block is used in DimenetPlusPlus.
+    """The block to compute the node-wise proptery from edge embeddings.
+
+    This block contains some Dense layers and aggregation block of all
+    neighbors. This block is used in DimenetPlusPlus.
     """
 
     def __init__(
@@ -117,8 +114,8 @@ class Edge2NodeProp2(nn.Module):
         out_dim: int = 1,
         out_up_dim: int = 256,
         n_layers: int = 3,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
-        aggr: Literal["add", "mean"] = "add",
+        activation: nn.Module = Swish(beta=1.0),
+        aggr: str = "add",
         weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
@@ -171,10 +168,9 @@ class Edge2NodeProp2(nn.Module):
         x: Tensor,
         rbf: Tensor,
         idx_i: torch.LongTensor,
-        num_nodes: Optional[int] = None,
+        num_nodes: int | None = None,
     ) -> Tensor:
-        """
-        Compute node-wise property from edge embeddings.
+        """Compute node-wise property from edge embeddings.
 
         Args:
             x (Tensor): edge embedding shape of (n_edge x edge_dim).

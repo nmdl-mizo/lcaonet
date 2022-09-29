@@ -1,12 +1,12 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 import logging
 
-from torch.utils.data import Subset
 import pytorch_lightning as pl
+from torch.utils.data import Subset
 from torch_geometric.loader import DataLoader
 
-from pyggnns.data.dataset import Hdf2GraphDataset, Db2GraphDataset
+from pyggnns.data.dataset import Db2GraphDataset, Hdf2GraphDataset
 
 log = logging.getLogger(__name__)
 

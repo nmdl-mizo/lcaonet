@@ -1,15 +1,14 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
 
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.typing import Adj
 
 from pyggnns.nn.activation import ShiftedSoftplus
 from pyggnns.nn.base import Dense
-
 
 __all__ = ["SchNetConv"]
 
@@ -17,7 +16,7 @@ __all__ = ["SchNetConv"]
 class SchNetConv(MessagePassing):
     def __init__(
         self,
-        x_dim: int | tuple[int, int],
+        x_dim: int,
         edge_filter_dim: int,
         n_gaussian: int,
         activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),

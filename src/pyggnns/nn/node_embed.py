@@ -1,19 +1,18 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 import math
 
 import torch
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 from torch_geometric.nn.inits import glorot_orthogonal
 
 __all__ = ["AtomicNum2Node", "AtomicDict2Node"]
 
 
 class AtomicNum2Node(nn.Embedding):
-    """
-    The block to calculate initial node embeddings.
-    Convert atomic numbers to a vector of arbitrary dimension.
+    """The block to calculate initial node embeddings. Convert atomic numbers
+    to a vector of arbitrary dimension.
 
     Args:
         node_dim (int): embedding node dimension.
@@ -40,8 +39,7 @@ class AtomicNum2Node(nn.Embedding):
         self.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
     def forward(self, z: Tensor, c: Tensor | None = None) -> Tensor:
-        """
-        Computed the initial node embedding.
+        """Computed the initial node embedding.
 
         Args:
             z (Tensor): atomic numbers shape of (n_node).
@@ -53,7 +51,7 @@ class AtomicNum2Node(nn.Embedding):
         if self.charge:
             assert c is not None, "charge tensor must not be None"
         z = super().forward(z)
-        if self.charge:
+        if self.charge and c is not None:
             z = torch.concat([z, c.unsqueeze(-1)], dim=1)
         return z
 
@@ -122,9 +120,8 @@ SPOOKYNET_DICT = torch.tensor(
 
 
 class AtomicDict2Node(nn.Module):
-    """
-    The block to calculate initial node embeddings.
-    Convert atomic numbers to a vector of arbitrary dimension.
+    """The block to calculate initial node embeddings. Convert atomic numbers
+    to a vector of arbitrary dimension.
 
     Args:
         node_dim (int): embedding node dimension.
@@ -154,8 +151,7 @@ class AtomicDict2Node(nn.Module):
         glorot_orthogonal(self.M, scale=2.0)
 
     def forward(self, z: Tensor, c: Tensor | None = None) -> Tensor:
-        """
-        Computed the initial node embedding.
+        """Computed the initial node embedding.
 
         Args:
             z (Tensor): atomic numbers shape of (n_node).
@@ -168,6 +164,6 @@ class AtomicDict2Node(nn.Module):
             assert c is not None, "charge tensor must not be None"
         device = z.device
         z = torch.einsum("fd, bd->bf", self.M, (SPOOKYNET_DICT[z] / SPOOKYNET_DICT[-1]).to(device)) + self.embed(z)
-        if self.charge:
+        if self.charge and c is not None:
             z = torch.concat([z, c.unsqueeze(-1)], dim=1)
         return z

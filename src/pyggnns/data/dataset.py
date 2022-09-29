@@ -1,14 +1,14 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
-import pathlib
 import logging
+import pathlib
 
-import h5py
 import ase
 import ase.neighborlist
+import h5py
+import torch
 from ase.db import connect
 from numpy import ndarray
-import torch
 from torch_geometric.data import Data, Dataset
 
 from pyggnns.data.datakeys import DataKeys
@@ -28,7 +28,7 @@ class BaseGraphDataset(Dataset):
     def __init__(
         self,
         cutoff_radi: float,
-        property_names: list[str],
+        property_names: list[str] | None,
         pbc: bool | tuple[bool, ...] = True,
     ):
         super().__init__()
@@ -43,8 +43,8 @@ class BaseGraphDataset(Dataset):
         raise NotImplementedError
 
     def _atoms2geometricdata(self, atoms: ase.Atoms) -> Data:
-        """
-        Helper function to convet one Atoms object to torch_geometric.data.Data.
+        """Helper function to convet one Atoms object to
+        torch_geometric.data.Data.
 
         Args:
             atoms (ase.Atoms): one atoms object.
@@ -84,9 +84,8 @@ class BaseGraphDataset(Dataset):
 
 
 class Hdf2GraphDataset(BaseGraphDataset):
-    """
-    Dataset for graph data such as crystal or molecule by using atoms object from hdf5 file.
-    This dataset corresponds to periodic boundary conditions.
+    """Dataset for graph data such as crystal or molecule by using atoms object
+    from hdf5 file. This dataset corresponds to periodic boundary conditions.
 
     Args:
         hdf5_path (str or pathlib.Path): path to the database.
@@ -154,9 +153,8 @@ class Hdf2GraphDataset(BaseGraphDataset):
 
 
 class Db2GraphDataset(BaseGraphDataset):
-    """
-    Dataset for graph data such as crystal or molecule by using atoms object from db file.
-    This dataset corresponds to periodic boundary conditions.
+    """Dataset for graph data such as crystal or molecule by using atoms object
+    from db file. This dataset corresponds to periodic boundary conditions.
 
     Args:
         db_path (str or pathlib.Path): path to the database.
@@ -203,9 +201,8 @@ class Db2GraphDataset(BaseGraphDataset):
 
 
 class List2GraphDataset(BaseGraphDataset):
-    """
-    Dataset for graph data such as crystal or molecule from list of Atoms object.
-    This dataset corresponds to periodic boundary conditions.
+    """Dataset for graph data such as crystal or molecule from list of Atoms
+    object. This dataset corresponds to periodic boundary conditions.
 
     Args:
         atoms_list (list[ase.Atoms]): list of ase.Atoms object.

@@ -1,23 +1,23 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
+from typing import Any
 
 import torch
-from torch import Tensor
 import torch.nn as nn
-from torch_scatter import scatter
+from torch import Tensor
 from torch_geometric.nn.inits import glorot_orthogonal
+from torch_scatter import scatter
 
 from pyggnns.model.base import BaseGNN
-from pyggnns.nn.activation import Swish
-from pyggnns.nn.rbf import BesselRBF
 from pyggnns.nn.abf import BesselSBF
-from pyggnns.nn.node_embed import AtomicNum2Node
-from pyggnns.nn.edge_embed import EdgeEmbed
+from pyggnns.nn.activation import Swish
 from pyggnns.nn.base import Dense, ResidualBlock
+from pyggnns.nn.edge_embed import EdgeEmbed
 from pyggnns.nn.edge_out import Edge2NodeProp1
+from pyggnns.nn.node_embed import AtomicNum2Node
+from pyggnns.nn.rbf import BesselRBF
 from pyggnns.utils.resolve import activation_resolver, init_resolver
-
 
 __all__ = ["DimeNet"]
 
@@ -29,7 +29,7 @@ class DimNetInteraction(nn.Module):
         n_radial: int,
         n_spherical: int,
         n_bilinear: int,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
         **kwargs,
     ):
@@ -120,9 +120,8 @@ class DimNetInteraction(nn.Module):
         edge_idx_kj: torch.LongTensor,
         edge_idx_ji: torch.LongTensor,
     ) -> Tensor:
-        """
-        The block to calculate the message interaction using Bessel Radial Basis and Bessel Spherical Basis.
-        This block is used in the DimeNet.
+        """The block to calculate the message interaction using Bessel Radial
+        Basis and Bessel Spherical Basis. This block is used in the DimeNet.
 
         Args:
             x (Tensor): edge_embeddings of the graph shape of (num_edge x hidden_dim).
@@ -152,9 +151,8 @@ class DimNetInteraction(nn.Module):
 
 
 class DimeNet(BaseGNN):
-    """
-    DimeNet implemeted by using PyTorch Geometric.
-    From atomic structure, predict global property such as energy.
+    """DimeNet implemeted by using PyTorch Geometric. From atomic structure,
+    predict global property such as energy.
 
     Args:
             edge_messag_dim (int): edge message embedding dimension.
@@ -200,7 +198,7 @@ class DimeNet(BaseGNN):
     ):
         super().__init__()
         act = activation_resolver(activation)
-        weight_init = init_resolver(weight_init)
+        wi: Callable[[Any], Any] = init_resolver(weight_init)
 
         self.edge_message_dim = edge_message_dim
         self.n_interaction = n_interaction
@@ -218,7 +216,7 @@ class DimeNet(BaseGNN):
             edge_dim=edge_message_dim,
             n_radial=n_radial,
             activation=act,
-            weight_init=weight_init,
+            weight_init=wi,
             **kwargs,
         )
         self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
@@ -233,7 +231,7 @@ class DimeNet(BaseGNN):
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
                         activation=act,
-                        weight_init=weight_init,
+                        weight_init=wi,
                         **kwargs,
                     )
                 ]
@@ -248,7 +246,7 @@ class DimeNet(BaseGNN):
                         n_spherical=n_spherical,
                         n_bilinear=n_bilinear,
                         activation=act,
-                        weight_init=weight_init,
+                        weight_init=wi,
                         **kwargs,
                     )
                     for _ in range(n_interaction)
@@ -262,7 +260,7 @@ class DimeNet(BaseGNN):
                     n_radial=n_radial,
                     out_dim=out_dim,
                     activation=act,
-                    weight_init=weight_init,
+                    weight_init=wi,
                     aggr=aggr,
                     **kwargs,
                 )
