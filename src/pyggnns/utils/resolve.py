@@ -1,8 +1,8 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
-from typing import Any
 from inspect import getmembers, isfunction
+from typing import Any
 
 import torch
 from torch.nn.init import calculate_gain
@@ -19,8 +19,8 @@ def _normalize_string(s: str) -> str:
 
 def _resolver(
     query: Any | str,
-    classes: list[Any],
-    base_cls: Any | None = None,
+    classes: list[type],
+    base_cls: type | None = None,
     return_initialize: bool = True,
     **kwargs,
 ) -> Callable | Any:
@@ -41,23 +41,23 @@ def _resolver(
         if query in classes:
             if not return_initialize:
                 return query
-            obj = query(**kwargs)
+            obj = query(**kwargs)  # type: ignore
             assert callable(obj)
             return obj
-        if issubclass(query, base_cls) and base_cls is not None:
+        if base_cls is not None and issubclass(query, base_cls):
             if not return_initialize:
                 return query
-            obj = query(**kwargs)
+            obj = query(**kwargs)  # type: ignore
             assert callable(obj)
             return obj
-        elif isinstance(query, base_cls) and base_cls is not None:
+        elif base_cls is not None and isinstance(query, base_cls):
             if not return_initialize:
                 return query
-            obj = query(**kwargs)
+            obj = query(**kwargs)  # type: ignore
             assert callable(obj)
             return obj
     # query is callable
-    elif isinstance(query, Callable):
+    elif isinstance(query, Callable):  # type: ignore
         if query in classes:
             assert callable(query)
             return query
@@ -69,7 +69,7 @@ def _resolver(
 def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> Callable[[torch.Tensor], torch.Tensor]:
     if isinstance(query, str):
         query = _normalize_string(query)
-    base_cls = torch.nn.Module
+    base_cls: type = torch.nn.Module
     # activation classes
     acts = [
         act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
@@ -82,7 +82,7 @@ def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> Call
 def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> float:
     if isinstance(query, str):
         query = _normalize_string(query)
-    base_cls = torch.nn.Module
+    base_cls: type = torch.nn.Module
     # activation classes
     acts = [
         act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
@@ -121,6 +121,6 @@ def init_resolver(
     return _resolver(query, funcs, return_initialize=False)
 
 
-def init_param_resolver(query: Callable[[torch.Tensor], torch.Tensor]) -> tuple[str]:
+def init_param_resolver(query: Callable[[torch.Tensor], torch.Tensor]) -> tuple[str, ...]:
     params = query.__code__.co_varnames[: query.__code__.co_argcount]
     return params

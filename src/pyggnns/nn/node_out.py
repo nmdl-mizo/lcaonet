@@ -1,24 +1,23 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
 
 import torch
-from torch import Tensor
 import torch.nn as nn
-from torch_scatter import scatter
+from torch import Tensor
 from torch_geometric.nn.inits import glorot_orthogonal
+from torch_scatter import scatter
 
 from pyggnns.nn.activation import ShiftedSoftplus, Swish
 from pyggnns.nn.base import Dense
-
 
 __all__ = ["Node2Prop1", "Node2Prop2"]
 
 
 class Node2Prop1(nn.Module):
-    """
-    The block to compute the global graph proptery from node embeddings. In this block, after aggregation, two more Dense layers are calculated.
-    This block is used in EGNN.
+    """The block to compute the global graph proptery from node embeddings. In
+    this block, after aggregation, two more Dense layers are calculated. This
+    block is used in EGNN.
 
     Args:
         node_dim (int): number of input dimension.
@@ -55,8 +54,7 @@ class Node2Prop1(nn.Module):
         )
 
     def forward(self, x: Tensor, batch: Tensor | None = None) -> Tensor:
-        """
-        Compute global property from node embeddings.
+        """Compute global property from node embeddings.
 
         Args:
             x (Tensor): node embeddings shape of (n_node x in_dim).
@@ -71,10 +69,9 @@ class Node2Prop1(nn.Module):
 
 
 class Node2Prop2(nn.Module):
-    """
-    The block to compute the global graph proptery from node embeddings.
-    This block contains two Dense layers and aggregation block. If set `scaler`, scaling process before aggregation.
-    This block is used in SchNet.
+    """The block to compute the global graph proptery from node embeddings.
+    This block contains two Dense layers and aggregation block. If set
+    `scaler`, scaling process before aggregation. This block is used in SchNet.
 
     Args:
         node_dim (int): number of input dim.
@@ -120,8 +117,7 @@ class Node2Prop2(nn.Module):
             self.scaler = scaler(mean, stddev)
 
     def forward(self, x: Tensor, batch: Tensor | None = None) -> Tensor:
-        """
-        Compute global property from node embeddings.
+        """Compute global property from node embeddings.
 
         Args:
             x (Tensor): node embeddings shape of (n_node x in_dim).

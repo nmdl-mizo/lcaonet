@@ -1,25 +1,23 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
 
 import torch
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 from torch_geometric.nn.conv import MessagePassing
-from torch_geometric.typing import Adj
 from torch_geometric.nn.inits import glorot_orthogonal
+from torch_geometric.typing import Adj
 
 from pyggnns.nn.activation import Swish
 from pyggnns.nn.base import Dense
-
 
 __all__ = ["EGNNConv"]
 
 
 class EGNNConv(MessagePassing):
-    """
-    The block to calculate massage passing and update node embeddings.
-    It is implemented in the manner of PyTorch Geometric.
+    """The block to calculate massage passing and update node embeddings. It is
+    implemented in the manner of PyTorch Geometric.
 
     Args:
         x_dim (int or Tuple[int, int]]): number of node dimension. if set to tuple object,

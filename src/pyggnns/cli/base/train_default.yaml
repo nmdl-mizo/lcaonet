@@ -10,7 +10,7 @@ defaults:
   - callbacks:
       - early_stopping
       - lr_monitor
-  - loggers: 
+  - loggers:
       - csv
       - tensorboard
   - trainer: default_trainer_gpu
@@ -40,4 +40,3 @@ training:
 
 params:
   cutoff_radi: 5.0
-

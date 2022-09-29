@@ -1,19 +1,19 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
-from collections import Callable
 import logging
+from collections.abc import Callable
 
 import hydra
-from omegaconf import DictConfig
-import torch
 import pytorch_lightning as pl
+import torch
+from omegaconf import DictConfig
 from pytorch_lightning import seed_everything
 
 log = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="conf", config_name="train", version_base=None)
-def train(config: DictConfig):
+@hydra.main(config_path=".", config_name="train", version_base=None)
+def training(config: DictConfig):
     config = config.base
     # set seed
     seed_everything(config.seed, workers=True)
@@ -33,7 +33,9 @@ def train(config: DictConfig):
 
     # setup scheduler
     if config.scheduler is not None:
-        scheduler: torch.optim.lr_scheduler._LRScheduler = hydra.utils.instantiate(config.scheduler, optimizer=optimizer)
+        scheduler: torch.optim.lr_scheduler._LRScheduler = hydra.utils.instantiate(
+            config.scheduler, optimizer=optimizer
+        )
         log.info(f"Setting up scheduler: {config.scheduler._target_}")
     else:
         scheduler = None
@@ -86,3 +88,7 @@ def train(config: DictConfig):
     log.info(f"Best checkpoint path:\n{best_path}")
 
     log.info("Done.")
+
+
+if __name__ == "__main__":
+    training()

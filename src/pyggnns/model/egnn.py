@@ -1,12 +1,11 @@
-from __future__ import annotations
-
+from __future__ import annotations  # type: ignore
 
 import torch.nn as nn
 from torch import Tensor
 
 from pyggnns.model.base import BaseGNN
-from pyggnns.nn.node_embed import AtomicNum2Node
 from pyggnns.nn.conv.egnn_conv import EGNNConv
+from pyggnns.nn.node_embed import AtomicNum2Node
 from pyggnns.nn.node_out import Node2Prop1
 from pyggnns.utils.resolve import activation_resolver
 
@@ -14,9 +13,8 @@ __all__ = ["EGNN"]
 
 
 class EGNN(BaseGNN):
-    """
-    EGNN implemeted by using PyTorch Geometric.
-    From atomic structure, predict global property such as energy.
+    """EGNN implemeted by using PyTorch Geometric. From atomic structure,
+    predict global property such as energy.
 
     Args:
         node_dim (int): number of node embedding dimension.

@@ -1,15 +1,14 @@
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
 
 from collections.abc import Callable
 
 import torch
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
 from torch_geometric.nn.inits import glorot_orthogonal
 
 from pyggnns.nn.activation import Swish
 from pyggnns.nn.base import Dense
-
 
 __all__ = ["EdgeEmbed"]
 
@@ -51,8 +50,7 @@ class EdgeEmbed(nn.Module):
         idx_i: torch.LongTensor,
         idx_j: torch.LongTensor,
     ) -> Tensor:
-        """
-        Computed the initial edge embedding.
+        """Computed the initial edge embedding.
 
         Args:
             x (Tensor): node embedding vector shape of (n_node x node_dim).
