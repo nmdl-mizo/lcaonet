@@ -1,7 +1,7 @@
 from __future__ import annotations  # type: ignore
 
 import logging
-from collections import Callable
+from collections.abc import Callable
 
 import hydra
 import pytorch_lightning as pl
