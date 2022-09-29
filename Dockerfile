@@ -21,5 +21,5 @@ RUN python3.9 -m pip install -U pip wheel setuptools && \
     python3.9 -m pip install torch==${PYTORCH_VERSION}+cu${CUDA_VERSION_SHORT} -f https://download.pytorch.org/whl/torch_stable.html && \
     python3.9 -m pip install -r requirements_docker.txt -f https://data.pyg.org/whl/torch-${PYTORCH_VERSION}+cu${CUDA_VERSION_SHORT}.html&& \
     python3.9 -m pip install -e .
-ENTRYPOINT ["python3.9", "train.py"]
+ENTRYPOINT ["train.py"]
 CMD ["base=train_default"]
