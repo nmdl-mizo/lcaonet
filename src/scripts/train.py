@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 from collections import Callable
@@ -86,3 +87,6 @@ def train(config: DictConfig):
     log.info(f"Best checkpoint path:\n{best_path}")
 
     log.info("Done.")
+
+if __name__ == "__main__":
+    train()
