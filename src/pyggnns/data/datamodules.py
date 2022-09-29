@@ -6,7 +6,7 @@ from torch.utils.data import Subset
 import pytorch_lightning as pl
 from torch_geometric.loader import DataLoader
 
-from pyggnn.data.dataset import Hdf2GraphDataset, Db2GraphDataset
+from pyggnns.data.dataset import Hdf2GraphDataset, Db2GraphDataset
 
 log = logging.getLogger(__name__)
 

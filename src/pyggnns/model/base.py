@@ -5,7 +5,7 @@ from torch import Tensor
 import torch.nn as nn
 from torch_sparse import SparseTensor
 
-from pyggnn.data.datakeys import DataKeys
+from pyggnns.data.datakeys import DataKeys
 
 
 __all__ = ["BaseGNN"]

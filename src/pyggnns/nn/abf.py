@@ -7,7 +7,7 @@ from torch_geometric.nn.models.dimenet_utils import (
     real_sph_harm,
 )
 
-from pyggnn.nn.cutoff import EnvelopeCutoff
+from pyggnns.nn.cutoff import EnvelopeCutoff
 
 __all__ = ["BesselSBF"]
 

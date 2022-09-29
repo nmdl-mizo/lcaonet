@@ -9,8 +9,8 @@ from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.typing import Adj
 from torch_geometric.nn.inits import glorot_orthogonal
 
-from pyggnn.nn.activation import Swish
-from pyggnn.nn.base import Dense
+from pyggnns.nn.activation import Swish
+from pyggnns.nn.base import Dense
 
 
 __all__ = ["EGNNConv"]

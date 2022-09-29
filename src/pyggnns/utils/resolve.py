@@ -8,7 +8,7 @@ import torch
 from torch.nn.init import calculate_gain
 from torch_geometric.nn.inits import glorot, glorot_orthogonal
 
-from pyggnn.nn.activation import ShiftedSoftplus, Swish
+from pyggnns.nn.activation import ShiftedSoftplus, Swish
 
 __all__ = ["activation_resolver", "activation_gain_resolver", "init_resolver"]
 

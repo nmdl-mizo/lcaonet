@@ -1,0 +1,1 @@
+from pyggnns.model import *

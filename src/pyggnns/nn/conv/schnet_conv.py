@@ -7,8 +7,8 @@ import torch.nn as nn
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.typing import Adj
 
-from pyggnn.nn.activation import ShiftedSoftplus
-from pyggnn.nn.base import Dense
+from pyggnns.nn.activation import ShiftedSoftplus
+from pyggnns.nn.base import Dense
 
 
 __all__ = ["SchNetConv"]
