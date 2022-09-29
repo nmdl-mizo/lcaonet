@@ -1,12 +1,10 @@
 # @package _global_
 
 defaults:
-  - base: train_default
-
-job_name: ${base.configs.job_name}
+  - train_default
 
 hydra:
   job:
-    name: ${job_name}
+    name: ${configs.job_name}
   run:
     dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

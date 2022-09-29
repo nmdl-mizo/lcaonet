@@ -14,7 +14,6 @@ log = logging.getLogger(__name__)
 
 @hydra.main(config_path=".", config_name="train", version_base=None)
 def training(config: DictConfig):
-    config = config.base
     # set seed
     seed_everything(config.seed, workers=True)
     log.info(f"Setting seed: {config.training.seed}")
