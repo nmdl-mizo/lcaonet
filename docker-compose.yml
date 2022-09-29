@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  train:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /home/nisho/data:/data

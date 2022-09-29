@@ -17,12 +17,18 @@ defaults:
 
 configs:
   job_name: "dimenetpp"
-  data_file: "data/CH4.hdf5"
+
+data:
+  data_file: "/data/g_x_charge.hdf5"
   file_type: "hdf5"
   property_names: ["e_formation"]
   gpus: 1
   num_workers: 4
   prediction_key: "formation_energy"
+  pbc: true
+  num_train: 10
+  num_val: 10
+  num_test: null # nullable
 
 training:
   amp_level: null  # nullable
