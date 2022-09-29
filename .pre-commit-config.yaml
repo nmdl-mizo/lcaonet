@@ -1,0 +1,47 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.3.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: no-commit-to-branch
+        args: [--branch, main]
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-toml
+    -   id: check-json
+    -   id: pretty-format-json
+        args: [--autofix]
+    -   id: check-added-large-files
+# isort formatting
+-   repo: https://github.com/pycqa/isort
+    rev: 5.5.2
+    hooks:
+        -   id: isort
+            args: ["--profile", "black"]
+# mypy checking
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.790
+    hooks:
+        -   id: mypy
+            args: [--ignore-missing-imports]
+# black formatting
+-   repo: https://github.com/psf/black
+    rev: 22.8.0
+    hooks:
+    -   id: black
+        args: [--line-length, "120"]
+        language_version: python3
+# for docstring
+-   repo: https://github.com/myint/docformatter
+    rev: v1.4
+    hooks:
+    -   id: docformatter
+        args: [--in-place]
+# # flake8 checking
+# -   repo: https://gitlab.com/pycqa/flake8
+#     rev: 3.8.1
+#     hooks:
+#     -   id: flake8
+#         # commit cannot be done when cyclomatic complexity is more than 10.
+#         args: [--max-line-length, "120", --ignore=E402, --max-complexity, "10", --max-expression-complexity=7, --max-cognitive-complexity=7]
+#         additional_dependencies: [flake8-bugbear, flake8-builtins, flake8-eradicate, pep8-naming, flake8-expression-complexity, flake8-cognitive-complexity]
