@@ -6,7 +6,7 @@ from torch import Tensor
 import torch.nn as nn
 from torch_geometric.nn.inits import glorot_orthogonal
 
-from pyggnn.utils.resolve import init_param_resolver
+from pyggnns.utils.resolve import init_param_resolver
 
 
 __all__ = ["Dense", "ResidualBlock"]
@@ -38,22 +38,24 @@ class Dense(nn.Linear):
         self.bias_init = bias_init
         self.weight_init = weight_init
         # gain and scale paramer is set to default values
-        params = init_param_resolver(weight_init)
-        for p in params:
-            if p in kwargs:
-                continue
-            if p == "gain":
-                kwargs[p] = 1.0
-            elif p == "scale":
-                kwargs[p] = 2.0
-        self.kwargs = kwargs
+        if self.weight_init is not None: 
+            params = init_param_resolver(weight_init)
+            for p in params:
+                if p in kwargs:
+                    continue
+                if p == "gain":
+                    kwargs[p] = 1.0
+                elif p == "scale":
+                    kwargs[p] = 2.0
+            self.kwargs = kwargs
 
         super().__init__(in_dim, out_dim, bias)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.weight_init(self.weight, **self.kwargs)
+        if self.weight_init is not None:
+            self.weight_init(self.weight, **self.kwargs)
         if self.bias is not None:
             self.bias_init(self.bias)
 

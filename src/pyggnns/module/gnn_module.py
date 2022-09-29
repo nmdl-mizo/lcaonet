@@ -5,7 +5,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 import torch_geometric
 
-from pyggnn.train.loss import BaseLoss
+from pyggnns.train.loss import BaseLoss
 
 __all__ = ["GNNModule"]
 

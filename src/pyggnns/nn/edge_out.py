@@ -8,8 +8,8 @@ import torch.nn as nn
 from torch_scatter import scatter
 from torch_geometric.nn.inits import glorot_orthogonal
 
-from pyggnn.nn.activation import Swish
-from pyggnn.nn.base import Dense
+from pyggnns.nn.activation import Swish
+from pyggnns.nn.base import Dense
 
 
 __all__ = ["Edge2NodeProp1", "Edge2NodeProp2"]

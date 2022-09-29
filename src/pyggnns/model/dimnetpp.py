@@ -8,15 +8,15 @@ import torch.nn as nn
 from torch_scatter import scatter
 from torch_geometric.nn.inits import glorot_orthogonal
 
-from pyggnn.model.base import BaseGNN
-from pyggnn.nn.activation import Swish
-from pyggnn.nn.rbf import BesselRBF
-from pyggnn.nn.abf import BesselSBF
-from pyggnn.nn.node_embed import AtomicNum2Node
-from pyggnn.nn.edge_embed import EdgeEmbed
-from pyggnn.nn.base import Dense, ResidualBlock
-from pyggnn.nn.edge_out import Edge2NodeProp2
-from pyggnn.utils.resolve import activation_resolver, init_resolver
+from pyggnns.model.base import BaseGNN
+from pyggnns.nn.activation import Swish
+from pyggnns.nn.rbf import BesselRBF
+from pyggnns.nn.abf import BesselSBF
+from pyggnns.nn.node_embed import AtomicNum2Node
+from pyggnns.nn.edge_embed import EdgeEmbed
+from pyggnns.nn.base import Dense, ResidualBlock
+from pyggnns.nn.edge_out import Edge2NodeProp2
+from pyggnns.utils.resolve import activation_resolver, init_resolver
 
 
 __all__ = ["DimeNetPlusPlus"]

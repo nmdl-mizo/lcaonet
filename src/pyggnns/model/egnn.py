@@ -4,11 +4,11 @@ from __future__ import annotations
 import torch.nn as nn
 from torch import Tensor
 
-from pyggnn.model.base import BaseGNN
-from pyggnn.nn.node_embed import AtomicNum2Node
-from pyggnn.nn.conv.egnn_conv import EGNNConv
-from pyggnn.nn.node_out import Node2Prop1
-from pyggnn.utils.resolve import activation_resolver
+from pyggnns.model.base import BaseGNN
+from pyggnns.nn.node_embed import AtomicNum2Node
+from pyggnns.nn.conv.egnn_conv import EGNNConv
+from pyggnns.nn.node_out import Node2Prop1
+from pyggnns.utils.resolve import activation_resolver
 
 __all__ = ["EGNN"]
 

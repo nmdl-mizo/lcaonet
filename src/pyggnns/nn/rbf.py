@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from pyggnn.nn.cutoff import EnvelopeCutoff
+from pyggnns.nn.cutoff import EnvelopeCutoff
 
 __all__ = ["GaussianRBF", "BesselRBF"]
 

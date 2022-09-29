@@ -11,7 +11,7 @@ from numpy import ndarray
 import torch
 from torch_geometric.data import Data, Dataset
 
-from pyggnn.data.datakeys import DataKeys
+from pyggnns.data.datakeys import DataKeys
 
 log = logging.getLogger(__name__)
 
