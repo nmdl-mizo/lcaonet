@@ -1,17 +1,17 @@
-FROM nvidia/cuda:11.3.0-runtime-ubuntu18.04
+ARG PYTORCH_VERSION=1.12.0
+ARG CUDA_VERSION=11.3
+FROM pytorch/pytorch:${PYTORCH_VERSION}-cuda${CUDA_VERSION}-cudnn8-runtime
 WORKDIR /app
 COPY . .
 RUN apt-get update && apt-get install -y \
     software-properties-common \
-    tzdata
+    tzdata \
+    libpq-dev && \
+    apt-get clean && \
+    rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
 ENV TZ=Asia/Tokyo 
-RUN add-apt-repository ppa:deadsnakes/ppa && apt-get install -y \
-    python3.9 \
-    python3.9-distutils \
-    python3-pip
-RUN python3.9 -m pip install -U pip wheel setuptools && \
-    python3.9 -m pip install torch==1.12.0 --extra-index-url https://download.pytorch.org/whl/cu113 &&\
-    python3.9 -m pip install -r requirements_docker.txt && \
-    python3.9 -m pip install -e .
+RUN pip3 install -U pip wheel setuptools && \
+    pip3 install -r requirements_docker.txt -f https://data.pyg.org/whl/torch-${PYTORCH_VERSION}+cu`echo ${CUDA_VERSION} | sed -e 's/\.//'`.html&& \
+    pip3 install -e .
 ENTRYPOINT ["python3.9", "train.py"]
-CMD [base=train_default]
+CMD ["base=train_default"]
