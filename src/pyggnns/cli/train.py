@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 from collections import Callable
@@ -13,8 +12,8 @@ from pytorch_lightning import seed_everything
 log = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="conf", config_name="train", version_base=None)
-def train(config: DictConfig):
+@hydra.main(config_path="configs", config_name="train", version_base=None)
+def training(config: DictConfig):
     config = config.base
     # set seed
     seed_everything(config.seed, workers=True)
@@ -89,4 +88,4 @@ def train(config: DictConfig):
     log.info("Done.")
 
 if __name__ == "__main__":
-    train()
+    training()
