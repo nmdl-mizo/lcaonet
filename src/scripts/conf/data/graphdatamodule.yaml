@@ -1,0 +1,12 @@
+__target__: pyggnn.module.GraphDataModule
+file_pth: ${configs.data_file}
+file_type: ${configs.file_type}
+cutoff_radi: ${params.cutoff_radi}
+property_names: ${configs.property_names}
+pbc: true
+num_train: 1000
+num_val: 100
+num_test: null
+batch_size: ${training.batch_size}
+num_workers: ${configs.num_workers}
+pin_memory: false

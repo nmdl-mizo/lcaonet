@@ -1,0 +1,12 @@
+numpy
+sympy
+h5py
+ase
+hydra-core==1.2
+torch==1.12.0
+pytorch-lightning
+torch-scatter -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+torch-sparse -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+torch-cluster -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+torch-spline-conv -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+torch-geometric -f https://data.pyg.org/whl/torch-1.12.0+cu113.html

@@ -80,9 +80,7 @@ class GaussianRBF(nn.Module):
         Returns:
             Tensor: extended distances of (n_edge x n_gaussian) shape.
         """
-        return gaussian_rbf(
-            dist, offsets=self.offset, widths=self.width, centered=self.centered
-        )
+        return gaussian_rbf(dist, offsets=self.offset, widths=self.width, centered=self.centered)
 
 
 class BesselRBF(torch.nn.Module):

@@ -73,9 +73,7 @@ class DimNetInteraction(nn.Module):
         )
 
         # conbine rbf and sbf information
-        self.bilinear = nn.Bilinear(
-            n_bilinear, edge_message_dim, edge_message_dim, bias=False
-        )
+        self.bilinear = nn.Bilinear(n_bilinear, edge_message_dim, edge_message_dim, bias=False)
 
         # resnets
         self.res_before_skip = nn.Sequential(
@@ -273,9 +271,7 @@ class DimeNet(BaseGNN):
         )
 
     def forward(self, data_batch) -> Tensor:
-        batch, pos, atom_numbers = self.get_data(
-            data_batch, batch_index=True, position=True, atom_numbers=True
-        )
+        batch, pos, atom_numbers = self.get_data(data_batch, batch_index=True, position=True, atom_numbers=True)
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # get triplets
@@ -310,11 +306,7 @@ class DimeNet(BaseGNN):
             out += ob(m, rbf, idx_i, num_nodes=atom_numbers.size(0))
 
         # aggregation each batch
-        return (
-            out.sum(dim=0)
-            if batch is None
-            else scatter(out, batch, dim=0, reduce=self.aggr)
-        )
+        return out.sum(dim=0) if batch is None else scatter(out, batch, dim=0, reduce=self.aggr)
 
     def __repr__(self):
         return (

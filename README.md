@@ -1,1 +1,1 @@
-# PyGGNN
+# PyGGNNs

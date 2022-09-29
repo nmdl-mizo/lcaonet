@@ -13,6 +13,7 @@ class BaseCutoff(nn.Module):
     Args:
         cutoff_radi (float, optional): cutoff radious.
     """
+
     def __init__(self, cutoff_radi: float | None = None):
         super().__init__()
         self.cutoff_radi = cutoff_radi
@@ -37,6 +38,7 @@ class CosineCutoff(BaseCutoff):
     Args:
         cutoff_radi (float): cutoff radious
     """
+
     def __init__(self, cutoff_radi: float):
         super().__init__(cutoff_radi)
 
@@ -68,6 +70,7 @@ class EnvelopeCutoff(BaseCutoff):
         [1] J. Klicpera et al., arXiv [cs.LG] (2020),
             (available at http://arxiv.org/abs/2003.03123).
     """
+
     def __init__(self, cutoff_radi: float, exponent: int = 5):
         super().__init__(cutoff_radi)
         self.p = exponent + 1
@@ -93,6 +96,4 @@ class EnvelopeCutoff(BaseCutoff):
         dist_pow_p1 = dist_pow_p0 * dist
         dist_pow_p2 = dist_pow_p1 * dist
         # Remove contributions beyond the cutoff radius
-        return (
-            1.0 / (dist + 1e-8) + a * dist_pow_p0 + b * dist_pow_p1 + c * dist_pow_p2
-        ) * (dist < 1.0).to(dist.dtype)
+        return (1.0 / (dist + 1e-8) + a * dist_pow_p0 + b * dist_pow_p1 + c * dist_pow_p2) * (dist < 1.0).to(dist.dtype)
