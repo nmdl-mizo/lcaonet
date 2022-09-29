@@ -28,9 +28,6 @@ def _resolver(
     if isinstance(query, str):
         for cls in classes:
             if _normalize_string(cls.__name__.lower()) == query:
-                # deprecated function is not used
-                if "deprecated" in cls.__str__():
-                    continue
                 if not return_initialize:
                     return cls
                 obj = cls(**kwargs)
@@ -117,6 +114,8 @@ def init_resolver(
     funcs = [f[1] for f in getmembers(torch.nn.init, isfunction)]
     # add torch_geometric.nn.inits
     funcs += [glorot, glorot_orthogonal]
+    # remove deprecated
+    funcs = [f for f in funcs if "deprecated" not in f.__str__()]
     # Since the list contains callable instead of class, return without initialize.
     return _resolver(query, funcs, return_initialize=False)
 
