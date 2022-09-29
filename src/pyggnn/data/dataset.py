@@ -25,7 +25,12 @@ __all__ = [
 
 
 class BaseGraphDataset(Dataset):
-    def __init__(self, cutoff_radi: float, property_names: list[str], pbc: bool | tuple[bool, ...] = True):
+    def __init__(
+        self,
+        cutoff_radi: float,
+        property_names: list[str],
+        pbc: bool | tuple[bool, ...] = True,
+    ):
         super().__init__()
         self.cutoff_radi = cutoff_radi
         self.property_names = property_names

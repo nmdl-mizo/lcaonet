@@ -38,42 +38,105 @@ class DimNetPPInteraction(nn.Module):
         # Dense transformation of basis
         self.rbf_denses = nn.Sequential(
             Dense(n_radial, basis_embed_dim, bias=False, weight_init=weight_init, **kwargs),
-            Dense(basis_embed_dim, edge_message_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(
+                basis_embed_dim,
+                edge_message_dim,
+                bias=False,
+                weight_init=weight_init,
+                **kwargs,
+            ),
         )
         self.sbf_denses = nn.Sequential(
-            Dense(n_spherical * n_radial, basis_embed_dim, bias=False, weight_init=weight_init, **kwargs),
-            Dense(basis_embed_dim, edge_down_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(
+                n_spherical * n_radial,
+                basis_embed_dim,
+                bias=False,
+                weight_init=weight_init,
+                **kwargs,
+            ),
+            Dense(
+                basis_embed_dim,
+                edge_down_dim,
+                bias=False,
+                weight_init=weight_init,
+                **kwargs,
+            ),
         )
 
         # Dense transformations of input messages.
         self.kj_dense = nn.Sequential(
-            Dense(edge_message_dim, edge_message_dim, bias=True, weight_init=weight_init, **kwargs),
+            Dense(
+                edge_message_dim,
+                edge_message_dim,
+                bias=True,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             activation,
         )
         self.ji_dense = nn.Sequential(
-            Dense(edge_message_dim, edge_message_dim, bias=True, weight_init=weight_init, **kwargs),
+            Dense(
+                edge_message_dim,
+                edge_message_dim,
+                bias=True,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             activation,
         )
 
         # down and up projection of edge message embedding
         self.down_dense = nn.Sequential(
-            Dense(edge_message_dim, edge_down_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(
+                edge_message_dim,
+                edge_down_dim,
+                bias=False,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             activation,
         )
         self.up_dense = nn.Sequential(
-            Dense(edge_down_dim, edge_message_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(
+                edge_down_dim,
+                edge_message_dim,
+                bias=False,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             activation,
         )
 
         # resnets
         self.res_before_skip = nn.Sequential(
-            ResidualBlock(edge_message_dim, activation=activation, weight_init=weight_init, **kwargs),
-            Dense(edge_message_dim, edge_message_dim, bias=True, weight_init=weight_init, **kwargs),
+            ResidualBlock(
+                edge_message_dim,
+                activation=activation,
+                weight_init=weight_init,
+                **kwargs,
+            ),
+            Dense(
+                edge_message_dim,
+                edge_message_dim,
+                bias=True,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             activation,
         )
         self.res_after_skip = nn.Sequential(
-            ResidualBlock(edge_message_dim, activation=activation, weight_init=weight_init, **kwargs),
-            ResidualBlock(edge_message_dim, activation=activation, weight_init=weight_init, **kwargs),
+            ResidualBlock(
+                edge_message_dim,
+                activation=activation,
+                weight_init=weight_init,
+                **kwargs,
+            ),
+            ResidualBlock(
+                edge_message_dim,
+                activation=activation,
+                weight_init=weight_init,
+                **kwargs,
+            ),
         )
 
     def forward(
@@ -256,9 +319,15 @@ class DimeNetPlusPlus(BaseGNN):
         # calc atomic distances
         distances = self.calc_atomic_distances(data_batch)
         # get triplets
-        (idx_i, idx_j, triple_idx_i, triple_idx_j, triple_idx_k, edge_idx_kj, edge_idx_ji) = self.get_triplets(
-            data_batch
-        )
+        (
+            idx_i,
+            idx_j,
+            triple_idx_i,
+            triple_idx_j,
+            triple_idx_k,
+            edge_idx_kj,
+            edge_idx_ji,
+        ) = self.get_triplets(data_batch)
         # calc angle each triplets
         # arctan is more stable than arccos
         pos_i = pos[triple_idx_i]

@@ -108,7 +108,9 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
     return calculate_gain(nonlinearity, **kwargs)
 
 
-def init_resolver(query: Callable | str = "orthogonal") -> Callable[[torch.Tensor], torch.Tensor]:
+def init_resolver(
+    query: Callable | str = "orthogonal",
+) -> Callable[[torch.Tensor], torch.Tensor]:
     if isinstance(query, str):
         query = _normalize_string(query)
 

@@ -44,7 +44,13 @@ class SchNetConv(MessagePassing):
         # update functions
         # filter generator
         self.edge_filter_func = nn.Sequential(
-            Dense(n_gaussian, edge_filter_dim, bias=True, weight_init=weight_init, **kwargs),
+            Dense(
+                n_gaussian,
+                edge_filter_dim,
+                bias=True,
+                weight_init=weight_init,
+                **kwargs,
+            ),
             activation,
             Dense(
                 edge_filter_dim,

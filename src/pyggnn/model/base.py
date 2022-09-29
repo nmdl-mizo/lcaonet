@@ -43,7 +43,11 @@ class BaseGNN(nn.Module):
             data_batch[DataKeys.Position][edge_dst]
             - data_batch[DataKeys.Position][edge_src]
             # TODO: einsum can use only Double, change float
-            + torch.einsum("ni,nij->nj", data_batch[DataKeys.Edge_shift], data_batch[DataKeys.Lattice][edge_batch])
+            + torch.einsum(
+                "ni,nij->nj",
+                data_batch[DataKeys.Edge_shift],
+                data_batch[DataKeys.Lattice][edge_batch],
+            )
         )
         return torch.norm(edge_vec, dim=1)
 
