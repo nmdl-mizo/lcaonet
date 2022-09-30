@@ -1,1 +1,1 @@
-_target_: pyggnn.train.loss.MSELoss
+_target_: pyggnns.train.loss.MSELoss

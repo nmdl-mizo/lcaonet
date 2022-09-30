@@ -1,4 +1,4 @@
-_target_: pyggnn.model.DimeNetPlusPlus
+_target_: pyggnns.model.DimeNetPlusPlus
 edge_message_dim: 256
 n_interaction: 6
 out_dim: 1
