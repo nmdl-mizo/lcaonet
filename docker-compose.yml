@@ -7,4 +7,23 @@ services:
       dockerfile: Dockerfile
     runtime: nvidia
     volumes:
-      - /home/nisho/data:/data
+      - type: volume
+        source: data
+        target: /data
+      - type: volume
+        source: out
+        target: /app/logs
+    env_file:
+      - .env 
+
+volumes:
+  data:
+    driver_opts:
+      type: nfs
+      o: "addr=192.168.100.106,rw"
+      device: ":/home/nishio/data"
+  out:
+    driver_opts:
+      type: nfs
+      o: "addr=192.168.100.106,rw"
+      device: ":/home/nishio/out"
