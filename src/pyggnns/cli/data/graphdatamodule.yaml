@@ -1,4 +1,4 @@
-__target__: pyggnn.module.GraphDataModule
+_target_: pyggnn.module.GraphDataModule
 file_pth: ???
 file_type: ???
 cutoff_radi: ${params.cutoff_radi}

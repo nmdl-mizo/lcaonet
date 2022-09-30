@@ -1,2 +1,2 @@
-__targe__: torch.optim.lr_scheduler.CosineAnnealingLR
+_targe_: torch.optim.lr_scheduler.CosineAnnealingLR
 T_max: ${training.max_epochs}

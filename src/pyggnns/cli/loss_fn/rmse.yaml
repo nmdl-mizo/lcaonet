@@ -1,1 +1,1 @@
-__targe__: pyggnn.train.loss.RMSELoss
+_targe_: pyggnn.train.loss.RMSELoss

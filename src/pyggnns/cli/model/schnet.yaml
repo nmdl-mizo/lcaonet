@@ -1,4 +1,4 @@
-__target__: pyggnn.model.SchNet
+_target_: pyggnn.model.SchNet
 node_dim: 256
 edge_filter_dim: 256
 n_conv_layer: 6

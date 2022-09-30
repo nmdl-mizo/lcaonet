@@ -1,2 +1,2 @@
-__target__: pyggnn.module.GNNModule
+_target_: pyggnn.module.GNNModule
 prediction_key: ${configs.prediction_key}
