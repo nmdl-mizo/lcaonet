@@ -1,7 +1,0 @@
-# @package _global_
-
-defaults:
-  - override /model: schnet
-
-model:
-  node_dim: 128
