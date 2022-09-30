@@ -8,7 +8,7 @@ edge_down_dim: 64
 basis_embed_dim: 64
 out_up_dim: 256
 activation: "swish"
-cutoff_radi: 4.0
+cutoff_radi: ${params.cutoff_radi}
 envelope_exponent: 5
 aggr: "add"
 weight_init: "glorot_orthogonal"

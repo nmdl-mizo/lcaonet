@@ -1,7 +1,47 @@
 # @package _global_
 
 defaults:
-  - train_default
+  - data: graphdatamodule
+  - model: dimenetpp
+  - optimizer: adam
+  - scheduler: cosine_annealing  # nullable
+  - loss_fn: rmse
+  - plmodule: gnn_module
+  - callbacks:
+      - early_stopping
+      - lr_monitor
+  - loggers:
+      - csv
+      - tensorboard
+  - trainer: default_trainer_gpu
+  - experiment: null # nullable
+
+configs:
+  job_name: "dimenetpp"
+  prediction_key: "formation_energy"
+  seed: 42
+  gpus: 1
+
+data:
+  file_pth: "/data/g_x_charge.hdf5"
+  file_type: "hdf5"
+  property_names: ["e_formation"]
+  num_workers: 4
+  pbc: true
+  num_train: 10
+  num_val: 10
+  num_test: null # nullable
+
+training:
+  amp_level: null  # nullable
+  seed: 42
+  batch_size: 32
+  max_epochs: 1000
+  lr: 0.001
+  weight_decay: 0.0
+
+params:
+  cutoff_radi: 5.0
 
 hydra:
   job:

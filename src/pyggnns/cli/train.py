@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 def training(config: DictConfig):
     # set seed
     seed_everything(config.training.seed, workers=True)
-    log.info(f"Setting seed: {config.training.seed}")
+    log.info(f"Setting seed: {config.configs.seed}")
 
     # setup data
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(config.data)
