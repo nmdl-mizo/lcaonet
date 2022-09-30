@@ -1,0 +1,39 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - datamodule: graphdatamodule
+  - model: dimenetpp
+  - loss_fn: rmse
+  - plmodule: gnn_module
+  - logger:
+      - csv
+      - wandb
+  - trainer: gpu
+  - paths: default
+  - hydra: default
+
+task_name: "eval"
+
+tags: ["dev"]
+
+# passing checkpoint path is necessary for evaluation
+ckpt_path: ???
+
+data:
+  file_pth: "/data/g_x_charge.hdf5"
+  file_type: "hdf5"
+  property_names: ["e_formation"]
+  num_workers: 4
+  pbc: true
+  num_train: 10
+  num_val: 10
+  num_test: null # nullable
+
+training:
+  amp_level: null # nullable
+  seed: 42
+  batch_size: 32
+
+params:
+  cutoff_radi: 5.0

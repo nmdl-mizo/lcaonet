@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
 import torch_geometric
 
 from pyggnns.train.loss import BaseLoss
@@ -33,7 +33,7 @@ class GNNModule(pl.LightningModule):
         x = batch
         y = batch[self.predict_key]
         y_hat = self(x)
-        loss = self.loss_fn(y_hat, y)
+        loss = self.loss_fn.calc(y_hat, y)
         self.log("train_loss", loss)
         return loss
 

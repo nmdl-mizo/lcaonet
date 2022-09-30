@@ -1,0 +1,20 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /model: schnet
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["schnet"]
+
+seed: 132
+
+model:
+  node_dim: 128
+
+optimizer:
+  lr: 0.1
