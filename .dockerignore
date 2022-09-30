@@ -1,0 +1,7 @@
+**
+!Dockerfile.*
+!requirements_docker.txt*
+!setup*
+!src*
+!configs*
+!scripts*

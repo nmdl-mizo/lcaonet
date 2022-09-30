@@ -165,5 +165,6 @@ class AtomicDict2Node(nn.Module):
         device = z.device
         z = torch.einsum("fd, bd->bf", self.M, (SPOOKYNET_DICT[z] / SPOOKYNET_DICT[-1]).to(device)) + self.embed(z)
         if self.charge and c is not None:
+            # TODO: if charge is not None, z dim=(n_node x node_dim+1)
             z = torch.concat([z, c.unsqueeze(-1)], dim=1)
         return z

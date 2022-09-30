@@ -46,6 +46,11 @@ class GraphDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str | None = None):
         # TODO: split
+        self.train_idx = list(range(self.num_train))
+        self.val_idx = list(range(self.num_train, self.num_train + self.num_val))
+        self.test_idx = []
+        if self.num_test is not None:
+            self.test_idx = list(range(self.num_train + self.num_val, self.num_train + self.num_val + self.num_test))
         self._train_dataset = Subset(self.dataset, self.train_idx)
         self._val_dataset = Subset(self.dataset, self.val_idx)
         self._test_dataset = Subset(self.dataset, self.test_idx)
@@ -76,9 +81,6 @@ class GraphDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
         )
-
-    def teardown(self) -> None:
-        pass
 
 
 class GraphDataModuleSplit(pl.LightningDataModule):

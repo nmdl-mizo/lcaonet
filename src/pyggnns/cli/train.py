@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 
 import hydra
+import pyrootutils
 import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
@@ -12,40 +13,48 @@ from pytorch_lightning import seed_everything
 log = logging.getLogger(__name__)
 
 
-@hydra.main(config_path=".", config_name="train", version_base=None)
+root = pyrootutils.setup_root(
+    search_from=__file__,
+    indicator=[".git", "src"],
+    pythonpath=True,
+    dotenv=True,
+)
+
+
+@hydra.main(config_path=root / "configs", config_name="train", version_base=None)
 def training(config: DictConfig):
-    config = config.base
     # set seed
+    log.info(f"Setting seed: {config.seed}")
     seed_everything(config.seed, workers=True)
-    log.info(f"Setting seed: {config.training.seed}")
 
     # setup data
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(config.data)
-    log.info(f"Setting up data: {config.data._target_}")
+    log.info(f"Setting up data: {config.datamodule._target_}")
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(config.datamodule)
 
     # setup model
-    model: torch.nn.Module = hydra.utils.instantiate(config.model)
     log.info(f"Setting up model: {config.model._target_}")
+    model: torch.nn.Module = hydra.utils.instantiate(config.model)
 
     # setup optimizer
-    optimizer: torch.optim.Optimizer = hydra.utils.instantiate(config.optimizer, params=model.parameters())
     log.info(f"Setting up optimizer: {config.optimizer._target_}")
+    optimizer: torch.optim.Optimizer = hydra.utils.instantiate(config.optimizer, params=model.parameters())
 
     # setup scheduler
     if config.scheduler is not None:
+        log.info(f"Setting up scheduler: {config.scheduler._target_}")
         scheduler: torch.optim.lr_scheduler._LRScheduler = hydra.utils.instantiate(
             config.scheduler, optimizer=optimizer
         )
-        log.info(f"Setting up scheduler: {config.scheduler._target_}")
     else:
-        scheduler = None
         log.info("No scheduler is set")
+        scheduler = None
 
     # setup loss function
-    loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = hydra.utils.instantiate(config.loss_fn)
     log.info(f"Setting up loss function: {config.loss_fn._target_}")
+    loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = hydra.utils.instantiate(config.loss_fn)
 
     # setup lightning module
+    log.info(f"Setting up lightning module: {config.plmodule._target_}")
     plmodule: pl.LightningModule = hydra.utils.instantiate(
         config.plmodule,
         model=model,
@@ -53,27 +62,26 @@ def training(config: DictConfig):
         scheduler=scheduler,
         loss_fn=loss_fn,
     )
-    log.info(f"Setting up lightning module: {config.plmodule._target_}")
 
     # setup callbacks
     callbacks: list[pl.Callback] = []
     if config.callbacks is not None:
         for _, conf in config.callbacks.items():
-            callbacks.append(hydra.utils.instantiate(conf))
             log.info(f"Setting up callback: {conf._target_}")
+            callbacks.append(hydra.utils.instantiate(conf))
 
     # setup logger
     logger: list[pl.loggers.LightningLoggerBase] = []
     if config.logger is not None:
         for _, conf in config.logger.items():
-            logger.append(hydra.utils.instantiate(conf))
             log.info(f"Setting up logger: {conf._target_}")
+            logger.append(hydra.utils.instantiate(conf))
 
     # setup trainer
+    log.info(f"Setting up trainer: {config.trainer._target_}")
     trainer: pl.Trainer = hydra.utils.instantiate(
         config.trainer, logger=logger, callbacks=callbacks, _convert_="partial"
     )
-    log.info(f"Setting up trainer: {config.trainer._target_}")
 
     # train
     log.info("Starting training...")

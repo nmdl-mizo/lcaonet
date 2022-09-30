@@ -1,3 +1,0 @@
-__target__: torch.optim.Adam
-lr: ${training.lr}
-weight_decay: ${training.weight_decay}
