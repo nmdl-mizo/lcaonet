@@ -63,24 +63,24 @@ class BaseGraphDataset(Dataset):
         data = Data(
             edge_index=torch.stack([torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0),
         )
-        data[DataKeys.Position] = torch.tensor(atoms.get_positions())
-        data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers)
+        data[DataKeys.Position] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
+        data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers, dtype=torch.long)
         # add batch dimension
-        data[DataKeys.Lattice] = torch.tensor(atoms.cell.array).unsqueeze(0)
-        data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=default_dtype)
+        data[DataKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
+        data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
 
     def _set_properties(self, data: torch, k: str, v: int | float | ndarray | torch.Tensor):
         # add a dimension for batching
         if isinstance(v, int) or isinstance(v, float):
             # for value
-            data[k] = torch.tensor([v]).unsqueeze(0)
+            data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
         elif len(v.shape) == 0:
             # for 0-dim array
-            data[k] = torch.tensor([float(v)]).unsqueeze(0)
+            data[k] = torch.tensor([float(v)], dtype=torch.float32).unsqueeze(0)
         else:
             # for array-like
-            data[k] = torch.tensor(v).unsqueeze(0)
+            data[k] = torch.tensor(v, dtype=torch.float32).unsqueeze(0)
 
 
 class Hdf2GraphDataset(BaseGraphDataset):

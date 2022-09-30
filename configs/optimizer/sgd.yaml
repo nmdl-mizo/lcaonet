@@ -1,4 +1,3 @@
 _target_: torch.optim.SGD
-_partial_: true
 lr: ${training.lr}
 weight_decay: ${training.weight_decay}

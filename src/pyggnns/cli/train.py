@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 root = pyrootutils.setup_root(
     search_from=__file__,
-    indicator=[".git"],
+    indicator=[".git", "src"],
     pythonpath=True,
     dotenv=True,
 )
@@ -24,12 +24,12 @@ root = pyrootutils.setup_root(
 @hydra.main(config_path=root / "configs", config_name="train", version_base=None)
 def training(config: DictConfig):
     # set seed
-    log.info(f"Setting seed: {config.configs.seed}")
-    seed_everything(config.training.seed, workers=True)
+    log.info(f"Setting seed: {config.seed}")
+    seed_everything(config.seed, workers=True)
 
     # setup data
-    log.info(f"Setting up data: {config.data._target_}")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(config.data)
+    log.info(f"Setting up data: {config.datamodule._target_}")
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(config.datamodule)
 
     # setup model
     log.info(f"Setting up model: {config.model._target_}")
