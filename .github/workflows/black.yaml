@@ -22,10 +22,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install black
+      - name: Install packages
         run: |
           python -m pip install --upgrade pip
-          python -m pip install flake8 black
+          python -m pip install black
 
       - name: Formatting with Black
         run: |
