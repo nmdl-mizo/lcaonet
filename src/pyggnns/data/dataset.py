@@ -185,7 +185,7 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         if atom_numbers is None:
             self.atom_numbers = np.array(range(1, 120))
         else:
-            self.atom_numbers = np.array(self.atom_numbers)
+            self.atom_numbers = np.array(atom_numbers)
         # load data from hdf5 file which contains one or more atomic numbers in atom_numbers
         self.pyg_data_list: list[Data] = []
         self._load_atoms()
