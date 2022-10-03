@@ -24,13 +24,27 @@ def get_data(config: DictConfig) -> pl.LightningDataModule:
         datamodule: pl.LightningDataModule = hydra.utils.instantiate(config)
     elif config._target_ == "pyggnns.data.GraphDataModuleSplit":
         log.info(f"Setting up training data: {config.train_dataset._target_}")
-        train_dataset = hydra.utils.instantiate(config.train_dataset)
+        train_dataset = None
+        for pth in config.files:
+            if train_dataset is None:
+                train_dataset = hydra.utils.instantiate(config.train_dataset, path=pth)
+            else:
+                train_dataset += hydra.utils.instantiate(config.train_dataset, path=pth)
         log.info(f"Setting up validation data: {config.val_dataset._target_}")
-        val_dataset = hydra.utils.instantiate(config.val_dataset)
+        val_dataset = None
+        for pth in config.files:
+            if val_dataset is None:
+                val_dataset = hydra.utils.instantiate(config.val_dataset, path=pth)
+            else:
+                val_dataset += hydra.utils.instantiate(config.val_dataset, hdf5_path=pth)
         test_dataset = None
         if config.test_dataset is not None:
             log.info(f"Setting up test data: {config.test_dataset._target_}")
-            test_dataset = hydra.utils.instantiate(config.test_dataset)
+            for pth in config.files:
+                if test_dataset is None:
+                    test_dataset = hydra.utils.instantiate(config.test_dataset, path=pth)
+                else:
+                    test_dataset += hydra.utils.instantiate(config.test_dataset, hdf5_path=pth)
         datamodule = hydra.utils.instantiate(
             config,
             train_dataset=train_dataset,

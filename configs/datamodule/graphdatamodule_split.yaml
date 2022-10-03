@@ -3,21 +3,27 @@ batch_size: ${training.batch_size}
 num_workers: ???
 pin_memory: false
 
+files:
+  hdf5_path:
+    [
+      "/data/g_x_charge.hdf5",
+      "/data/g_x_pot_charge_new.hdf5",
+      "/data/g_x_random_charge.hdf5",
+    ]
+
 train_dataset:
   _target_: pyggnns.data.Hdf5PartialGraphDataset
-  hdf5_path: ???
   cutoff_radi: ${params.cutoff_radi}
   property_names: ???
   pbc: ???
-  atom_numbers: null # nullable
+  atom_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 val_dataset:
   _target_: pyggnns.data.Hdf5PartialGraphDataset
-  hdf5_path: ???
   cutoff_radi: ${params.cutoff_radi}
   property_names: ???
   pbc: ???
-  atom_numbers: null # nullable
+  atom_numbers: [12, 13, 14]
 
 test_dataset:
   null # nullable
