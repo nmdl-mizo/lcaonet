@@ -29,11 +29,11 @@ jobs:
 
       - name: Formatting with Black
         run: |
-          black -v -l 120 src/pyggnn
+          black -v -l 120 src/pyggnns
 
       - name: Checking with Black
         uses: psf/black@stable
         with:
           options: "--check --verbose --diff -l 120"
-          src: "./src/pyggnn"
+          src: "./src/pyggnns"
           version: "22.8.0"
