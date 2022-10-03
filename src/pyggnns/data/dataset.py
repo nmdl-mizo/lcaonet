@@ -177,7 +177,7 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         if isinstance(hdf5_path, str):
             hdf5_path = pathlib.Path(hdf5_path)
         if not hdf5_path.exists():
-            log.error(f"{hdf5_path} is not found.")
+            log.error(f"{hdf5_path} does not exist.")
             raise FileNotFoundError(f"{hdf5_path} does not exist.")
         self.hdf5_path = str(hdf5_path)
         # open file

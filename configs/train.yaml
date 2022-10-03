@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - datamodule: graphdatamodule
+  - datamodule: graphdatamodule_split
   - model: dimenetpp
   - optimizer: adam
   - scheduler: cosine_annealing # nullable

@@ -6,7 +6,7 @@
 defaults:
   - override /model: schnet
   - override /optimizer: sgd
-  - override /datamodule: graphdatamodule
+  - override /datamodule: graphdatamodule_split
   - override /logger:
       - csv
       - wandb
@@ -22,14 +22,18 @@ plmodule:
   predict_key: "e_formation"
 
 datamodule:
-  file_pth: "/data/g_x_charge.hdf5"
-  file_type: "hdf5"
-  property_names: ["e_formation"]
   num_workers: 4
-  pbc: true
-  num_train: 10
-  num_val: 10
-  num_test: null # nullable
+  pin_memory: false
+
+  train_dataset:
+    property_names: ["e_formation"]
+    pbc: True
+    atom_numbers: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11]
+
+val_dataset:
+  property_names: ["e_formation"]
+  pbc: True
+  atom_numbers: [12, 13, 14]
 
 training:
   amp_level: null # nullable
