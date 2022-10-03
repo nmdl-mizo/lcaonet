@@ -21,6 +21,7 @@ __all__ = [
     "BaseGraphDataset",
     "Db2GraphDataset",
     "Hdf2GraphDataset",
+    "Hdf2PartialGraphDataset",
     "List2GraphDataset",
 ]
 
@@ -54,7 +55,6 @@ class BaseGraphDataset(Dataset):
             data: torch_geometric.data.Data
         """
         # for edge_shift
-        default_dtype = torch.float64
         edge_src, edge_dst, edge_shift = ase.neighborlist.neighbor_list(
             "ijS",
             a=atoms,

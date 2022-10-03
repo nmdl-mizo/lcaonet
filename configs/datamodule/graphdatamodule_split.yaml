@@ -1,0 +1,29 @@
+_target_: pyggnns.data.GraphDataModuleSplit
+batch_size: ${training.batch_size}
+num_workers: ???
+pin_memory: false
+
+train_dataset:
+  _target_: pyggnns.data.Hdf5PartialGraphDataset
+  hdf5_path: ???
+  cutoff_radi: ${params.cutoff_radi}
+  property_names: ???
+  pbc: ???
+  atom_numbers: null # nullable
+
+val_dataset:
+  _target_: pyggnns.data.Hdf5PartialGraphDataset
+  hdf5_path: ???
+  cutoff_radi: ${params.cutoff_radi}
+  property_names: ???
+  pbc: ???
+  atom_numbers: null # nullable
+
+test_dataset:
+  null # nullable
+  # _target_: pyggnns.data.Hdf5PartialGraphDataset
+  # hdf5_path: ???
+  # cutoff_radi: ${params.cutoff_radi}
+  # property_names: ???
+  # pbc: ???
+  # atom_numbers: null # nullable

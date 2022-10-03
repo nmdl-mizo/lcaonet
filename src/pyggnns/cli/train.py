@@ -10,6 +10,8 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import seed_everything
 
+from pyggnns.cli.utils import get_data
+
 log = logging.getLogger(__name__)
 
 
@@ -29,7 +31,7 @@ def training(config: DictConfig):
 
     # setup data
     log.info(f"Setting up data: {config.datamodule._target_}")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(config.datamodule)
+    datamodule: pl.LightningDataModule = get_data(config.datamodule)
 
     # setup model
     log.info(f"Setting up model: {config.model._target_}")

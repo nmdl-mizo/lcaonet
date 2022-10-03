@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from torch.utils.data import Subset
 from torch_geometric.loader import DataLoader
 
-from pyggnns.data.dataset import Db2GraphDataset, Hdf2GraphDataset
+from pyggnns.data.dataset import BaseGraphDataset, Db2GraphDataset, Hdf2GraphDataset
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,12 @@ class GraphDataModule(pl.LightningDataModule):
         self.val_idx = list(range(self.num_train, self.num_train + self.num_val))
         self.test_idx = []
         if self.num_test is not None:
-            self.test_idx = list(range(self.num_train + self.num_val, self.num_train + self.num_val + self.num_test))
+            self.test_idx = list(
+                range(
+                    self.num_train + self.num_val,
+                    self.num_train + self.num_val + self.num_test,
+                )
+            )
         self._train_dataset = Subset(self.dataset, self.train_idx)
         self._val_dataset = Subset(self.dataset, self.val_idx)
         self._test_dataset = Subset(self.dataset, self.test_idx)
@@ -64,7 +69,7 @@ class GraphDataModule(pl.LightningDataModule):
             pin_memory=self.pin_memory,
         )
 
-    def val_dataloader(self) -> DataLoader | None:
+    def val_dataloader(self) -> DataLoader:
         return DataLoader(
             self._val_dataset,
             batch_size=self.batch_size,
@@ -73,7 +78,7 @@ class GraphDataModule(pl.LightningDataModule):
             pin_memory=self.pin_memory,
         )
 
-    def test_dataloader(self) -> DataLoader | None:
+    def test_dataloader(self) -> DataLoader:
         return DataLoader(
             self._test_dataset,
             batch_size=self.batch_size,
@@ -84,4 +89,46 @@ class GraphDataModule(pl.LightningDataModule):
 
 
 class GraphDataModuleSplit(pl.LightningDataModule):
-    pass
+    def __init__(
+        self,
+        train_dataset: BaseGraphDataset,
+        val_dataset: BaseGraphDataset,
+        test_dataset: BaseGraphDataset | None = None,
+        batch_size: int = 32,
+        num_workers: int = 4,
+        pin_memory: bool = False,
+    ):
+        super().__init__()
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
+        self.test_dataset = test_dataset
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )
