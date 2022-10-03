@@ -6,6 +6,7 @@ import pathlib
 import ase
 import ase.neighborlist
 import h5py
+import numpy as np
 import torch
 from ase.db import connect
 from numpy import ndarray
@@ -150,6 +151,90 @@ class Hdf2GraphDataset(BaseGraphDataset):
 
     def __del__(self):
         self.hdf5_file.close()
+
+
+class Hdf2PartialGraphDataset(BaseGraphDataset):
+    """Dataset for graph data such as crystal or molecule by using atoms object
+    from hdf5 file. This dataset corresponds to periodic boundary conditions.
+
+    Args:
+        hdf5_path (str or pathlib.Path): path to the database.
+        cutoff_radi (float): cutoff radius.
+        property_names (List[str], optional): properties to add to the dataset. Defaults to `None`.
+        pbc (bool, optional): whether to use periodic boundary conditions. Defaults to `True`.
+        atom_names (List[str], optional): atom names to be used. Defaults to `None`.
+    """
+
+    def __init__(
+        self,
+        hdf5_path: str | pathlib.Path,
+        cutoff_radi: float,
+        property_names: list[str] | None = None,
+        pbc: bool | tuple[bool, ...] = True,
+        atom_numbers: list[int] | None = None,
+    ):
+        super().__init__(cutoff_radi, property_names, pbc)
+        if isinstance(hdf5_path, str):
+            hdf5_path = pathlib.Path(hdf5_path)
+        if not hdf5_path.exists():
+            log.error(f"{hdf5_path} is not found.")
+            raise FileNotFoundError(f"{hdf5_path} does not exist.")
+        self.hdf5_path = str(hdf5_path)
+        # open file
+        self.hdf5_file = h5py.File(self.hdf5_path, "r", locking=False)
+        if atom_numbers is None:
+            self.atom_numbers = np.array(range(1, 120))
+        else:
+            self.atom_numbers = np.array(atom_numbers)
+        # load data from hdf5 file which contains one or more atomic numbers in atom_numbers
+        self.pyg_data_list: list[Data] = []
+        self._load_atoms()
+        self.hdf5_file.close()
+
+    def _load_atoms(self):
+        """Helper Function to read only systems containing one or more atomic
+        numbers in `self.atom_numbers`, convert them to
+        `torch_geometric.data.Data`, and add them to the `list` object of
+        `self.pyg_data_list`."""
+        for key in self.hdf5_file.keys():
+            system_group = self.hdf5_file[key]
+            if np.isin(self.atom_numbers, system_group[DataKeys.Atom_numbers][...]).any():
+                atoms: ase.Atoms = self._make_atoms(system_group)
+                geometric_data: Data = self._atoms2geometricdata(atoms)
+                # add properties
+                if self.property_names is not None:
+                    for k in self.property_names:
+                        if system_group.attrs.get(k) is not None:
+                            v = system_group.attrs.get(k)
+                        elif system_group.get(k) is not None:
+                            v = system_group.get(k)[...]
+                        else:
+                            raise KeyError(f"{k} is not found in the {self.hdf5_path}.")
+                        self._set_properties(geometric_data, k, v)
+                self.pyg_data_list.append(geometric_data)
+
+    def len(self) -> int:
+        return len(self.pyg_data_list)
+
+    def get(self, idx) -> Data:
+        return self.pyg_data_list[idx]
+
+    # !!Rewrite here if data structure is different
+    def _make_atoms(self, system_group: h5py.Group) -> ase.Atoms:
+        # get lattice
+        lattice = system_group[DataKeys.Lattice][...]
+        # get positions
+        positions = system_group[DataKeys.Position][...]
+        # get atomic numbers
+        atomic_num = system_group[DataKeys.Atom_numbers][...]
+        # make atoms object
+        atoms = ase.Atoms(
+            positions=positions,
+            numbers=atomic_num,
+            cell=lattice,
+            pbc=self.pbc,
+        )
+        return atoms
 
 
 class Db2GraphDataset(BaseGraphDataset):
