@@ -1,0 +1,17 @@
+pyrootutils
+numpy
+sympy
+h5py
+ase
+hydra-core==1.2.0
+hydra-colorlog==1.2.0
+hydra-optuna-sweeper==1.2.0
+torch>=1.12.0
+pytorch-lightning
+rich
+wandb
+torch-scatter
+torch-sparse
+torch-cluster
+torch-spline-conv
+torch-geometric

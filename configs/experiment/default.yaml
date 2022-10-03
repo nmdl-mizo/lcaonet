@@ -1,0 +1,37 @@
+# @package _global_
+
+defaults:
+  - override /plmodule: gnn_module
+  - override /datamodule: graphdatamodule
+  - override /logger:
+      - csv
+      - wandb
+
+plmodule:
+  predict_key: "e_formation"
+
+datamodule:
+  file_pth: "/data/g_x_charge.hdf5"
+  file_type: "hdf5"
+  property_names: ["e_formation"]
+  num_workers: 4
+  pbc: true
+  num_train: 10
+  num_val: 10
+  num_test: null # nullable
+
+logger:
+  wandb:
+    project: "pyggnns"
+    tags: ["dimenet++", "dev", "cutoff_radi=${params.cutoff_radi}"]
+
+# neseccary for training in every experiment
+training:
+  amp_level: null # nullable
+  batch_size: 32
+  max_epochs: 5
+  lr: 0.001
+  weight_decay: 0.0
+
+params:
+  cutoff_radi: 5.0
