@@ -9,7 +9,7 @@ class TestAtomicNum2Node(unittest.TestCase):
         self.node_dim = 10
         self.max_num = 100
         n_node = 5
-        self.z = torch.randint(0, self.max_num, (n_node))
+        self.z = torch.randint(0, self.max_num, (n_node,))
         self.c = torch.rand(n_node)
 
     def test_charge(self):
@@ -29,7 +29,7 @@ class TestAtomicDict2Node(unittest.TestCase):
         self.node_dim = 10
         self.max_num = 100
         n_node = 5
-        self.z = torch.randint(0, self.max_num, (n_node))
+        self.z = torch.randint(0, self.max_num, (n_node,))
         self.c = torch.rand(n_node)
 
     def test_charge(self):
