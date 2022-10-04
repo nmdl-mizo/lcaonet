@@ -1,0 +1,57 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example_schnet
+
+defaults:
+  - override /model: schnet
+  - override /optimizer: sgd
+  - override /datamodule: graphdatamodule_split
+  - override /logger:
+      - csv
+      - wandb
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["schnet"]
+
+plmodule:
+  predict_key: "e_formation"
+
+datamodule:
+  module:
+    num_workers: 4
+    pin_memory: false
+
+  train_dataset:
+    property_names: ["e_formation"]
+    pbc: True
+    atom_numbers: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11]
+
+  val_dataset:
+    property_names: ["e_formation"]
+    pbc: True
+    atom_numbers: [12, 13, 14]
+
+training:
+  device: gpu
+  amp_level: null # nullable
+  batch_size: 32
+  max_epochs: 5
+  lr: 0.001
+  weight_decay: 0.0
+
+params:
+  cutoff_radi: 5.0
+
+model:
+  node_dim: 128
+
+optimizer:
+  lr: 0.1
+
+logger:
+  wandb:
+    project: "pyggnns"
+    tags: ["schnet", "cutoff_radi=${params.cutoff_radi}", "dev"]

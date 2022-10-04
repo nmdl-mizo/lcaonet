@@ -1,0 +1,70 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=dimpp
+
+defaults:
+  - override /model: dimenetpp
+  - override /optimizer: adam
+  - override /datamodule: graphdatamodule_split
+  - override /logger:
+      - csv
+      - wandb
+
+tags: ["dimenet++"]
+
+plmodule:
+  predict_key: "e_formation"
+
+datamodule:
+  module:
+    num_workers: 4
+    pin_memory: false
+
+  train_dataset:
+    property_names: ["e_formation"]
+    pbc: True
+    atom_numbers: [1,2,3,4,5,
+    7,8,9,10,11,12,13,14,15,16,17,18,19,20,
+    21,
+    23,24,25,
+    26,
+    27,28,29,30,31,32,
+    33,34,35,36]
+
+  val_dataset:
+    property_names: ["e_formation"]
+    pbc: True
+    atom_numbers: [37, 38, 39, 40]
+
+model:
+  edge_message_dim: 256
+  n_interaction: 6
+  out_dim: 1
+  n_radial: 16
+  n_spherical: 4
+  edge_down_dim: 64
+  basis_embed_dim: 64
+  out_up_dim: 256
+  activation: "swish"
+  envelope_exponent: 5
+  aggr: "add"
+  weight_init: "glorot_orthogonal"
+  share_weight: false
+  max_z: 57
+
+training:
+  device: gpu
+  amp_level: null # nullable
+  batch_size: 32
+  max_epochs: 100
+  lr: 1e-4
+  weight_decay: 0.0
+
+params:
+  cutoff_radi: 4.0
+
+logger:
+  wandb:
+    project: "pyggnns"
+    tags: ["dimenet++", "cutoff_radi=${params.cutoff_radi}", "graphene_x", "g_x_pot", "g_x_random", "g_x_stable"]
