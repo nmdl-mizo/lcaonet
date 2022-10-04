@@ -25,12 +25,21 @@ root = pyrootutils.setup_root(
 
 @hydra.main(config_path=root / "configs", config_name="train", version_base=None)
 def training(config: DictConfig):
+    # check device
+    if config.training.device == "gpu" and not torch.cuda.is_available():
+        log.warning("CUDA not available, setting device to CPU")
+        config.training.device = "cpu"
+    if config.training.device == "cpu":
+        log.info("Running on CPU")
+    else:
+        log.info("Running on GPU")
+
     # set seed
     log.info(f"Setting seed: {config.seed}")
     seed_everything(config.seed, workers=True)
 
     # setup data
-    log.info(f"Setting up data: {config.datamodule._target_}")
+    log.info(f"Setting up data: {config.datamodule.module._target_}")
     datamodule: pl.LightningDataModule = get_data(config.datamodule)
 
     # setup model

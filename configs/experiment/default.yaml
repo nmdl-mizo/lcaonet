@@ -11,8 +11,9 @@ plmodule:
   predict_key: "e_formation"
 
 datamodule:
-  num_workers: 4
-  pin_memory: false
+  module:
+    num_workers: 4
+    pin_memory: false
 
   train_dataset:
     property_names: ${plmodule.predict_key}
@@ -31,6 +32,7 @@ logger:
 
 # neseccary for training in every experiment
 training:
+  device: cpu
   amp_level: null # nullable
   batch_size: 32
   max_epochs: 5

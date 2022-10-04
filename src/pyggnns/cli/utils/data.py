@@ -20,9 +20,9 @@ def get_data(config: DictConfig) -> pl.LightningDataModule:
     Returns:
         pl.LightningDataModule: Data module object.
     """
-    if config._target_ == "pyggnns.data.GraphDataModule":
+    if config.module._target_ == "pyggnns.data.GraphDataModule":
         datamodule: pl.LightningDataModule = hydra.utils.instantiate(config)
-    elif config._target_ == "pyggnns.data.GraphDataModuleSplit":
+    elif config.module._target_ == "pyggnns.data.GraphDataModuleSplit":
         log.info(f"Setting up training data: {config.train_dataset._target_}")
         train_dataset = None
         for pth in config.files.hdf5_path:
@@ -32,7 +32,7 @@ def get_data(config: DictConfig) -> pl.LightningDataModule:
                 train_dataset += hydra.utils.instantiate(config.train_dataset, hdf5_path=pth)
         log.info(f"Setting up validation data: {config.val_dataset._target_}")
         val_dataset = None
-        for pth in config.files:
+        for pth in config.files.hdf5_path:
             if val_dataset is None:
                 val_dataset = hydra.utils.instantiate(config.val_dataset, hdf5_path=pth)
             else:
@@ -40,13 +40,13 @@ def get_data(config: DictConfig) -> pl.LightningDataModule:
         test_dataset = None
         if config.test_dataset is not None:
             log.info(f"Setting up test data: {config.test_dataset._target_}")
-            for pth in config.files:
+            for pth in config.files.hdf5_path:
                 if test_dataset is None:
                     test_dataset = hydra.utils.instantiate(config.test_dataset, hdf5_path=pth)
                 else:
                     test_dataset += hydra.utils.instantiate(config.test_dataset, hdf5_path=pth)
         datamodule = hydra.utils.instantiate(
-            config,
+            config.module,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             test_dataset=test_dataset,

@@ -14,7 +14,7 @@ services:
         source: out
         target: /app/logs
     env_file:
-      - .env 
+      - .env
 
 volumes:
   data:

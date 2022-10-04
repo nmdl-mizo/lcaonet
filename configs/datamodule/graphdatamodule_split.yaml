@@ -1,14 +1,15 @@
-_target_: pyggnns.data.GraphDataModuleSplit
-batch_size: ${training.batch_size}
-num_workers: ???
-pin_memory: false
+module:
+  _target_: pyggnns.data.GraphDataModuleSplit
+  batch_size: ${training.batch_size}
+  num_workers: ???
+  pin_memory: false
 
 files:
   hdf5_path:
     [
       "/data/g_x_charge.hdf5",
-      "/data/g_x_pot_charge_new.hdf5",
-      "/data/g_x_random_charge.hdf5",
+      # "/data/g_x_pot_charge_new.hdf5",
+      # "/data/g_x_random_charge.hdf5",
     ]
 
 train_dataset:

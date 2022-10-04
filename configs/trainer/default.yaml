@@ -4,7 +4,7 @@ default_root_dir: ${paths.output_dir}
 
 # device settings
 devices: 1
-accelerator: cpu
+accelerator: ${training.device}
 
 # training settings
 min_epochs: 1 # prevents early stopping
