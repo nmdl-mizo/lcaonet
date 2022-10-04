@@ -163,6 +163,7 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         property_names (List[str], optional): properties to add to the dataset. Defaults to `None`.
         pbc (bool, optional): whether to use periodic boundary conditions. Defaults to `True`.
         atom_names (List[str], optional): atom names to be used. Defaults to `None`.
+        threshold (float, optional): threshold of property. Defaults to `None`.
     """
 
     def __init__(
@@ -172,6 +173,7 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         property_names: list[str] | None = None,
         pbc: bool | tuple[bool, ...] = True,
         atom_numbers: list[int] | None = None,
+        threshold: float | None = None,
     ):
         super().__init__(cutoff_radi, property_names, pbc)
         if isinstance(hdf5_path, str):
@@ -186,6 +188,7 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
             self.atom_numbers = np.array(range(1, 120))
         else:
             self.atom_numbers = np.array(atom_numbers)
+        self.threshold = threshold
         # load data from hdf5 file which contains one or more atomic numbers in atom_numbers
         self.pyg_data_list: list[Data] = []
         self._load_atoms()
@@ -201,17 +204,23 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
             if np.isin(self.atom_numbers, system_group[DataKeys.Atom_numbers][...]).any():
                 atoms: ase.Atoms = self._make_atoms(system_group)
                 geometric_data: Data = self._atoms2geometricdata(atoms)
+                flag: bool = True
                 # add properties
                 if self.property_names is not None:
                     for k in self.property_names:
                         if system_group.attrs.get(k) is not None:
                             v = system_group.attrs.get(k)
+                            # exclude data if property is leargeer than threshold
+                            if v > self.threshold:
+                                flag = False
+                                break
                         elif system_group.get(k) is not None:
                             v = system_group.get(k)[...]
                         else:
                             raise KeyError(f"{k} is not found in the {self.hdf5_path}.")
                         self._set_properties(geometric_data, k, v)
-                self.pyg_data_list.append(geometric_data)
+                if flag:
+                    self.pyg_data_list.append(geometric_data)
 
     def len(self) -> int:
         return len(self.pyg_data_list)
