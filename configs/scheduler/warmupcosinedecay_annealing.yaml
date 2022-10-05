@@ -1,0 +1,4 @@
+_target_: pyggnns.train.scheduler.WarmupCosineDecayAnnealingLR
+num_epoch: ${training.max_epochs}
+num_warmup: 5
+T_max: 5

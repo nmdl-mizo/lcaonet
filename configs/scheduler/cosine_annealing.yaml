@@ -1,2 +1,2 @@
 _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-T_max: ${training.max_epochs}
+T_max: 5
