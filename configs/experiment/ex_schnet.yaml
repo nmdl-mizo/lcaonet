@@ -24,10 +24,18 @@ datamodule:
     num_workers: 4
     pin_memory: false
 
+  files:
+    hdf5_path: [
+        "/data/g_x_charge.hdf5",
+        "/data/g_x_pot_charge.hdf5",
+        "/data/g_x_random_charge.hdf5",
+      ]
+
   train_dataset:
     property_names: ["e_formation"]
     pbc: True
-    atom_numbers: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11]
+    atom_numbers: [1, 2, 3, 4]
+    specific_atom_numbers: [6]
 
   val_dataset:
     property_names: ["e_formation"]

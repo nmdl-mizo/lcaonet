@@ -101,7 +101,10 @@ class GraphDataModuleSplit(pl.LightningDataModule):
         super().__init__()
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
-        self.test_dataset = test_dataset
+        if test_dataset is None:
+            self.test_dataset = Subset(self.val_dataset, [])
+        else:
+            self.test_dataset = test_dataset
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory

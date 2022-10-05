@@ -207,12 +207,18 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         `self.pyg_data_list`."""
         for key in self.hdf5_file.keys():
             system_group = self.hdf5_file[key]
-            atom_numbers = system_group[DataKeys.Atom_numbers][...]
+            try:
+                atom_numbers = system_group[DataKeys.Atom_numbers][...]
+            except KeyError:
+                log.warning(f"{DataKeys.Atom_numbers} is not found in {key}.")
+                continue
             if (
                 np.isin(atom_numbers, self.atom_numbers).any()
                 or np.isin(atom_numbers, self.specific_atom_numbers).all()
             ):
-                atoms: ase.Atoms = self._make_atoms(system_group)
+                atoms: ase.Atoms | None = self._make_atoms(system_group)
+                if atoms is None:
+                    continue
                 geometric_data: Data = self._atoms2geometricdata(atoms)
                 flag: bool = True
                 # add properties
@@ -227,7 +233,9 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
                         elif system_group.get(k) is not None:
                             v = system_group.get(k)[...]
                         else:
-                            raise KeyError(f"{k} is not found in the {self.hdf5_path}.")
+                            log.warning(f"{k} is not found in the {system_group.name}.")
+                            flag = False
+                            break
                         self._set_properties(geometric_data, k, v)
                 if flag:
                     self.pyg_data_list.append(geometric_data)
@@ -239,9 +247,13 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         return self.pyg_data_list[idx]
 
     # !!Rewrite here if data structure is different
-    def _make_atoms(self, system_group: h5py.Group) -> ase.Atoms:
+    def _make_atoms(self, system_group: h5py.Group) -> ase.Atoms | None:
         # get lattice
-        lattice = system_group[DataKeys.Lattice][...]
+        try:
+            lattice = system_group[DataKeys.Lattice][...]
+        except KeyError:
+            log.warning(f"{DataKeys.Lattice} is not found in {system_group.name}.")
+            return None
         # get positions
         positions = system_group[DataKeys.Position][...]
         # get atomic numbers

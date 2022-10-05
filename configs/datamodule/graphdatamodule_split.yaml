@@ -7,8 +7,6 @@ module:
 files:
   hdf5_path: [
       "/data/g_x_charge.hdf5",
-      # "/data/g_x_pot_charge_new.hdf5",
-      # "/data/g_x_random_charge.hdf5",
     ]
 
 train_dataset:
