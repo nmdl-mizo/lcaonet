@@ -22,7 +22,8 @@ datamodule:
     pin_memory: false
 
   files:
-    hdf5_path: [
+    hdf5_path:
+      [
         "/data/g_x_charge.hdf5",
         "/data/g_x_pot_charge.hdf5",
         "/data/g_x_random_charge.hdf5",

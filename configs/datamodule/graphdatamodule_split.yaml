@@ -5,9 +5,7 @@ module:
   pin_memory: false
 
 files:
-  hdf5_path: [
-      "/data/g_x_charge.hdf5",
-    ]
+  hdf5_path: ["/data/g_x_charge.hdf5"]
 
 train_dataset:
   _target_: pyggnns.data.Hdf2PartialGraphDataset
