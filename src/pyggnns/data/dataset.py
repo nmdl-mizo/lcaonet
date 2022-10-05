@@ -162,9 +162,10 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         cutoff_radi (float): cutoff radius.
         property_names (List[str], optional): properties to add to the dataset. Defaults to `None`.
         pbc (bool, optional): whether to use periodic boundary conditions. Defaults to `True`.
-        atom_names (List[str], optional): atom names to be used. Defaults to `None`.
+        atom_numbers (List[int], optional): Atomic numbers to be used. Defaults to `None`.
+        specific_atom_numbers (List[int], optional): Include systems in the data set that contain only the atomic numbers specified in this parameter. Defaults to `None`.
         threshold (float, optional): threshold of property. Defaults to `None`.
-    """
+    """  # NOQA: E501
 
     def __init__(
         self,
@@ -173,6 +174,7 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         property_names: list[str] | None = None,
         pbc: bool | tuple[bool, ...] = True,
         atom_numbers: list[int] | None = None,
+        specific_atom_numbers: list[int] | None = None,
         threshold: float | None = None,
     ):
         super().__init__(cutoff_radi, property_names, pbc)
@@ -188,6 +190,10 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
             self.atom_numbers = np.array(range(1, 120))
         else:
             self.atom_numbers = np.array(atom_numbers)
+        if specific_atom_numbers is None:
+            self.specific_atom_numbers = np.array([self.atom_numbers[0]])
+        else:
+            self.specific_atom_numbers = np.array(specific_atom_numbers)
         self.threshold = threshold
         # load data from hdf5 file which contains one or more atomic numbers in atom_numbers
         self.pyg_data_list: list[Data] = []
@@ -201,7 +207,11 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         `self.pyg_data_list`."""
         for key in self.hdf5_file.keys():
             system_group = self.hdf5_file[key]
-            if np.isin(self.atom_numbers, system_group[DataKeys.Atom_numbers][...]).any():
+            atom_numbers = system_group[DataKeys.Atom_numbers][...]
+            if (
+                np.isin(atom_numbers, self.atom_numbers).any()
+                or np.isin(atom_numbers, self.specific_atom_numbers).all()
+            ):
                 atoms: ase.Atoms = self._make_atoms(system_group)
                 geometric_data: Data = self._atoms2geometricdata(atoms)
                 flag: bool = True

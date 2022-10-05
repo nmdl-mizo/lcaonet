@@ -36,6 +36,7 @@ datamodule:
 
 training:
   device: gpu
+  n_device: 1
   amp_level: null # nullable
   batch_size: 32
   max_epochs: 5

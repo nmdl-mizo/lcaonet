@@ -33,6 +33,7 @@ logger:
 # neseccary for training in every experiment
 training:
   device: cpu
+  n_device: 1
   amp_level: null # nullable
   batch_size: 32
   max_epochs: 5
