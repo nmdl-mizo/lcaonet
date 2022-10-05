@@ -8,6 +8,7 @@ defaults:
   - override /optimizer: adam
   - override /datamodule: graphdatamodule_split
   - override /scheduler: warmupcosinedecay_annealing
+  - override /hparams_search: dimenetpp_optuna
   - override /logger:
       - csv
       - wandb

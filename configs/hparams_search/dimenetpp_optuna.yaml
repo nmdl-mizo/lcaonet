@@ -33,7 +33,7 @@ hydra:
     direction: minimize
 
     # total number of runs that will be executed
-    n_trials: 20
+    n_trials: 30
 
     # choose Optuna hyperparameter sampler
     # you can choose bayesian sampler (tpe), random search (without optimization), grid sampler, and others
@@ -45,15 +45,15 @@ hydra:
 
     # define hyperparameter search space
     params:
-      optimizer.lr: interval(0.0001, 0.1)
+      optimizer.lr: interval(0.00001, 0.001)
       datamodule.batch_size: choice(32, 64, 128, 256)
       model.edge_message_dim: choice(64, 128, 256, 512)
-      model.n_interaction: choice(4,5,6,7,8)
-      model.n_radial: choice(8,16,32)
-      model.n_spherical: choice(4,8,16)
-      model.edge_down_dim: choice(32,64,128,256)
-      model.basis_embed_dim: choice(32,64,128,256)
-      model.out_up_dim: choice(32,64,128,256)
-      model.cutoff_radi: choice(3.,4.,5.,6.,7.,8.,9.)
+      model.n_interaction: choice(3, 4, 5, 6, 7)
+      model.n_radial: choice(8, 16, 32)
+      model.n_spherical: choice(4, 8, 16)
+      model.edge_down_dim: choice(32, 64, 128, 256)
+      model.basis_embed_dim: choice(32, 64, 128, 256)
+      model.out_up_dim: choice(32, 64, 128, 256)
+      model.cutoff_radi: choice(3., 3.5, 4., 4.5, 5.)
       datamodule.cutoff_radi: ${model.cutoff_radi}
-      model.envelope_exponent: choice(3,4,5)
+      model.envelope_exponent: choice(3, 4, 5)
