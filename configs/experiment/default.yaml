@@ -2,7 +2,7 @@
 
 defaults:
   - override /plmodule: gnn_module
-  - override /datamodule: graphdatamodule
+  - override /datamodule: graphdatamodule_split
   - override /logger:
       - csv
       - wandb
@@ -11,14 +11,19 @@ plmodule:
   predict_key: "e_formation"
 
 datamodule:
-  file_pth: "/data/g_x_charge.hdf5"
-  file_type: "hdf5"
-  property_names: ["e_formation"]
-  num_workers: 4
-  pbc: true
-  num_train: 10
-  num_val: 10
-  num_test: null # nullable
+  module:
+    num_workers: 4
+    pin_memory: false
+
+  train_dataset:
+    property_names: ${plmodule.predict_key}
+    pbc: True
+    atom_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+  val_dataset:
+    property_names: ${plmodule.predict_key}
+    pbc: True
+    atom_numbers: [12, 13, 14]
 
 logger:
   wandb:
@@ -27,6 +32,8 @@ logger:
 
 # neseccary for training in every experiment
 training:
+  device: cpu
+  n_device: 1
   amp_level: null # nullable
   batch_size: 32
   max_epochs: 5

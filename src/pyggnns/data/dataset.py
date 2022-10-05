@@ -21,6 +21,7 @@ __all__ = [
     "BaseGraphDataset",
     "Db2GraphDataset",
     "Hdf2GraphDataset",
+    "Hdf2PartialGraphDataset",
     "List2GraphDataset",
 ]
 
@@ -54,7 +55,6 @@ class BaseGraphDataset(Dataset):
             data: torch_geometric.data.Data
         """
         # for edge_shift
-        default_dtype = torch.float64
         edge_src, edge_dst, edge_shift = ase.neighborlist.neighbor_list(
             "ijS",
             a=atoms,
@@ -162,8 +162,10 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         cutoff_radi (float): cutoff radius.
         property_names (List[str], optional): properties to add to the dataset. Defaults to `None`.
         pbc (bool, optional): whether to use periodic boundary conditions. Defaults to `True`.
-        atom_names (List[str], optional): atom names to be used. Defaults to `None`.
-    """
+        atom_numbers (List[int], optional): Atomic numbers to be used. Defaults to `None`.
+        specific_atom_numbers (List[int], optional): Include systems in the data set that contain only the atomic numbers specified in this parameter. Defaults to `None`.
+        threshold (float, optional): threshold of property. Defaults to `None`.
+    """  # NOQA: E501
 
     def __init__(
         self,
@@ -172,12 +174,14 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         property_names: list[str] | None = None,
         pbc: bool | tuple[bool, ...] = True,
         atom_numbers: list[int] | None = None,
+        specific_atom_numbers: list[int] | None = None,
+        threshold: float | None = None,
     ):
         super().__init__(cutoff_radi, property_names, pbc)
         if isinstance(hdf5_path, str):
             hdf5_path = pathlib.Path(hdf5_path)
         if not hdf5_path.exists():
-            log.error(f"{hdf5_path} is not found.")
+            log.error(f"{hdf5_path} does not exist.")
             raise FileNotFoundError(f"{hdf5_path} does not exist.")
         self.hdf5_path = str(hdf5_path)
         # open file
@@ -186,6 +190,11 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
             self.atom_numbers = np.array(range(1, 120))
         else:
             self.atom_numbers = np.array(atom_numbers)
+        if specific_atom_numbers is None:
+            self.specific_atom_numbers = np.array([self.atom_numbers[0]])
+        else:
+            self.specific_atom_numbers = np.array(specific_atom_numbers)
+        self.threshold = threshold
         # load data from hdf5 file which contains one or more atomic numbers in atom_numbers
         self.pyg_data_list: list[Data] = []
         self._load_atoms()
@@ -198,20 +207,38 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         `self.pyg_data_list`."""
         for key in self.hdf5_file.keys():
             system_group = self.hdf5_file[key]
-            if np.isin(self.atom_numbers, system_group[DataKeys.Atom_numbers][...]).any():
-                atoms: ase.Atoms = self._make_atoms(system_group)
+            try:
+                atom_numbers = system_group[DataKeys.Atom_numbers][...]
+            except KeyError:
+                log.warning(f"{DataKeys.Atom_numbers} is not found in {key}.")
+                continue
+            if (
+                np.isin(atom_numbers, self.atom_numbers).any()
+                or np.isin(atom_numbers, self.specific_atom_numbers).all()
+            ):
+                atoms: ase.Atoms | None = self._make_atoms(system_group)
+                if atoms is None:
+                    continue
                 geometric_data: Data = self._atoms2geometricdata(atoms)
+                flag: bool = True
                 # add properties
                 if self.property_names is not None:
                     for k in self.property_names:
                         if system_group.attrs.get(k) is not None:
                             v = system_group.attrs.get(k)
+                            # exclude data if property is leargeer than threshold
+                            if v > self.threshold:
+                                flag = False
+                                break
                         elif system_group.get(k) is not None:
                             v = system_group.get(k)[...]
                         else:
-                            raise KeyError(f"{k} is not found in the {self.hdf5_path}.")
+                            log.warning(f"{k} is not found in the {system_group.name}.")
+                            flag = False
+                            break
                         self._set_properties(geometric_data, k, v)
-                self.pyg_data_list.append(geometric_data)
+                if flag:
+                    self.pyg_data_list.append(geometric_data)
 
     def len(self) -> int:
         return len(self.pyg_data_list)
@@ -220,9 +247,13 @@ class Hdf2PartialGraphDataset(BaseGraphDataset):
         return self.pyg_data_list[idx]
 
     # !!Rewrite here if data structure is different
-    def _make_atoms(self, system_group: h5py.Group) -> ase.Atoms:
+    def _make_atoms(self, system_group: h5py.Group) -> ase.Atoms | None:
         # get lattice
-        lattice = system_group[DataKeys.Lattice][...]
+        try:
+            lattice = system_group[DataKeys.Lattice][...]
+        except KeyError:
+            log.warning(f"{DataKeys.Lattice} is not found in {system_group.name}.")
+            return None
         # get positions
         positions = system_group[DataKeys.Position][...]
         # get atomic numbers

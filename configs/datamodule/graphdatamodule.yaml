@@ -1,12 +1,13 @@
-_target_: pyggnns.data.GraphDataModule
-file_pth: ???
-file_type: ???
-cutoff_radi: ${params.cutoff_radi}
-property_names: ???
-pbc: ???
-num_train: ???
-num_val: ???
-num_test: ???
-batch_size: ${training.batch_size}
-num_workers: ???
-pin_memory: false
+module:
+  _target_: pyggnns.data.GraphDataModule
+  file_pth: ???
+  file_type: ???
+  cutoff_radi: ${params.cutoff_radi}
+  property_names: ???
+  pbc: ???
+  num_train: ???
+  num_val: ???
+  num_test: ???
+  batch_size: ${training.batch_size}
+  num_workers: ???
+  pin_memory: false
