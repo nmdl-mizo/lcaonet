@@ -160,8 +160,8 @@ hydra:
 
     # define hyperparameter search space
     params:
-      optimizer.lr: tag(log, interval(0.00001, 0.001))
-      datamodule.batch_size: choice(32, 64, 128, 256)
+      training.lr: tag(log, interval(0.00001, 0.001))
+      training.batch_size: choice(32, 64, 128, 256)
       params.cutoff_radi: choice(3., 3.5, 4., 4.5, 5.)
       model.edge_message_dim: choice(64, 128, 256, 512)
       model.n_interaction: range(3, 8)
