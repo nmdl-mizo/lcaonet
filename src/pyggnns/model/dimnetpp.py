@@ -239,7 +239,7 @@ class DimeNetPlusPlus(BaseGNN):
     ):
         super().__init__()
         act = activation_resolver(activation)
-        logger.info(f"activation: {act.__name__}")
+        logger.info(f"activation: {act.__class__.__name__}")
         wi: Callable[[torch.Tensor], torch.Tensor] = init_resolver(weight_init)
         logger.info(f"weight_init: {wi.__name__}")
 

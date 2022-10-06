@@ -6,6 +6,9 @@ defaults:
   - optimizer: adam
   - scheduler: cosine_annealing # nullable
   - loss_fn: rmse
+  - metrics:
+      - mae
+      - mse
   - plmodule: gnn_module
   - callbacks: default
   - logger:

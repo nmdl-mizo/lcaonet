@@ -11,6 +11,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import seed_everything
 
 from pyggnns.cli.utils import get_data
+from pyggnns.train.loss import BaseLoss
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,6 +65,16 @@ def training(config: DictConfig):
     # setup loss function
     logger.info(f"Setting up loss function: {config.loss_fn._target_}")
     loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = hydra.utils.instantiate(config.loss_fn)
+    
+    # setup metrics
+    metrics: list[BaseLoss] = []
+    if config.metrics is not None:
+        for _, m in config.metrics.items():
+            logger.info(f"Setting up metric: {m._target_}")
+            m = hydra.utils.instantiate(m)
+            metrics.append(m)
+    else:
+        logger.info("No metrics are set")
 
     # setup lightning module
     logger.info(f"Setting up lightning module: {config.plmodule._target_}")
@@ -73,6 +84,7 @@ def training(config: DictConfig):
         optimizer=optimizer,
         scheduler=scheduler,
         loss_fn=loss_fn,
+        metrics=metrics,
     )
 
     # setup callbacks
