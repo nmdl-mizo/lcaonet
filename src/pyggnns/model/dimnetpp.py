@@ -1,5 +1,6 @@
 from __future__ import annotations  # type: ignore
 
+import logging
 from collections.abc import Callable
 
 import torch
@@ -17,6 +18,8 @@ from pyggnns.nn.edge_out import Edge2NodeProp2
 from pyggnns.nn.node_embed import AtomicNum2Node
 from pyggnns.nn.rbf import BesselRBF
 from pyggnns.utils.resolve import activation_resolver, init_resolver
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["DimeNetPlusPlus"]
 
@@ -236,7 +239,9 @@ class DimeNetPlusPlus(BaseGNN):
     ):
         super().__init__()
         act = activation_resolver(activation)
+        logger.info(f"activation: {act.__name__}")
         wi: Callable[[torch.Tensor], torch.Tensor] = init_resolver(weight_init)
+        logger.info(f"weight_init: {wi.__name__}")
 
         self.edge_message_dim = edge_message_dim
         self.n_interaction = n_interaction
@@ -249,6 +254,7 @@ class DimeNetPlusPlus(BaseGNN):
         self.cutoff_radi = cutoff_radi
         self.aggr = aggr
 
+        logger.info("Initialize layers")
         # layers
         self.node_embed = AtomicNum2Node(edge_message_dim, max_z)
         self.edge_embed = EdgeEmbed(
@@ -259,9 +265,11 @@ class DimeNetPlusPlus(BaseGNN):
             weight_init=wi,
             **kwargs,
         )
+        logger.info("Initialize rbf and sbf kernels")
         self.rbf = BesselRBF(n_radial, cutoff_radi, envelope_exponent)
         self.sbf = BesselSBF(n_spherical, n_radial, cutoff_radi, envelope_exponent)
 
+        logger.info("Initialize interaction layers")
         if share_weight:
             self.interactions = nn.ModuleList(
                 [
@@ -310,6 +318,7 @@ class DimeNetPlusPlus(BaseGNN):
                 for _ in range(n_interaction + 1)
             ]
         )
+        logger.info("Initialize layers done!")
 
     def forward(self, data_batch) -> Tensor:
         batch, pos, atom_numbers = self.get_data(data_batch, batch_index=True, position=True, atom_numbers=True)

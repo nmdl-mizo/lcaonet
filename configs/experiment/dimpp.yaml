@@ -36,7 +36,7 @@ datamodule:
     specific_atom_numbers: [6]
     atom_numbers: [
         1,
-        2,
+        # 2,
         3,
         4,
         5,
@@ -44,7 +44,7 @@ datamodule:
         7,
         8,
         9,
-        10,
+        # 10,
         11,
         12,
         13,
@@ -52,7 +52,7 @@ datamodule:
         15,
         16,
         17,
-        18,
+        # 18,
         19,
         # 20,
         21,
@@ -70,7 +70,6 @@ datamodule:
         33,
         34,
         # 35,
-        36,
       ]
 
   val_dataset:

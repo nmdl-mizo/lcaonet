@@ -12,7 +12,8 @@ from pytorch_lightning import seed_everything
 
 from pyggnns.cli.utils import get_data
 
-log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 root = pyrootutils.setup_root(
@@ -27,45 +28,45 @@ root = pyrootutils.setup_root(
 def training(config: DictConfig):
     # check device
     if config.training.device == "gpu" and not torch.cuda.is_available():
-        log.warning("CUDA not available, setting device to CPU")
+        logger.warning("CUDA not available, setting device to CPU")
         config.training.device = "cpu"
     if config.training.device == "cpu":
-        log.info("Running on CPU")
+        logger.info("Running on CPU")
     else:
-        log.info("Running on GPU")
+        logger.info("Running on GPU")
 
     # set seed
-    log.info(f"Setting seed: {config.seed}")
+    logger.info(f"Setting seed: {config.seed}")
     seed_everything(config.seed, workers=True)
 
     # setup data
-    log.info(f"Setting up data: {config.datamodule.module._target_}")
+    logger.info(f"Setting up data: {config.datamodule.module._target_}")
     datamodule: pl.LightningDataModule = get_data(config.datamodule)
 
     # setup model
-    log.info(f"Setting up model: {config.model._target_}")
+    logger.info(f"Setting up model: {config.model._target_}")
     model: torch.nn.Module = hydra.utils.instantiate(config.model)
 
     # setup optimizer
-    log.info(f"Setting up optimizer: {config.optimizer._target_}")
+    logger.info(f"Setting up optimizer: {config.optimizer._target_}")
     optimizer: torch.optim.Optimizer = hydra.utils.instantiate(config.optimizer, params=model.parameters())
 
     # setup scheduler
     if config.scheduler is not None:
-        log.info(f"Setting up scheduler: {config.scheduler._target_}")
+        logger.info(f"Setting up scheduler: {config.scheduler._target_}")
         scheduler: torch.optim.lr_scheduler._LRScheduler = hydra.utils.instantiate(
             config.scheduler, optimizer=optimizer
         )
     else:
-        log.info("No scheduler is set")
+        logger.info("No scheduler is set")
         scheduler = None
 
     # setup loss function
-    log.info(f"Setting up loss function: {config.loss_fn._target_}")
+    logger.info(f"Setting up loss function: {config.loss_fn._target_}")
     loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = hydra.utils.instantiate(config.loss_fn)
 
     # setup lightning module
-    log.info(f"Setting up lightning module: {config.plmodule._target_}")
+    logger.info(f"Setting up lightning module: {config.plmodule._target_}")
     plmodule: pl.LightningModule = hydra.utils.instantiate(
         config.plmodule,
         model=model,
@@ -78,35 +79,35 @@ def training(config: DictConfig):
     callbacks: list[pl.Callback] = []
     if config.callbacks is not None:
         for _, conf in config.callbacks.items():
-            log.info(f"Setting up callback: {conf._target_}")
+            logger.info(f"Setting up callback: {conf._target_}")
             callbacks.append(hydra.utils.instantiate(conf))
 
     # setup logger
-    logger: list[pl.loggers.LightningLoggerBase] = []
+    loggers_list: list[pl.loggers.LightningLoggerBase] = []
     if config.logger is not None:
         for _, conf in config.logger.items():
-            log.info(f"Setting up logger: {conf._target_}")
-            logger.append(hydra.utils.instantiate(conf))
+            logger.info(f"Setting up logger: {conf._target_}")
+            loggers_list.append(hydra.utils.instantiate(conf))
 
     # setup trainer
-    log.info(f"Setting up trainer: {config.trainer._target_}")
+    logger.info(f"Setting up trainer: {config.trainer._target_}")
     trainer: pl.Trainer = hydra.utils.instantiate(
         config.trainer, logger=logger, callbacks=callbacks, _convert_="partial"
     )
 
     # train
-    log.info("Starting training...")
+    logger.info("Starting training...")
     trainer.fit(plmodule, datamodule)
 
     # test
-    log.info("Starting testing...")
+    logger.info("Starting testing...")
     trainer.test(plmodule, datamodule, ckpt_path="best")
 
     # Store best model
     best_path = trainer.checkpoint_callback.best_model_path
-    log.info(f"Best checkpoint path:\n{best_path}")
+    logger.info(f"Best checkpoint path:\n{best_path}")
 
-    log.info("Done.")
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
