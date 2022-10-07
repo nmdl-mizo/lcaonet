@@ -27,8 +27,6 @@ datamodule:
   files:
     hdf5_path: [
         "/data/g_x_charge.hdf5",
-        "/data/g_x_pot_charge.hdf5",
-        "/data/g_x_random_charge.hdf5",
       ]
 
   train_dataset:
@@ -63,4 +61,5 @@ optimizer:
 logger:
   wandb:
     project: "pyggnns"
+    name: "schnet"
     tags: ["schnet", "cutoff_radi=${params.cutoff_radi}", "dev"]
