@@ -65,7 +65,7 @@ def training(config: DictConfig):
     # setup loss function
     logger.info(f"Setting up loss function: {config.loss_fn._target_}")
     loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = hydra.utils.instantiate(config.loss_fn)
-    
+
     # setup metrics
     metrics: list[BaseLoss] = []
     if config.get("metrics") is not None:
