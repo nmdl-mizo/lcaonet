@@ -68,11 +68,10 @@ def training(config: DictConfig):
     
     # setup metrics
     metrics: list[BaseLoss] = []
-    if config.metrics is not None:
+    if config.get("metrics") is not None:
         for _, m in config.metrics.items():
             logger.info(f"Setting up metric: {m._target_}")
-            m = hydra.utils.instantiate(m)
-            metrics.append(m)
+            metrics.append(hydra.utils.instantiate(m))
     else:
         logger.info("No metrics are set")
 
@@ -89,22 +88,26 @@ def training(config: DictConfig):
 
     # setup callbacks
     callbacks: list[pl.Callback] = []
-    if config.callbacks is not None:
+    if config.get("callbacks") is not None:
         for _, conf in config.callbacks.items():
             logger.info(f"Setting up callback: {conf._target_}")
             callbacks.append(hydra.utils.instantiate(conf))
+    else:
+        logger.info("No callbacks are set")
 
     # setup logger
     loggers_list: list[pl.loggers.LightningLoggerBase] = []
-    if config.logger is not None:
+    if config.get("logger") is not None:
         for _, conf in config.logger.items():
             logger.info(f"Setting up logger: {conf._target_}")
             loggers_list.append(hydra.utils.instantiate(conf))
+    else:
+        logger.info("No logger is set")
 
     # setup trainer
     logger.info(f"Setting up trainer: {config.trainer._target_}")
     trainer: pl.Trainer = hydra.utils.instantiate(
-        config.trainer, logger=logger, callbacks=callbacks, _convert_="partial"
+        config.trainer, logger=loggers_list, callbacks=callbacks, _convert_="partial"
     )
 
     # train
