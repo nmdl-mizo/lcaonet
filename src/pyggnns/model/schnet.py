@@ -56,7 +56,7 @@ class SchNet(BaseGNN):
         out_dim: int,
         n_gaussian: int,
         activation: str = "shifted_softplus",
-        cutoff_net: nn.Module | None = CosineCutoff,
+        cutoff_net: nn.Module = CosineCutoff,
         cutoff_radi: float = 4.0,
         hidden_dim: int = 256,
         aggr: str = "add",
