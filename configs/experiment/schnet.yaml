@@ -4,7 +4,7 @@
 # python train.py experiment=dimpp
 
 defaults:
-  - override /model: dimenetpp
+  - override /model: schnet
   - override /optimizer: adam
   - override /datamodule: graphdatamodule_split
   - override /scheduler: warmupcosinedecay_annealing
@@ -79,18 +79,18 @@ datamodule:
     atom_numbers: [20, 26, 29, 35]
 
 model:
-  edge_message_dim: 312
-  n_interaction: 6
+  node_dim: 256
+  edge_filter_dim: 256
+  n_conv_layer: 6
   out_dim: 1
-  n_radial: 12
-  n_spherical: 5
-  edge_down_dim: 64
-  basis_embed_dim: 64
-  out_up_dim: 312
-  activation: "swish"
-  envelope_exponent: 5
+  n_gaussian: 64
+  activation: "shifted_softplus"
+  hidden_dim: 312
   aggr: "add"
-  weight_init: "glorot_orthogonal"
+  scaler: null
+  mean: null
+  stddev: null
+  weight_init: "xavier_uniform_"
   share_weight: false
   max_z: 57
 
