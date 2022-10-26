@@ -8,7 +8,7 @@ from torch_geometric.loader import DataLoader
 
 from pyggnns.data.dataset import BaseGraphDataset, Db2GraphDataset, Hdf2GraphDataset
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 __all__ = ["GraphDataModule", "GraphDataModuleSplit"]
@@ -35,7 +35,7 @@ class GraphDataModule(pl.LightningDataModule):
         elif file_type == "db":
             self.dataset = Db2GraphDataset(file_pth, cutoff_radi, property_names, pbc)
         else:
-            log.error(f"file_type {file_type} is not supported. Please use hdf5 or db.")
+            logger.error(f"file_type {file_type} is not supported. Please use hdf5 or db.")
             raise ValueError("file_type is not supported. Please use hdf5 or db.")
         self.num_train = num_train
         self.num_val = num_val
@@ -100,12 +100,17 @@ class GraphDataModuleSplit(pl.LightningDataModule):
     ):
         super().__init__()
         self.train_dataset = train_dataset
+        logger.info(f"Number of train_dataset: {len(self.train_dataset)}")
         self.val_dataset = val_dataset
+        logger.info(f"Number of val_dataset: {len(self.val_dataset)}")
         if test_dataset is None:
             self.test_dataset = Subset(self.val_dataset, [])
+            logger.info("test_dataset is None.")
         else:
             self.test_dataset = test_dataset
+            logger.info(f"Number of test_dataset: {len(self.test_dataset)}")
         self.batch_size = batch_size
+        logger.info(f"batch_size: {self.batch_size}")
         self.num_workers = num_workers
         self.pin_memory = pin_memory
 
