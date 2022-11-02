@@ -99,7 +99,7 @@ training:
   n_device: 1
   amp_level: null # nullable
   batch_size: 32
-  max_epochs: 100
+  max_epochs: 200
   lr: 1e-5
   weight_decay: 0.0
 
@@ -109,10 +109,10 @@ params:
 logger:
   wandb:
     project: "pyggnns"
-    name: dimenet++
+    name: schnet
     tags:
       [
-        "dimenet++",
+        "schnet",
         "cutoff_radi=${params.cutoff_radi}",
         "graphene_x",
         "g_x_pot",
