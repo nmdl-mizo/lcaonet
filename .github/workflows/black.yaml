@@ -35,5 +35,5 @@ jobs:
         uses: psf/black@stable
         with:
           options: "--check --verbose --diff -l 120"
-          src: "./src/pyggnns"
+          src: "./pyg_material"
           version: "22.8.0"
