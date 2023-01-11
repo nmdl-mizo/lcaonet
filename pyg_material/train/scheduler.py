@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 import math
 from typing import Any
 
 import numpy as np
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
-
-logger = logging.getLogger(__name__)
 
 
 class WarmupCosineDecayAnnealingLR(_LRScheduler):
@@ -25,7 +22,7 @@ class WarmupCosineDecayAnnealingLR(_LRScheduler):
         last_epoch: int = -1,
         verbose: bool = False,
     ):
-        """Warup at the begining of learning process, and after warming up, LR
+        """Warmup at the begining of learning process, and after warming up, LR
         is decaing with cosine function while cosine annealing.
 
         Args:
@@ -33,20 +30,17 @@ class WarmupCosineDecayAnnealingLR(_LRScheduler):
             num_epoch (int): number of epoch.
             num_warmup (int):number of warm up epoch
             T_max (int):  Maximum number of iterations of annealing period.
-                (see ref:
-                https://pytorch.org/docs/1.9.0/generated/torch.optim.lr_scheduler.CosineAnnealingLR.html).
-            eta_min (float, optional): Annealing minimum LR. Defaults to 1e-7.
-            lr_max (float, optional): Max LR of warm up process. Defaults to 1e-3.
-            lr_min (float, optional): Global minimum LR. Defaults to 1e-10.
-            decay_coef (float, optional): Decay coefficient. Defaults to 1.5.
-            last_epoch (int, optional): The index of last epoch. Defaults to -1.
-            verbose (bool, optional): _description_If True, prints a message to stdout for each updatde. Defaults to False.
+                (see ref: https://pytorch.org/docs/1.9.0/generated/torch.optim.lr_scheduler.CosineAnnealingLR.html).
+            eta_min (float, optional): Annealing minimum LR. Defaults to `1e-7`.
+            lr_max (float, optional): Max LR of warm up process. Defaults to `1e-3`.
+            lr_min (float, optional): Global minimum LR. Defaults to `1e-10`.
+            decay_coef (float, optional): Decay coefficient. Defaults to `1.5`.
+            last_epoch (int, optional): The index of last epoch. Defaults to `-1`.
+            verbose (bool, optional): If `True`, prints a message to stdout for each updatde. Defaults to `False`.
         """  # NOQA: E501
         if num_warmup >= num_epoch:
-            logger.error("Please set 'num_warmup' lower than 'num_epoch'")
             raise ValueError("Please set 'num_warmup' lower than 'num_epoch'")
         if decay_coef <= 0:
-            logger.error("Please set 'decay_coef' higher than 0.")
             raise ValueError("Please set 'decay_coef' higher than 0.")
         self.num_epoch = num_epoch
         self.num_warmup = num_warmup
