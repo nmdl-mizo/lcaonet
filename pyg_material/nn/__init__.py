@@ -1,7 +1,7 @@
 from .activation import ShiftedSoftplus, Swish
 from .base import Dense, ResidualBlock
-from .embedding import AtomicDict2Node, AtomicNum2Node
-from .scale import ScaleShift, Standarize
+from .embedding import AtomicNum2Node
+from .scale import ShiftScaler, StandarizeScaler
 
 __all__ = [
     "Swish",
@@ -9,7 +9,6 @@ __all__ = [
     "Dense",
     "ResidualBlock",
     "AtomicNum2Node",
-    "AtomicDict2Node",
-    "ScaleShift",
-    "Standarize",
+    "ShiftScaler",
+    "StandarizeScaler",
 ]

@@ -27,11 +27,9 @@ class Swish(nn.Module):
         train_beta (bool, optional): if set to `False`, beta is not learnable. Defaults to `True`.
 
     Notes:
-        reference:
-        [1] P. Ramachandran et al., arXiv [cs.NE] (2017),
-            (available at http://arxiv.org/abs/1710.05941).
-        [2] V. G. Satorras et al., arXiv [cs.LG] (2021),
-            (available at http://arxiv.org/abs/2102.09844).
+        ref:
+            [1] P. Ramachandran et al., arXiv [cs.NE] (2017), (available at http://arxiv.org/abs/1710.05941).
+            [2] V. G. Satorras et al., arXiv [cs.LG] (2021), (available at http://arxiv.org/abs/2102.09844).
     """
 
     def __init__(self, beta: float = 1.0, train_beta: bool = True):
@@ -58,8 +56,8 @@ def shifted_softplus(x: Tensor) -> Tensor:
         torch.Tensor: shifted soft-plus of input.
 
     Notes:
-        reference:
-        [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448–455 (2019).
+        ref:
+            [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448–455 (2019).
     """
     return F.softplus(x) - np.log(2.0)
 

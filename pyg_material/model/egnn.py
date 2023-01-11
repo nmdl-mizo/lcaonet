@@ -5,15 +5,15 @@ from collections.abc import Callable
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch_geometric.data import Batch
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.inits import glorot_orthogonal
-from torch_geometric.typing import Adj
 from torch_scatter import scatter
 
 from pyg_material.data import DataKeys
 from pyg_material.model.base import BaseGNN
 from pyg_material.nn import AtomicNum2Node, Dense, Swish
-from pyg_material.utils import activation_resolver
+from pyg_material.utils import activation_resolver, init_resolver
 
 
 class EGNNConv(MessagePassing):
@@ -21,10 +21,10 @@ class EGNNConv(MessagePassing):
     implemented in the manner of PyTorch Geometric.
 
     Args:
-        x_dim (int or Tuple[int, int]]): number of node dimension. if set to tuple object,
-            the first one is input dim, and second one is output dim.
+        x_dim (int or Tuple[int, int]]): number of node dimension.
+            If set to tuple object, the first one is input dim, and second one is output dim.
         edge_dim (int): number of edge dimension.
-        activation (Callable, optional): activation function. Defaults to `Swish()`.
+        activation (Callable, optional): activation function. Defaults to `Swish(beta=1.0)`.
         edge_attr_dim (int or `None`, optional): number of another edge attribute dimension. Defaults to `None`.
         node_hidden (int, optional): dimension of node hidden layers. Defaults to `256`.
         edge_hidden (int, optional): dimension of edge hidden layers. Defaults to `256`.
@@ -49,19 +49,14 @@ class EGNNConv(MessagePassing):
         **kwargs,
     ):
         assert aggr == "add" or aggr == "mean"
-        # TODO: pass kwargs to superclass
-        super().__init__(aggr=aggr)
+        super().__init__(aggr=aggr, **kwargs)
 
-        # name node_dim is already used in super class
-        self.x_dim = x_dim
+        self.x_dim = x_dim  # name node_dim is already used in super class
         self.edge_dim = edge_dim
         self.edge_attr_dim = edge_attr_dim
         self.node_hidden = node_hidden
         self.edge_hidden = edge_hidden
-        if cutoff_net is None:
-            self.cutoff_net = None
-        else:
-            self.cutoff_net = cutoff_net
+        self.cutoff_net = cutoff_net
         self.batch_norm = batch_norm
 
         if isinstance(x_dim, int):
@@ -71,39 +66,21 @@ class EGNNConv(MessagePassing):
             edge_attr_dim = 0
 
         # updata function
-        self.edge_func = nn.Sequential(
-            Dense(
-                x_dim[0] * 2 + 1 + edge_attr_dim,
-                edge_hidden,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+        self.edge_lin = nn.Sequential(
+            Dense(x_dim[0] * 2 + 1 + edge_attr_dim, edge_hidden, True, weight_init=weight_init),
             activation,
-            Dense(edge_hidden, edge_dim, bias=True, weight_init=weight_init, **kwargs),
+            Dense(edge_hidden, edge_dim, True, weight_init=weight_init),
             activation,
         )
-        self.node_func = nn.Sequential(
-            Dense(
-                x_dim[0] + edge_dim,
-                node_hidden,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+        self.node_lin = nn.Sequential(
+            Dense(x_dim[0] + edge_dim, node_hidden, True, weight_init=weight_init),
             activation,
-            Dense(node_hidden, x_dim[1], bias=True, weight_init=weight_init, **kwargs),
+            Dense(node_hidden, x_dim[1], True, weight_init=weight_init),
         )
         # attention the edge
         self.atten = nn.Sequential(
             # using xavier uniform initialization
-            Dense(
-                edge_dim,
-                1,
-                bias=True,
-                weight_init=nn.init.xavier_uniform_,
-                gain=1.0,
-            ),
+            Dense(edge_dim, 1, True, weight_init=nn.init.xavier_uniform_),
             nn.Sigmoid(),
         )
         # batch normalization
@@ -118,30 +95,26 @@ class EGNNConv(MessagePassing):
         if self.batch_norm:
             self.bn.reset_parameters()
 
-    def forward(
-        self,
-        x: Tensor,
-        dist: Tensor,
-        edge_index: Adj,
-        edge_attr: Tensor | None = None,
-    ) -> Tensor:
+    def forward(self, x: Tensor, dist: Tensor, edge_index: Tensor, edge_attr: Tensor | None = None) -> Tensor:
+        """Forward calculation of egnn convolution block.
+
+        Args:
+            x (Tensor): node embeddings of (n_node, x_dim) shape.
+            dist (Tensor): inter atomic distances of (n_edge) shape.
+            edge_index (Tensor): edge index of (2, n_edge) shape.
+            edge_attr (Tensor, optional): edge attributes of (n_edge, edge_attr_dim) shape. Defaults to `None`.
+        """
         # propagate_type:
         # (x: Tensor, dist: Tensor, edge_attr: Optional[Tensor])
         edge = self.propagate(edge_index, x=x, dist=dist, edge_attr=edge_attr, size=None)
         out = torch.cat([x, edge], dim=-1)
-        for nf in self.node_func:
-            out = nf(out)
+        for nl in self.node_lin:
+            out = nl(out)
         out = self.bn(out)
-        out = out + x
-        return out
+        # residual connection
+        return out + x
 
-    def message(
-        self,
-        x_i: Tensor,
-        x_j: Tensor,
-        dist: Tensor,
-        edge_attr: Tensor | None = None,
-    ) -> Tensor:
+    def message(self, x_i: Tensor, x_j: Tensor, dist: Tensor, edge_attr: Tensor | None = None) -> Tensor:
         # update edge
         if edge_attr is None:
             edge_new = torch.cat([x_i, x_j, torch.pow(dist, 2).unsqueeze(-1)], dim=-1)
@@ -151,7 +124,7 @@ class EGNNConv(MessagePassing):
                 [x_i, x_j, torch.pow(dist, 2).unsqueeze(-1), edge_attr],
                 dim=-1,
             )
-        edge_new = self.edge_func(edge_new)
+        edge_new = self.edge_lin(edge_new)
 
         # cutoff net
         if self.cutoff_net is not None:
@@ -163,17 +136,18 @@ class EGNNConv(MessagePassing):
 
 
 class EGNNOutBlock(nn.Module):
-    """The block to compute the global graph proptery from node embeddings. In
-    this block, after aggregation, two more Dense layers are calculated.
+    """The block to compute the graph-wise proptery from node embeddings. In
+    this block, after aggregation, two more Dense layers are added.
 
     Args:
         node_dim (int): number of input dimension.
-        hidden_dim (int, optional): number of hidden layers dimension. Defaults to `128`.
+        hidden_dim (int, optional): dimension of hidden layers. Defaults to `128`.
         out_dim (int, optional): number of output dimension. Defaults to `1`.
         activation: (Callable, optional): activation function. Defaults to `Swish(beta=1.0)`.
         aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
-        weight_init (Callable, optional): weight initialization function. Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
-    """  # NOQA: E501
+        weight_init (Callable, optional): weight initialization function.
+            Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
+    """
 
     def __init__(
         self,
@@ -183,53 +157,52 @@ class EGNNOutBlock(nn.Module):
         activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
         aggr: str = "add",
         weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
-        **kwargs,
     ):
         super().__init__()
 
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
-        self.node_transform = nn.Sequential(
-            Dense(node_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
+        self.node_lin = nn.Sequential(
+            Dense(node_dim, hidden_dim, True, weight_init=weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
+            Dense(hidden_dim, hidden_dim, True, weight_init=weight_init),
         )
-        self.output = nn.Sequential(
-            Dense(hidden_dim, hidden_dim, bias=True, weight_init=weight_init, **kwargs),
+        self.out_lin = nn.Sequential(
+            Dense(hidden_dim, hidden_dim, True, weight_init=weight_init),
             activation,
-            Dense(hidden_dim, out_dim, bias=False, weight_init=weight_init, **kwargs),
+            Dense(hidden_dim, out_dim, False, weight_init=weight_init),
         )
 
-    def forward(self, x: Tensor, batch: Tensor | None = None) -> Tensor:
-        """Compute global property from node embeddings.
+    def forward(self, x: Tensor, batch_idx: Tensor | None = None) -> Tensor:
+        """Compute graph-wise property from node embeddings.
 
         Args:
-            x (Tensor): node embeddings shape of (n_node x in_dim).
-            batch (Tensor, optional): batch index shape of (n_node). Defaults to `None`.
+            x (Tensor): node embeddings of (n_node, node_dim) shape.
+            batch_idx (Tensor, optional): batch index of (n_node) shape. Defaults to `None`.
 
         Returns:
             Tensor: shape of (n_batch x out_dim).
         """
-        out = self.node_transform(x)
-        out = scatter(out, index=batch, dim=0, reduce=self.aggr)
-        return self.output(out)
+        out = self.node_lin(x)
+        out = scatter(out, index=batch_idx, dim=0, reduce=self.aggr)
+        return self.out_lin(out)
 
 
 class EGNN(BaseGNN):
     """EGNN implemeted by using PyTorch Geometric. From atomic structure,
-    predict global property such as energy.
+    predict graph-wise property such as formation energy.
 
     Args:
         node_dim (int): number of node embedding dimension.
         edge_dim (int): number of edge embedding dimension.
-        n_conv_layer (int): number of convolutinal layers.
-        cutoff_radi (float): cutoff radious. Defaults to `None`.
+        n_conv_layer (int): number of convolutional layers.
         out_dim (int, optional): number of output property dimension.
         activation (str, optional): activation function name. Defaults to `"swish"`.
-        cutoff_radi (float): cutoff radious. Defaults to `None`.
+        cutoff (float): cutoff radious. Defaults to `None`.
         cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
-        hidden_dim (int, optional): number of hidden layers. Defaults to `256`.
+        hidden_dim (int, optional): dimension of hidden layers. Defaults to `256`.
         aggr (`"add"` or `"mean"`, optional): aggregation method. Defaults to `"add"`.
+        weight_init (str, optional): name of weight initialization function. Defaults to `"glorot_orthogonal"`.
         batch_norm (bool, optional): if `False`, no batch normalization in convolution layers. Defaults to `False`.
         edge_attr_dim (int, optional): number of another edge attrbute dimension. Defaults to `None`.
         max_z (int, optional): max number of atomic number. Defaults to `100`.
@@ -250,31 +223,34 @@ class EGNN(BaseGNN):
         n_conv_layer: int,
         out_dim: int,
         activation: str = "swish",
+        cutoff: float | None = None,
         cutoff_net: nn.Module | None = None,
-        cutoff_radi: float | None = None,
         hidden_dim: int = 256,
         aggr: str = "add",
+        weight_init: str = "glorot_orthogonal",
         batch_norm: bool = False,
         edge_attr_dim: int | None = None,
-        max_z: int | None = 100,
+        max_z: int = 100,
         **kwargs,
     ):
         super().__init__()
-        act = activation_resolver(activation)
+        act: Callable[[Tensor], Tensor] = activation_resolver(activation)
+        wi: Callable[[Tensor], Tensor] = init_resolver(weight_init)
 
         self.node_dim = node_dim
         self.edge_dim = edge_dim
         self.n_conv_layer = n_conv_layer
-        self.cutoff_radi = cutoff_radi
+        self.cutoff = cutoff
         self.out_dim = out_dim
         self.edge_attr = edge_attr_dim
+
         # layers
         self.node_embed = AtomicNum2Node(node_dim, max_z=max_z)
         if cutoff_net is None:
             self.cutoff_net = None
         else:
-            assert cutoff_radi is not None
-            self.cutoff_net = cutoff_net(cutoff_radi)
+            assert cutoff is not None
+            self.cutoff_net = cutoff_net(cutoff)
 
         self.convs = nn.ModuleList(
             [
@@ -288,6 +264,7 @@ class EGNN(BaseGNN):
                     cutoff_net=self.cutoff_net,
                     aggr=aggr,
                     batch_norm=batch_norm,
+                    weight_init=wi,
                     **kwargs,
                 )
                 for _ in range(n_conv_layer)
@@ -299,54 +276,25 @@ class EGNN(BaseGNN):
             hidden_dim=hidden_dim,
             out_dim=out_dim,
             activation=act,
+            weight_init=wi,
             aggr=aggr,
-            **kwargs,
         )
 
-        self.reset_parameters()
+    def forward(self, batch: Batch) -> Tensor:
+        batch_idx = batch.get(DataKeys.Batch_idx)
+        atom_numbers = batch[DataKeys.Atom_numbers]
+        edge_idx = batch[DataKeys.Edge_idx]
+        edge_attr = batch.get(DataKeys.Edge_attr)
 
-    def reset_parameters(self):
-        if self.cutoff_net is not None:
-            if hasattr(self.cutoff_net, "reset_parameters"):
-                self.cutoff_net.reset_parameters()
-
-    def forward(self, data_batch) -> Tensor:
-        if self.edge_attr is not None:
-            data_dict = self.get_data(
-                data_batch,
-                batch_index=True,
-                atom_numbers=True,
-                edge_index=True,
-                edge_attr=True,
-            )
-            batch = data_dict[DataKeys.Batch]
-            atom_numbers = data_dict[DataKeys.Atom_numbers]
-            edge_index = data_dict[DataKeys.Edge_index]
-            edge_attr = data_dict[DataKeys.Edge_attr]
-        else:
-            data_dict = self.get_data(data_batch, batch_index=True, atom_numbers=True, edge_index=True)
-            batch = data_dict[DataKeys.Batch]
-            atom_numbers = data_dict[DataKeys.Atom_numbers]
-            edge_index = data_dict[DataKeys.Edge_index]
-            edge_attr = None
         # calc atomic distances
-        distances = self.calc_atomic_distances(data_batch)
+        distances = self.calc_atomic_distances(batch)
+
         # initial embedding
         x = self.node_embed(atom_numbers)
 
         # convolution
         for conv in self.convs:
-            x = conv(x, distances, edge_index, edge_attr)
-        # read out property
-        x = self.output(x, batch)
-        return x
+            x = conv(x, distances, edge_idx, edge_attr)
 
-    def __repr__(self):
-        return (
-            f"{self.__class__.__name__}("
-            f"node_dim={self.node_dim}, "
-            f"edge_dim={self.edge_dim}, "
-            f"cutoff_radi={self.cutoff_radi}, "
-            f"out_dim={self.out_dim}, "
-            f"convolution_layers: {self.convs[0].__class__.__name__} * {self.n_conv_layer})"
-        )
+        # read out property
+        return self.output(x, batch_idx)

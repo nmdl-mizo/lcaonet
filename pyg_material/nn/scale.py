@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-__all__ = ["ScaleShift", "Standarize"]
+__all__ = ["ShiftScaler", "StandarizeScaler"]
 
 
-class ScaleShift(nn.Module):
+class ShiftScaler(nn.Module):
     r"""
     The block to scale and shift input tensor.
 
@@ -17,8 +17,8 @@ class ScaleShift(nn.Module):
         stddev (torch.Tensor): standard deviation value :math:`\sigma`.
 
     Notes:
-        reference:
-        [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448-455 (2019).
+        ref:
+            [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448-455 (2019).
     """
 
     def __init__(self, mean: Tensor, stddev: Tensor):
@@ -28,6 +28,7 @@ class ScaleShift(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """Compute layer output.
+
         Args:
             x (torch.Tensor): input data.
 
@@ -38,7 +39,7 @@ class ScaleShift(nn.Module):
         return out
 
 
-class Standarize(nn.Module):
+class StandarizeScaler(nn.Module):
     r"""
     The block to standardize input tensor.
 
@@ -51,8 +52,8 @@ class Standarize(nn.Module):
         eps (float): epsilon.
 
     Notes:
-        reference:
-        [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448–455 (2019).
+        ref:
+            [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448–455 (2019).
     """
 
     def __init__(self, mean: Tensor, stddev: Tensor, eps: float = 1e-6):
