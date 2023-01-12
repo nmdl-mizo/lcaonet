@@ -152,8 +152,10 @@ def R_nl(nq: int, lq: int, a0: Tensor) -> Callable[[Tensor], Tensor]:
 class RadialWaveBasis(nn.Module):
     n_radial: int = 15
 
-    def __init__(self, cutoff: float, standarize: bool = True):
+    def __init__(self, cutoff: float | None, standarize: bool = True):
         super().__init__()
+        if standarize:
+            assert cutoff is not None
         self.cutoff = cutoff
         self.stadarize = standarize
         self.a0 = nn.Parameter(torch.ones((1,)) * 0.529)
@@ -184,8 +186,9 @@ class RadialWaveBasis(nn.Module):
                 self.normalize_coeff.append(self._standarized_coeff(r_nl))
 
     def _standarized_coeff(self, func: Callable[[Tensor], Tensor], n_gird: int = 10000):
+        cutoff = self.cutoff if self.cutoff is not None else 10.0
         with torch.no_grad():
-            area = torch.linspace(0.001, self.cutoff, n_gird)
+            area = torch.linspace(0.001, cutoff, n_gird)
             rbf = func(area)
         return 1 / (torch.sqrt(torch.sum(rbf**2, dim=0, keepdim=True)) + 1e-12)
 
@@ -335,12 +338,12 @@ class WFOut(nn.Module):
 class WFNet(BaseGNN):
     def __init__(
         self,
-        hidden_dim: int,
-        down_dim: int,
-        coeffs_dim: int,
+        hidden_dim: int = 128,
+        down_dim: int = 64,
+        coeffs_dim: int = 16,
         out_dim: int = 1,
         n_conv_layer: int = 3,
-        cutoff: float = 3.0,
+        cutoff: float | None = 3.5,
         standarize_basis: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
