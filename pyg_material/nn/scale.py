@@ -72,4 +72,5 @@ class StandarizeScaler(BaseScaler):
             torch.Tensor: layer output.
         """
         out = (x - self.mean) / (self.stddev + self.eps)  # type: ignore
+        # Since mypy cannot distinguish whether register buffer type is Tensor or Module.
         return out
