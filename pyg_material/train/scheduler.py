@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from typing import Any
 
 import numpy as np
 from torch.optim import Optimizer
@@ -51,7 +50,7 @@ class WarmupCosineDecayAnnealingLR(_LRScheduler):
         self.decay_coef = decay_coef
         super().__init__(optimizer, last_epoch, verbose)
 
-    def get_lr(self) -> list[Any] | Any:
+    def get_lr(self):  # type: ignore # The base class type is Float, but other implementations return a List.
         if self.last_epoch == 0:
             return self.base_lrs
         if self.last_epoch < self.num_warmup:

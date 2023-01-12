@@ -24,7 +24,7 @@ class EGNNConv(MessagePassing):
         x_dim (int or Tuple[int, int]]): number of node dimension.
             If set to tuple object, the first one is input dim, and second one is output dim.
         edge_dim (int): number of edge dimension.
-        activation (Callable, optional): activation function. Defaults to `Swish(beta=1.0)`.
+        activation (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         edge_attr_dim (int or `None`, optional): number of another edge attribute dimension. Defaults to `None`.
         node_hidden (int, optional): dimension of node hidden layers. Defaults to `256`.
         edge_hidden (int, optional): dimension of edge hidden layers. Defaults to `256`.
@@ -38,7 +38,7 @@ class EGNNConv(MessagePassing):
         self,
         x_dim: int | tuple[int, int],
         edge_dim: int,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         edge_attr_dim: int | None = None,
         node_hidden: int = 256,
         edge_hidden: int = 256,
@@ -84,6 +84,7 @@ class EGNNConv(MessagePassing):
             nn.Sigmoid(),
         )
         # batch normalization
+        self.bn: nn.Module
         if batch_norm:
             self.bn = nn.BatchNorm1d(x_dim[1])
         else:
@@ -119,7 +120,7 @@ class EGNNConv(MessagePassing):
         if edge_attr is None:
             edge_new = torch.cat([x_i, x_j, torch.pow(dist, 2).unsqueeze(-1)], dim=-1)
         else:
-            assert edge_attr.size[-1] == self.edge_attr_dim
+            assert edge_attr.size(-1) == self.edge_attr_dim
             edge_new = torch.cat(
                 [x_i, x_j, torch.pow(dist, 2).unsqueeze(-1), edge_attr],
                 dim=-1,
@@ -143,7 +144,7 @@ class EGNNOutBlock(nn.Module):
         node_dim (int): number of input dimension.
         hidden_dim (int, optional): dimension of hidden layers. Defaults to `128`.
         out_dim (int, optional): number of output dimension. Defaults to `1`.
-        activation: (Callable, optional): activation function. Defaults to `Swish(beta=1.0)`.
+        activation: (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
         weight_init (Callable, optional): weight initialization function.
             Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
@@ -154,7 +155,7 @@ class EGNNOutBlock(nn.Module):
         node_dim: int,
         hidden_dim: int = 128,
         out_dim: int = 1,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         aggr: str = "add",
         weight_init: Callable[[Tensor], Tensor] = glorot_orthogonal,
     ):
@@ -234,7 +235,7 @@ class EGNN(BaseGNN):
         **kwargs,
     ):
         super().__init__()
-        act: Callable[[Tensor], Tensor] = activation_resolver(activation)
+        act: nn.Module = activation_resolver(activation)
         wi: Callable[[Tensor], Tensor] = init_resolver(weight_init)
 
         self.node_dim = node_dim

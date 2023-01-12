@@ -1,1 +1,1 @@
-import pyggnns.cli.utils  # NOQA: F401, F403
+from .utils import *  # NOQA: F401, F403

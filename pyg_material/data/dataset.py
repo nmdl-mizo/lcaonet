@@ -64,7 +64,7 @@ class BaseGraphDataset(Dataset):
 
     def _set_properties(
         self,
-        data: torch,
+        data: Data,
         k: str,
         v: int | float | ndarray | torch.Tensor,
     ):

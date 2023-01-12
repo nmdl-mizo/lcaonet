@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 URL = "https://github.com/nmdl-mizo/pyg_material"
 
 
@@ -11,6 +11,7 @@ install_requires = [
     "h5py",
     "ase",
     "torch>=1.7",
+    "pyg-lib",
     "torch-scatter",
     "torch-sparse",
     "torch-cluster",
@@ -43,7 +44,6 @@ setup(
     keywords=[
         "deep-learning",
         "pytorch",
-        "geometric-deep-learning",
         "graph-neural-networks",
         "graph-convolutional-networks",
         "materials-informatics",

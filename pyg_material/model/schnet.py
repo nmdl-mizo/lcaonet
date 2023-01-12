@@ -12,7 +12,13 @@ from torch_scatter import scatter
 
 from pyg_material.data import DataKeys
 from pyg_material.model.base import BaseGNN
-from pyg_material.nn import AtomicNum2Node, Dense, ShiftedSoftplus, ShiftScaler
+from pyg_material.nn import (
+    AtomicNum2Node,
+    BaseScaler,
+    Dense,
+    ShiftedSoftplus,
+    ShiftScaler,
+)
 from pyg_material.utils import activation_resolver, init_resolver
 
 
@@ -25,7 +31,7 @@ class CosineCutoff(nn.Module):
 
     def __init__(self, cutoff: float):
         super().__init__()
-        self.cutof = cutoff
+        self.cutoff = cutoff
 
     def forward(self, dist: Tensor) -> Tensor:
         """Forward calculation of cosine cutoff layer.
@@ -37,9 +43,9 @@ class CosineCutoff(nn.Module):
             Tensor: cutoff values of (n_edge) shape
         """
         # Compute values of cutoff function
-        cutoffs = 0.5 * (torch.cos(dist * PI / self.cutoff_radi) + 1.0)
+        cutoffs = 0.5 * (torch.cos(dist * PI / self.cutoff) + 1.0)
         # Remove contributions beyond the cutoff radius
-        return cutoffs * (dist < self.cutoff_radi).to(dist.dtype)
+        return cutoffs * (dist < self.cutoff).to(dist.dtype)
 
 
 def _gaussian_rbf(distances: Tensor, offsets: Tensor, widths: Tensor, centered: bool = False) -> Tensor:
@@ -116,8 +122,8 @@ class SchNetConv(MessagePassing):
         x_dim: int,
         edge_filter_dim: int,
         n_rad: int,
-        activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),
-        cutoff_net: Callable[[Tensor], Tensor] | None = None,
+        activation: nn.Module = ShiftedSoftplus(),
+        cutoff_net: nn.Module | None = None,
         aggr: str = "add",
         weight_init: Callable[[Tensor], Tensor] = nn.init.xavier_uniform_,
         **kwargs,
@@ -173,24 +179,23 @@ class SchNetOutBlock(nn.Module):
         node_dim (int): number of input dimension.
         hidden_dim (int, optional): number of hidden layers dimension. Defaults to `128`.
         out_dim (int, optional): number of output dimension. Defaults to `1`.
-        activation: (Callable, optional): activation function. Defaults to `ShiftedSoftplus()`.
+        activation: (torch.nn.Module, optional): activation function. Defaults to `ShiftedSoftplus()`.
         aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
-        scaler: (nn.Module, optional): scaler layer. Defaults to `ShiftScaler`.
-        mean: (Tensor, optional): mean of the input tensor. Defaults to `None`.
-        stddev: (Tensor, optional): stddev of the input tensor. Defaults to `None`.
+        scaler: (type[pyg_material.nn.BaseScaler], optional): scaler layer. Defaults to `ShiftScaler`.
+        mean: (float, optional): mean of the input tensor. Defaults to `None`.
+        stddev: (float, optional): stddev of the input tensor. Defaults to `None`.
         weight_init (Callable, optional): weight initialization function. Defaults to `torch.nn.init.xavier_uniform_`.
     """
 
     def __init__(
         self,
         node_dim: int,
-        hidden_dim: int = 128,
         out_dim: int = 1,
-        activation: Callable[[Tensor], Tensor] = ShiftedSoftplus(),
+        activation: nn.Module = ShiftedSoftplus(),
         aggr: str = "add",
-        scaler: nn.Module | None = ShiftScaler,
-        mean: Tensor | None = None,
-        stddev: Tensor | None = None,
+        scaler: type[BaseScaler] | None = ShiftScaler,
+        mean: float | None = None,
+        stddev: float | None = None,
         weight_init: Callable[[Tensor], Tensor] = torch.nn.init.xavier_uniform_,
     ):
         super().__init__()
@@ -198,18 +203,18 @@ class SchNetOutBlock(nn.Module):
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.output_lin = nn.Sequential(
-            Dense(node_dim, hidden_dim, True, weight_init=weight_init),
+            Dense(node_dim, node_dim // 2, True, weight_init=weight_init),
             activation,
-            Dense(hidden_dim, out_dim, False, weight_init=weight_init),
+            Dense(node_dim // 2, out_dim, False, weight_init=weight_init),
         )
         if scaler is None:
             self.scaler = None
         else:
             if mean is None:
-                mean = torch.FloatTensor([0.0])
+                mean = 0.0
             if stddev is None:
-                stddev = torch.FloatTensor([1.0])
-            self.scaler = scaler(mean, stddev)
+                stddev = 1.0
+            self.scaler = scaler(torch.FloatTensor([mean]), torch.FloatTensor([stddev]))
 
     def forward(self, x: Tensor, batch_idx: Tensor | None = None) -> Tensor:
         """Compute global property from node embeddings.
@@ -222,9 +227,12 @@ class SchNetOutBlock(nn.Module):
             Tensor: graph-wise property of (n_batch, out_dim) shape.
         """
         out = self.output_lin(x)
+        # aggregation
+        out = out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        # scaler
         if self.scaler is not None:
             out = self.scaler(out)
-        return scatter(out, index=batch_idx, dim=0, reduce=self.aggr)
+        return out
 
 
 class SchNet(BaseGNN):
@@ -239,14 +247,13 @@ class SchNet(BaseGNN):
         n_rad (int): number of gaussian radial basis.
         activation (str, optional): name of activation function. Defaults to `"shifted_softplus"`.
         cutoff (float, optional): cutoff radius. Defaults to `4.0`.
-        cutoff_net (nn.Module, optional): cutoff networck. Defaults to `CosineCutoff`.
+        cutoff_net (type[CosineCutoff], optional): cutoff networck. Defaults to `CosineCutoff`.
         aggr ("add" or "mean", optional): aggregation method. Defaults to `"add"`.
-        scaler (nn.Module, optional): scaler network. Defaults to `pyg_material.nn.scale.ShiftScaler`.
+        scaler (type[pyg_material.nn.BaseScaler], optional): output scaler network. Defaults to `pyg_material.nn.ShiftScaler`.
         mean (float, optional): mean of node property. Defaults to `None`.
         stddev (float, optional): standard deviation of node property. Defaults to `None`.
         weight_init (str, optional): name of weight initialization function. Defaults to `"xavier_uniform_"`.
         share_weight (bool, optional): share weight parameter in all convolution. Defaults to `False`.
-        out_hidden_dim (int, optional): hidden dimension of output block. Defaults to `128`.
         max_z (int, optional): max atomic number. Defaults to `100`.
 
     Notes:
@@ -256,7 +263,7 @@ class SchNet(BaseGNN):
         SchNet:
             [1] K. T. Schütt et al., J. Chem. Phys. 148, 241722 (2018).
             [2] https://github.com/atomistic-machine-learning/schnetpack
-    """
+    """  # NOQA: E501
 
     def __init__(
         self,
@@ -267,19 +274,18 @@ class SchNet(BaseGNN):
         n_rad: int,
         activation: str = "shifted_softplus",
         cutoff: float = 4.0,
-        cutoff_net: nn.Module = CosineCutoff,
+        cutoff_net: type[CosineCutoff] | None = CosineCutoff,
         aggr: str = "add",
-        scaler: nn.Module | None = ShiftScaler,
+        scaler: type[BaseScaler] | None = ShiftScaler,
         mean: float | None = None,
         stddev: float | None = None,
         weight_init: str = "xavier_uniform_",
         share_weight: bool = False,
-        out_hidden_dim: int = 128,
         max_z: int | None = 100,
         **kwargs,
     ):
         super().__init__()
-        act: Callable[[Tensor], Tensor] = activation_resolver(activation)
+        act: nn.Module = activation_resolver(activation)
         wi: Callable[[Tensor], Tensor] = init_resolver(weight_init)
 
         self.node_dim = node_dim
@@ -288,11 +294,11 @@ class SchNet(BaseGNN):
         self.n_rad = n_rad
         self.cutoff = cutoff
         self.out_dim = out_dim
-        self.out_hidden_dim = out_hidden_dim
 
         # layers
         self.node_embed = AtomicNum2Node(node_dim, max_z=max_z)
         self.rbf = GaussianRBF(start=0.0, stop=cutoff - 0.5, n_rad=n_rad)
+        self.cutoff_net: nn.Module | None
         if cutoff_net is None:
             self.cutoff_net = None
         else:
@@ -334,7 +340,6 @@ class SchNet(BaseGNN):
 
         self.output = SchNetOutBlock(
             node_dim=node_dim,
-            hidden_dim=out_hidden_dim,
             out_dim=out_dim,
             activation=act,
             aggr=aggr,

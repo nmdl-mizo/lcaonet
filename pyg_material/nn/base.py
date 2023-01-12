@@ -75,7 +75,7 @@ class ResidualBlock(nn.Module):
 
     Args:
         hidden_dim (int): hidden dimension of the Dense layers.
-        activation (Callable, optional): activation function of the Dense layers. Defaults to `nn.SiLU()`.
+        activation (nn.Module, optional): activation function of the Dense layers. Defaults to `nn.SiLU()`.
         n_layers (int, optional): the number of Dense layers. Defaults to `2`.
         weight_init (Callable, optional): weight initialize methods. Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
     """  # NOQA: E501
@@ -83,7 +83,7 @@ class ResidualBlock(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
-        activation: Callable[[Tensor], Tensor] = nn.SiLU(),
+        activation: nn.Module = nn.SiLU(),
         n_layers: int = 2,
         weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
         **kwargs,

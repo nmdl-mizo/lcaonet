@@ -61,7 +61,7 @@ def _resolver(
     raise ValueError(f"{query} not found")
 
 
-def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> Callable[[torch.Tensor], torch.Tensor]:
+def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> torch.nn.Module:
     if isinstance(query, str):
         query = _normalize_string(query)
     base_cls: type = torch.nn.Module
@@ -71,7 +71,8 @@ def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> Call
     ]
     # add Swish and ShiftedSoftplus
     acts += [Swish, ShiftedSoftplus]
-    return _resolver(query, acts, base_cls, **kwargs)
+    return _resolver(query, acts, base_cls, **kwargs)  # type: ignore
+    # Since mypy cannot identify that _resolver returns a Module
 
 
 def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> float:
@@ -103,9 +104,7 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
     return calculate_gain(nonlinearity, **kwargs)
 
 
-def init_resolver(
-    query: Callable | str = "orthogonal",
-) -> Callable[[torch.Tensor], torch.Tensor]:
+def init_resolver(query: Callable | str = "orthogonal") -> Callable[[torch.Tensor], torch.Tensor]:
     if isinstance(query, str):
         query = _normalize_string(query)
 

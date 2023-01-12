@@ -1,6 +1,5 @@
-import pyg_material.cli
-import pyg_material.data
-import pyg_material.model
-import pyg_material.nn
-import pyg_material.train
-import pyg_material.utils
+import pyg_material.data  # NOQA: F401
+import pyg_material.model  # NOQA: F401
+import pyg_material.nn  # NOQA: F401
+import pyg_material.train  # NOQA: F401
+import pyg_material.utils  # NOQA: F401

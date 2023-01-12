@@ -106,7 +106,10 @@ class BesselSBF(nn.Module):
     def __init__(self, n_rad: int, n_sph: int, cutoff: float = 5.0, envelope_exponent: int = 5):
         super().__init__()
 
-        assert n_rad <= 64, "n_rad must be under 64."
+        if n_sph <= 0:
+            raise ValueError("n_sph must be greater than 0.")
+        if n_rad > 64:
+            raise ValueError("n_rad must be under 64.")
         self.n_rad = n_rad
         self.n_sph = n_sph
         self.cutoff = cutoff
@@ -160,27 +163,15 @@ class EdgeEmbed(nn.Module):
         node_dim: int,
         edge_dim: int,
         n_rad: int,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
 
-        self.rbf_lin = Dense(
-            n_rad,
-            edge_dim,
-            bias=False,
-            weight_init=weight_init,
-            **kwargs,
-        )
+        self.rbf_lin = Dense(n_rad, edge_dim, False, weight_init, **kwargs)
         self.edge_embed = nn.Sequential(
-            Dense(
-                2 * node_dim + edge_dim,
-                edge_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(2 * node_dim + edge_dim, edge_dim, True, weight_init, **kwargs),
             activation,
         )
 
@@ -209,7 +200,7 @@ class DimNetInteraction(nn.Module):
         n_rad (int): number of radial basis functions.
         n_sph (int): number of spherical basis functions.
         n_bilinear (int): number of bilinear layers.
-        activation (Callable, optional): activation function. Defaults to `Swish(beta=1.0)`.
+        activation (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         weight_init (Callable, optional): weight initialization function. Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
     """  # NOQA: E501
 
@@ -219,46 +210,22 @@ class DimNetInteraction(nn.Module):
         n_rad: int,
         n_sph: int,
         n_bilinear: int,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
         **kwargs,
     ):
         super().__init__()
         # Dense transformation of basis
-        self.rbf_lin = Dense(
-            n_rad,
-            edge_message_dim,
-            bias=False,
-            weight_init=weight_init,
-            **kwargs,
-        )
-        self.sbf_lin = Dense(
-            n_sph * n_rad,
-            n_bilinear,
-            bias=False,
-            weight_init=weight_init,
-            **kwargs,
-        )
+        self.rbf_lin = Dense(n_rad, edge_message_dim, False, weight_init, **kwargs)
+        self.sbf_lin = Dense(n_sph * n_rad, n_bilinear, False, weight_init, **kwargs)
 
         # Dense transformations of input messages.
         self.kj_lin = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, True, weight_init, **kwargs),
             activation,
         )
         self.ji_lin = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, True, weight_init, **kwargs),
             activation,
         )
 
@@ -273,13 +240,7 @@ class DimNetInteraction(nn.Module):
                 weight_init=weight_init,
                 **kwargs,
             ),
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, True, weight_init, **kwargs),
             activation,
         )
         self.res_after_skip = nn.Sequential(
@@ -349,7 +310,7 @@ class DimeNetOutBlock(nn.Module):
         n_rad (int): number of radial basis function.
         out_dim (int, optional): number of output dimension. Defaults to `1`.
         n_layers (int, optional): number of Dense layers. Defaults to `3`.
-        activation (Callable[[Tensor], Tensor], optional): activation function. Defaults to `Swish(beta=1.0)`.
+        activation (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         aggr (str, optional): aggregation method. Defaults to `"add"`.
         weight_init (Callable[[Tensor], Tensor], optional): weight initialization method. Defaults to `glorot_orthogonal`.
     """  # NOQA: E501
@@ -360,7 +321,7 @@ class DimeNetOutBlock(nn.Module):
         n_rad: int,
         out_dim: int = 1,
         n_layers: int = 3,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         aggr: str = "add",
         weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
         **kwargs,
@@ -370,35 +331,13 @@ class DimeNetOutBlock(nn.Module):
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         # linear layer for radial basis
-        self.rbf_lin = Dense(
-            n_rad,
-            edge_dim,
-            bias=False,
-            weight_init=weight_init,
-            **kwargs,
-        )
+        self.rbf_lin = Dense(n_rad, edge_dim, False, weight_init, **kwargs)
         # linear layer for edge embedding
         denses: list[nn.Module] = []
         for _ in range(n_layers):
-            denses.append(
-                Dense(
-                    edge_dim,
-                    edge_dim,
-                    bias=True,
-                    weight_init=weight_init,
-                    **kwargs,
-                )
-            )
+            denses.append(Dense(edge_dim, edge_dim, True, weight_init, **kwargs))
             denses.append(activation)
-        denses.append(
-            Dense(
-                edge_dim,
-                out_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            )
-        )
+        denses.append(Dense(edge_dim, out_dim, False, weight_init, **kwargs))
         self.denses = nn.Sequential(*denses)
 
     def forward(
@@ -470,7 +409,7 @@ class DimeNet(BaseGNN):
         **kwargs,
     ):
         super().__init__()
-        act: Callable[[Tensor], Tensor] = activation_resolver(activation)
+        act: nn.Module = activation_resolver(activation)
         wi: Callable[[Tensor], Tensor] = init_resolver(weight_init)
 
         self.edge_message_dim = edge_message_dim
@@ -487,13 +426,13 @@ class DimeNet(BaseGNN):
         self.edge_embed = EdgeEmbed(
             node_dim=edge_message_dim,
             edge_dim=edge_message_dim,
-            n_radial=n_rad,
+            n_rad=n_rad,
             activation=act,
             weight_init=wi,
             **kwargs,
         )
         self.rbf = BesselRBF(n_rad, cutoff, envelope_exponent)
-        self.sbf = BesselSBF(n_sph, n_rad, cutoff, envelope_exponent)
+        self.sbf = BesselSBF(n_rad, n_sph, cutoff, envelope_exponent)
 
         self.interactions = nn.ModuleList(
             [
@@ -582,7 +521,7 @@ class DimNetPPInteraction(nn.Module):
         n_sph (int): number of spherical basis.
         edge_down_dim (int): edge down dimension for convolution calculation.
         basis_embed_dim (int): basis embedding dimension.
-        activation (Callable[[Tensor], Tensor], optional): activation function. Defaults to `Swish(beta=1.0)`.
+        activation (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         weight_init (Callable[[Tensor], Tensor], optional): weight initialization function.
             Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
     """
@@ -594,7 +533,7 @@ class DimNetPPInteraction(nn.Module):
         n_sph: int,
         edge_down_dim: int,
         basis_embed_dim: int,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
         **kwargs,
     ):
@@ -602,72 +541,30 @@ class DimNetPPInteraction(nn.Module):
         # Dense transformation of basis
         self.rbf_lin = nn.Sequential(
             Dense(n_rad, basis_embed_dim, bias=False, weight_init=weight_init, **kwargs),
-            Dense(
-                basis_embed_dim,
-                edge_message_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(basis_embed_dim, edge_message_dim, False, weight_init, **kwargs),
         )
         self.sbf_lin = nn.Sequential(
-            Dense(
-                n_sph * n_rad,
-                basis_embed_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
-            Dense(
-                basis_embed_dim,
-                edge_down_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(n_sph * n_rad, basis_embed_dim, False, weight_init, **kwargs),
+            Dense(basis_embed_dim, edge_down_dim, False, weight_init, **kwargs),
         )
 
         # Dense transformations of input messages.
         self.kj_lin = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, True, weight_init, **kwargs),
             activation,
         )
         self.ji_lin = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, True, weight_init, **kwargs),
             activation,
         )
 
         # down and up projection of edge message embedding
         self.down_lin = nn.Sequential(
-            Dense(
-                edge_message_dim,
-                edge_down_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_down_dim, False, weight_init, **kwargs),
             activation,
         )
         self.up_lin = nn.Sequential(
-            Dense(
-                edge_down_dim,
-                edge_message_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_down_dim, edge_message_dim, False, weight_init, **kwargs),
             activation,
         )
 
@@ -679,13 +576,7 @@ class DimNetPPInteraction(nn.Module):
                 weight_init=weight_init,
                 **kwargs,
             ),
-            Dense(
-                edge_message_dim,
-                edge_message_dim,
-                bias=True,
-                weight_init=weight_init,
-                **kwargs,
-            ),
+            Dense(edge_message_dim, edge_message_dim, True, weight_init, **kwargs),
             activation,
         )
         self.res_after_skip = nn.Sequential(
@@ -758,7 +649,7 @@ class DimeNetPPOutBlock(nn.Module):
         out_dim (int, optional): the dimension of output. Defaults to `1`.
         out_up_dim (int, optional): the dimension of output up projection. Defaults to `256`.
         n_layers (int, optional): the number of Dense layers. Defaults to `3`.
-        activation (Callable[[Tensor], Tensor], optional): the activation function. Defaults to `Swish(beta=1.0)`.
+        activation (nn.Module, optional): the activation function. Defaults to `Swish(beta=1.0)`.
         aggr (str, optional): the aggregation method. Defaults to `"add"`.
         weight_init (Callable[[Tensor], Tensor] or None, optional): the weight initialization method.
             Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
@@ -771,7 +662,7 @@ class DimeNetPPOutBlock(nn.Module):
         out_dim: int = 1,
         out_up_dim: int = 256,
         n_layers: int = 3,
-        activation: Callable[[Tensor], Tensor] = Swish(beta=1.0),
+        activation: nn.Module = Swish(beta=1.0),
         aggr: str = "add",
         weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
         **kwargs,
@@ -782,43 +673,15 @@ class DimeNetPPOutBlock(nn.Module):
         self.aggr = aggr
 
         # linear layer for radial basis
-        self.rbf_lin = Dense(
-            n_rad,
-            edge_dim,
-            bias=False,
-            weight_init=weight_init,
-            **kwargs,
-        )
+        self.rbf_lin = Dense(n_rad, edge_dim, False, weight_init, **kwargs)
         # up projection layer
-        self.up_lin = Dense(
-            edge_dim,
-            out_up_dim,
-            bias=False,
-            weight_init=weight_init,
-            **kwargs,
-        )
+        self.up_lin = Dense(edge_dim, out_up_dim, False, weight_init, **kwargs)
         # linear layer for edge embedding
         denses: list[nn.Module] = []
         for _ in range(n_layers):
-            denses.append(
-                Dense(
-                    out_up_dim,
-                    out_up_dim,
-                    bias=True,
-                    weight_init=weight_init,
-                    **kwargs,
-                )
-            )
+            denses.append(Dense(out_up_dim, out_up_dim, True, weight_init, **kwargs))
             denses.append(activation)
-        denses.append(
-            Dense(
-                out_up_dim,
-                out_dim,
-                bias=False,
-                weight_init=weight_init,
-                **kwargs,
-            )
-        )
+        denses.append(Dense(out_up_dim, out_dim, False, weight_init, **kwargs))
         self.denses = nn.Sequential(*denses)
 
     def forward(
@@ -896,7 +759,7 @@ class DimeNetPlusPlus(BaseGNN):
         **kwargs,
     ):
         super().__init__()
-        act: Callable[[torch.Tensor], torch.Tensor] = activation_resolver(activation)
+        act: nn.Module = activation_resolver(activation)
         wi: Callable[[torch.Tensor], torch.Tensor] = init_resolver(weight_init)
 
         self.edge_message_dim = edge_message_dim
@@ -915,13 +778,13 @@ class DimeNetPlusPlus(BaseGNN):
         self.edge_embed = EdgeEmbed(
             node_dim=edge_message_dim,
             edge_dim=edge_message_dim,
-            n_radial=n_rad,
+            n_rad=n_rad,
             activation=act,
             weight_init=wi,
             **kwargs,
         )
         self.rbf = BesselRBF(n_rad, cutoff, envelope_exponent)
-        self.sbf = BesselSBF(n_sph, n_rad, cutoff, envelope_exponent)
+        self.sbf = BesselSBF(n_rad, n_sph, cutoff, envelope_exponent)
 
         self.interactions = nn.ModuleList(
             [
@@ -943,7 +806,7 @@ class DimeNetPlusPlus(BaseGNN):
             [
                 DimeNetPPOutBlock(
                     edge_dim=edge_message_dim,
-                    n_radial=n_rad,
+                    n_rad=n_rad,
                     out_dim=out_dim,
                     out_up_dim=out_up_dim,
                     activation=act,
