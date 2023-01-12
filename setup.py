@@ -11,7 +11,7 @@ install_requires = [
     "h5py",
     "ase",
     "pymatgen==2022.4.19",
-    "torch>=1.7",
+    "torch>=1.13.0",
     "pyg-lib",
     "torch-scatter",
     "torch-sparse",

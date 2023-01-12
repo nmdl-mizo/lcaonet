@@ -330,7 +330,7 @@ class WFOut(nn.Module):
             Dense(hidden_dim, out_dim, False, weight_init),
         )
 
-    def forward(self, x: Tensor, batch_idx: Tensor) -> Tensor:
+    def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
         out = self.out_lin(x)
         return out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
@@ -368,7 +368,7 @@ class WFNet(BaseGNN):
         self.out_layer = WFOut(hidden_dim, out_dim, act, wi)
 
     def forward(self, batch: Batch) -> Tensor:
-        batch_idx = batch.get(DataKeys.Batch_idx)
+        batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
         atom_numbers = batch[DataKeys.Atom_numbers]
         edge_idx = batch[DataKeys.Edge_idx]
 
