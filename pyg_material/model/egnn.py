@@ -26,8 +26,6 @@ class EGNNConv(MessagePassing):
         edge_dim (int): number of edge dimension.
         activation (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         edge_attr_dim (int or `None`, optional): number of another edge attribute dimension. Defaults to `None`.
-        node_hidden (int, optional): dimension of node hidden layers. Defaults to `256`.
-        edge_hidden (int, optional): dimension of edge hidden layers. Defaults to `256`.
         cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
         batch_norm (bool, optional): if set to `False`, no batch normalization is used. Defaults to `False`.
         aggr ("add" or "mean", optional): aggregation method. Defaults to `"add"`.
@@ -40,8 +38,6 @@ class EGNNConv(MessagePassing):
         edge_dim: int,
         activation: nn.Module = Swish(beta=1.0),
         edge_attr_dim: int | None = None,
-        node_hidden: int = 256,
-        edge_hidden: int = 256,
         cutoff_net: nn.Module | None = None,
         batch_norm: bool = False,
         aggr: str = "add",
@@ -54,8 +50,6 @@ class EGNNConv(MessagePassing):
         self.x_dim = x_dim  # name node_dim is already used in super class
         self.edge_dim = edge_dim
         self.edge_attr_dim = edge_attr_dim
-        self.node_hidden = node_hidden
-        self.edge_hidden = edge_hidden
         self.cutoff_net = cutoff_net
         self.batch_norm = batch_norm
 
@@ -67,15 +61,15 @@ class EGNNConv(MessagePassing):
 
         # updata function
         self.edge_lin = nn.Sequential(
-            Dense(x_dim[0] * 2 + 1 + edge_attr_dim, edge_hidden, True, weight_init=weight_init),
+            Dense(x_dim[0] * 2 + 1 + edge_attr_dim, edge_dim, True, weight_init=weight_init),
             activation,
-            Dense(edge_hidden, edge_dim, True, weight_init=weight_init),
+            Dense(edge_dim, edge_dim, True, weight_init=weight_init),
             activation,
         )
         self.node_lin = nn.Sequential(
-            Dense(x_dim[0] + edge_dim, node_hidden, True, weight_init=weight_init),
+            Dense(x_dim[0] + edge_dim, x_dim[1], True, weight_init=weight_init),
             activation,
-            Dense(node_hidden, x_dim[1], True, weight_init=weight_init),
+            Dense(x_dim[1], x_dim[1], True, weight_init=weight_init),
         )
         # attention the edge
         self.atten = nn.Sequential(
@@ -142,7 +136,6 @@ class EGNNOutBlock(nn.Module):
 
     Args:
         node_dim (int): number of input dimension.
-        hidden_dim (int, optional): dimension of hidden layers. Defaults to `128`.
         out_dim (int, optional): number of output dimension. Defaults to `1`.
         activation: (nn.Module, optional): activation function. Defaults to `Swish(beta=1.0)`.
         aggr (`"add"` or `"mean"`): aggregation method. Defaults to `"add"`.
@@ -153,7 +146,6 @@ class EGNNOutBlock(nn.Module):
     def __init__(
         self,
         node_dim: int,
-        hidden_dim: int = 128,
         out_dim: int = 1,
         activation: nn.Module = Swish(beta=1.0),
         aggr: str = "add",
@@ -164,14 +156,14 @@ class EGNNOutBlock(nn.Module):
         assert aggr == "add" or aggr == "mean"
         self.aggr = aggr
         self.node_lin = nn.Sequential(
-            Dense(node_dim, hidden_dim, True, weight_init=weight_init),
+            Dense(node_dim, node_dim, True, weight_init=weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim, True, weight_init=weight_init),
+            Dense(node_dim, node_dim, True, weight_init=weight_init),
         )
         self.out_lin = nn.Sequential(
-            Dense(hidden_dim, hidden_dim, True, weight_init=weight_init),
+            Dense(node_dim, node_dim // 2, True, weight_init=weight_init),
             activation,
-            Dense(hidden_dim, out_dim, False, weight_init=weight_init),
+            Dense(node_dim // 2, out_dim, False, weight_init=weight_init),
         )
 
     def forward(self, x: Tensor, batch_idx: Tensor | None = None) -> Tensor:
@@ -182,10 +174,10 @@ class EGNNOutBlock(nn.Module):
             batch_idx (Tensor, optional): batch index of (n_node) shape. Defaults to `None`.
 
         Returns:
-            Tensor: shape of (n_batch x out_dim).
+            Tensor: output values of (n_batch, out_dim) shape.
         """
         out = self.node_lin(x)
-        out = scatter(out, index=batch_idx, dim=0, reduce=self.aggr)
+        out = out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
         return self.out_lin(out)
 
 
@@ -201,7 +193,6 @@ class EGNN(BaseGNN):
         activation (str, optional): activation function name. Defaults to `"swish"`.
         cutoff (float): cutoff radious. Defaults to `None`.
         cutoff_net (nn.Module, optional): cutoff network. Defaults to `None`.
-        hidden_dim (int, optional): dimension of hidden layers. Defaults to `256`.
         aggr (`"add"` or `"mean"`, optional): aggregation method. Defaults to `"add"`.
         weight_init (str, optional): name of weight initialization function. Defaults to `"glorot_orthogonal"`.
         batch_norm (bool, optional): if `False`, no batch normalization in convolution layers. Defaults to `False`.
@@ -210,11 +201,11 @@ class EGNN(BaseGNN):
 
     Notes:
         PyTorch Geometric:
-        https://pytorch-geometric.readthedocs.io/en/latest/
+            https://pytorch-geometric.readthedocs.io/en/latest/
 
         EGNN:
-        [1] V. G. Satorras et al., arXiv (2021), (available at http://arxiv.org/abs/2102.09844).
-        [2] https://docs.e3nn.org/en/stable/index.html
+            [1] V. G. Satorras et al., arXiv (2021), (available at http://arxiv.org/abs/2102.09844).
+            [2] https://docs.e3nn.org/en/stable/index.html
     """
 
     def __init__(
@@ -224,9 +215,7 @@ class EGNN(BaseGNN):
         n_conv_layer: int,
         out_dim: int,
         activation: str = "swish",
-        cutoff: float | None = None,
         cutoff_net: nn.Module | None = None,
-        hidden_dim: int = 256,
         aggr: str = "add",
         weight_init: str = "glorot_orthogonal",
         batch_norm: bool = False,
@@ -241,17 +230,12 @@ class EGNN(BaseGNN):
         self.node_dim = node_dim
         self.edge_dim = edge_dim
         self.n_conv_layer = n_conv_layer
-        self.cutoff = cutoff
         self.out_dim = out_dim
         self.edge_attr = edge_attr_dim
 
         # layers
         self.node_embed = AtomicNum2Node(node_dim, max_z=max_z)
-        if cutoff_net is None:
-            self.cutoff_net = None
-        else:
-            assert cutoff is not None
-            self.cutoff_net = cutoff_net(cutoff)
+        self.cutoff_net = cutoff_net
 
         self.convs = nn.ModuleList(
             [
@@ -260,8 +244,6 @@ class EGNN(BaseGNN):
                     edge_dim=edge_dim,
                     activation=act,
                     edge_attr_dim=edge_attr_dim,
-                    node_hidden=hidden_dim,
-                    edge_hidden=hidden_dim,
                     cutoff_net=self.cutoff_net,
                     aggr=aggr,
                     batch_norm=batch_norm,
@@ -274,7 +256,6 @@ class EGNN(BaseGNN):
 
         self.output = EGNNOutBlock(
             node_dim=node_dim,
-            hidden_dim=hidden_dim,
             out_dim=out_dim,
             activation=act,
             weight_init=wi,
