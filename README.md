@@ -1,1 +1,1 @@
-# PyGGNNs
+# PyGMaterial
