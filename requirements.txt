@@ -3,6 +3,7 @@ numpy
 sympy
 h5py
 ase
+pymatgen==2022.4.19
 hydra-core==1.2.0
 hydra-colorlog==1.2.0
 hydra-optuna-sweeper==1.2.0

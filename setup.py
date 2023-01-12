@@ -10,7 +10,7 @@ install_requires = [
     "sympy",
     "h5py",
     "ase",
-    "torch>=1.7",
+    "pymatgen==2022.4.19" "torch>=1.7",
     "pyg-lib",
     "torch-scatter",
     "torch-sparse",
