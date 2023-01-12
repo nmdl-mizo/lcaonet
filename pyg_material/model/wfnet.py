@@ -318,10 +318,12 @@ class WFOut(nn.Module):
         out_dim: int,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
+        aggr: str = "sum",
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim
+        self.aggr = aggr
 
         self.out_lin = nn.Sequential(
             activation,
@@ -348,6 +350,7 @@ class WFNet(BaseGNN):
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
         max_z: int = 100,
+        aggr: str = "sum",
         device: str = "cpu",
     ):
         super().__init__()
@@ -365,7 +368,7 @@ class WFNet(BaseGNN):
         self.conv_layers = nn.ModuleList(
             [WFConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
         )
-        self.out_layer = WFOut(hidden_dim, out_dim, act, wi)
+        self.out_layer = WFOut(hidden_dim, out_dim, act, wi, aggr=aggr)
 
     def forward(self, batch: Batch) -> Tensor:
         batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
