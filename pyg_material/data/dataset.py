@@ -29,7 +29,7 @@ class BaseGraphDataset(Dataset):
     def len(self) -> int:
         raise NotImplementedError
 
-    def getitem(self, idx: int) -> Data:
+    def get(self, idx: int) -> Data:
         raise NotImplementedError
 
     def _structure2atoms(self, s: Structure) -> ase.Atoms:
@@ -150,5 +150,5 @@ class List2GraphDataset(BaseGraphDataset):
             raise ValueError("The dataset is empty.")
         return len(self.graph_data_list)
 
-    def getitem(self, idx: int) -> Data:
+    def get(self, idx: int) -> Data:
         return self.graph_data_list[idx]
