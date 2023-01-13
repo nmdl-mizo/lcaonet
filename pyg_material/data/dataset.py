@@ -90,6 +90,22 @@ class BaseGraphDataset(Dataset):
         data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
 
+    def _geometricdata2structure(self, data: Data) -> Structure:
+        """Helper function to convert one `torch_geometric.data.Data` object to
+        `pymatgen.core.Structure`.
+
+        Args:
+            data (torch_geometric.data.Data): one Data object with edge information include pbc.
+
+        Returns:
+            s (pymatgen.core.Structure): one structure object.
+        """
+        pos = data[DataKeys.Position].numpy()
+        atom_num = data[DataKeys.Atom_numbers].numpy()
+        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
+        s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
+        return s
+
     def _set_properties(self, data: Data, k: str, v: int | float | ndarray | Tensor):
         # add a dimension for batching
         if isinstance(v, int) or isinstance(v, float):
@@ -144,6 +160,9 @@ class List2GraphDataset(BaseGraphDataset):
             for k, v in y_values.items():
                 self._set_properties(data, k, v[i])
             self.graph_data_list.append(data)
+
+    def to_structure(self, idx: int) -> Structure:
+        return self._geometricdata2structure(self.graph_data_list[idx])
 
     def len(self) -> int:
         if len(self.graph_data_list) == 0:
