@@ -331,7 +331,6 @@ class WFOut(nn.Module):
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
         aggr: str = "sum",
-        max_z: int = 100,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -345,12 +344,8 @@ class WFOut(nn.Module):
             Dense(hidden_dim, out_dim, False, weight_init),
         )
 
-        self.z_weight = nn.Embedding(max_z, hidden_dim)
-
-    def forward(self, x: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
+    def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
         out = self.out_lin(x)
-        z_weight = self.z_weight(z).sum(-1, keepdim=True)
-        out = out * z_weight
         return out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
 
@@ -385,7 +380,7 @@ class WFNet(BaseGNN):
         self.conv_layers = nn.ModuleList(
             [WFConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
         )
-        self.out_layer = WFOut(hidden_dim, out_dim, act, wi, aggr=aggr, max_z=max_z)
+        self.out_layer = WFOut(hidden_dim, out_dim, act, wi, aggr=aggr)
 
     def forward(self, batch: Batch) -> Tensor:
         batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
@@ -409,6 +404,6 @@ class WFNet(BaseGNN):
             x = x + conv(x, edge_idx, rbfs, coeffs)
 
         # out layer
-        out = self.out_layer(x, atom_numbers, batch_idx)
+        out = self.out_layer(x, batch_idx)
 
         return out
