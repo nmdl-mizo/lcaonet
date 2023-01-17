@@ -142,7 +142,7 @@ def assoc_laguerre(x: Tensor, n: int, k: int) -> Tensor:
 
 
 def R_nl(nq: int, lq: int, a0: Tensor) -> Callable[[Tensor], Tensor]:
-    def r_nl(r):
+    def r_nl(r: Tensor) -> Tensor:
         device = r.device
 
         zeta = 2.0 / nq / a0 * r

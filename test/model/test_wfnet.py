@@ -7,9 +7,28 @@ from pytorch_lightning import seed_everything
 from torch_geometric.data import Data
 
 from pyg_material.data import DataKeys
-from pyg_material.model import WFNet
+from pyg_material.model.wfnet import ELEC_DICT, EmbedCoeffs, WFNet
 
-testdata = [
+
+@pytest.fixture(scope="module")
+def set_seed():
+    seed_everything(42)
+
+
+@pytest.mark.parametrize("embed_dim", [2, 5, 10, 32])
+def test_embed_coeffs(
+    set_seed,  # NOQA: F811
+    embed_dim: int,
+):
+    zs = torch.tensor([i for i in range(95)])
+    ec = EmbedCoeffs(embed_dim, "cpu", 96)
+    coeffs = ec(zs)
+    assert coeffs.size() == (zs.size(0), ec.n_orb, embed_dim)
+    for i, z in enumerate(zs):
+        assert coeffs[i, ELEC_DICT[z] == 0, :].sum().item() == 0
+
+
+param_wfnet = [
     (16, 8, 10, 1, 2.0),
     (16, 32, 10, 1, 2.0),
     (16, 8, 10, 2, 2.0),
@@ -18,7 +37,7 @@ testdata = [
 ]
 
 
-@pytest.mark.parametrize("hidden_dim, down_dim, coeffs_dim, out_dim, cutoff", testdata)
+@pytest.mark.parametrize("hidden_dim, down_dim, coeffs_dim, out_dim, cutoff", param_wfnet)
 def test_wfnet(
     one_graph_data: Data,
     hidden_dim: int,
@@ -27,7 +46,6 @@ def test_wfnet(
     out_dim: int,
     cutoff: float | None,
 ):
-    seed_everything(42)
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item() + 1
     model = WFNet(
         hidden_dim=hidden_dim,
