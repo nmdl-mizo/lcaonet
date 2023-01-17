@@ -268,11 +268,12 @@ class EmbedZ(nn.Module):
         self.coeffs_dim = coeffs_dim
 
         self.z_embed = nn.Embedding(max_z, hidden_dim)
+        # No bias is used to keep coefficient values at 0
         self.coeffs_lin = nn.Sequential(
             activation,
-            Dense(coeffs_dim, hidden_dim, True, weight_init),
+            Dense(coeffs_dim, hidden_dim, False, weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim, True, weight_init),
+            Dense(hidden_dim, hidden_dim, False, weight_init),
         )
 
     def forward(self, z: Tensor, coeffs: Tensor) -> Tensor:
@@ -341,7 +342,9 @@ class WFOut(nn.Module):
             activation,
             Dense(hidden_dim, hidden_dim, True, weight_init),
             activation,
-            Dense(hidden_dim, out_dim, False, weight_init),
+            Dense(hidden_dim, hidden_dim // 2, True, weight_init),
+            activation,
+            Dense(hidden_dim // 2, out_dim, False, weight_init),
         )
 
     def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
