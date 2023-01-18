@@ -349,7 +349,7 @@ class WFOut(nn.Module):
 
     def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
         out = self.out_lin(x)
-        return out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
 
 class WFNet(BaseGNN):
