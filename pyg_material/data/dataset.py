@@ -108,8 +108,14 @@ class BaseGraphDataset(Dataset):
 
     def _set_properties(self, data: Data, k: str, v: int | float | str | ndarray | Tensor, add_batch: bool = True):
         # add a dimension for batching
-        if isinstance(v, int) or isinstance(v, float):
-            # for value
+        if isinstance(v, int):
+            # for int value
+            if add_batch:
+                data[k] = torch.tensor([v], dtype=torch.int64).unsqueeze(0)
+            else:
+                data[k] = torch.tensor([v], dtype=torch.int64)
+        elif isinstance(v, float):
+            # for float value
             if add_batch:
                 data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
             else:
