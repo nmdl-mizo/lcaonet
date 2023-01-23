@@ -106,17 +106,26 @@ class BaseGraphDataset(Dataset):
         s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
         return s
 
-    def _set_properties(self, data: Data, k: str, v: int | float | ndarray | Tensor):
+    def _set_properties(self, data: Data, k: str, v: int | float | ndarray | Tensor, add_batch: bool = True):
         # add a dimension for batching
         if isinstance(v, int) or isinstance(v, float):
             # for value
-            data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
+            if add_batch:
+                data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
+            else:
+                data[k] = torch.tensor([v], dtype=torch.float32)
         elif len(v.shape) == 0:
             # for 0-dim array
-            data[k] = torch.tensor([float(v)], dtype=torch.float32).unsqueeze(0)
+            if add_batch:
+                data[k] = torch.tensor([float(v)], dtype=torch.float32).unsqueeze(0)
+            else:
+                data[k] = torch.tensor([float(v)], dtype=torch.float32)
         else:
             # for array-like
-            data[k] = torch.tensor(v, dtype=torch.float32).unsqueeze(0)
+            if add_batch:
+                data[k] = torch.tensor(v, dtype=torch.float32).unsqueeze(0)
+            else:
+                data[k] = torch.tensor(v, dtype=torch.float32)
 
 
 class List2GraphDataset(BaseGraphDataset):
@@ -128,9 +137,11 @@ class List2GraphDataset(BaseGraphDataset):
         max_neighbors: int = 32,
         self_interaction: bool = False,
         pbc: bool | tuple[bool, ...] = True,
+        remove_batch_key: list[str] | None = None,
     ):
         super().__init__(cutoff, max_neighbors, self_interaction, pbc)
         self.graph_data_list: list[Data] = []
+        self.remove_batch_key = remove_batch_key
         self._preprocess(structures, y_values)
         del structures
         del y_values
@@ -158,7 +169,10 @@ class List2GraphDataset(BaseGraphDataset):
                 s = self._structure2atoms(s)
             data = self._atoms2geometricdata(s)
             for k, v in y_values.items():
-                self._set_properties(data, k, v[i])
+                add_batch = True
+                if self.remove_batch_key is not None and k in self.remove_batch_key:
+                    add_batch = False
+                self._set_properties(data, k, v[i], add_batch)
             self.graph_data_list.append(data)
 
     def to_structure(self, idx: int) -> Structure:
