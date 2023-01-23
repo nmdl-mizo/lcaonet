@@ -106,35 +106,46 @@ class BaseGraphDataset(Dataset):
         s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
         return s
 
+    def _set_data(
+        self,
+        data: Data,
+        k: str,
+        v: int | float | ndarray | Tensor,
+        add_dim: bool,
+        add_batch: bool,
+        dtype: torch.dtype,
+    ):
+        if add_dim:
+            val = torch.tensor([v], dtype=dtype)
+        else:
+            val = torch.tensor(v, dtype=dtype)
+        data[k] = val.unsqueeze(0) if add_batch else val
+
     def _set_properties(self, data: Data, k: str, v: int | float | str | ndarray | Tensor, add_batch: bool = True):
-        # add a dimension for batching
         if isinstance(v, int):
-            # for int value
-            if add_batch:
-                data[k] = torch.tensor([v], dtype=torch.int64).unsqueeze(0)
-            else:
-                data[k] = torch.tensor([v], dtype=torch.int64)
+            self._set_data(data, k, v, add_dim=True, add_batch=add_batch, dtype=torch.long)
         elif isinstance(v, float):
-            # for float value
-            if add_batch:
-                data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
-            else:
-                data[k] = torch.tensor([v], dtype=torch.float32)
+            self._set_data(data, k, v, add_dim=True, add_batch=add_batch, dtype=torch.float32)
         elif isinstance(v, str):
-            # for string
             data[k] = v
         elif len(v.shape) == 0:
             # for 0-dim array
-            if add_batch:
-                data[k] = torch.tensor([float(v)], dtype=torch.float32).unsqueeze(0)
+            if isinstance(v, ndarray):
+                dtype = torch.long if v.dtype == int else torch.float32
+            elif isinstance(v, Tensor):
+                dtype = v.dtype
             else:
-                data[k] = torch.tensor([float(v)], dtype=torch.float32)
+                raise ValueError(f"Unknown type of {v}")
+            self._set_data(data, k, v, add_dim=True, add_batch=add_batch, dtype=dtype)
         else:
             # for array-like
-            if add_batch:
-                data[k] = torch.tensor(v, dtype=torch.float32).unsqueeze(0)
+            if isinstance(v, ndarray):
+                dtype = torch.long if v.dtype == int else torch.float32
+            elif isinstance(v, Tensor):
+                dtype = v.dtype
             else:
-                data[k] = torch.tensor(v, dtype=torch.float32)
+                raise ValueError(f"Unknown type of {v}")
+            self._set_data(data, k, v, add_dim=False, add_batch=add_batch, dtype=dtype)
 
 
 class List2GraphDataset(BaseGraphDataset):
