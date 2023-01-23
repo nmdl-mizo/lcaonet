@@ -106,7 +106,7 @@ class BaseGraphDataset(Dataset):
         s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
         return s
 
-    def _set_properties(self, data: Data, k: str, v: int | float | ndarray | Tensor, add_batch: bool = True):
+    def _set_properties(self, data: Data, k: str, v: int | float | str | ndarray | Tensor, add_batch: bool = True):
         # add a dimension for batching
         if isinstance(v, int) or isinstance(v, float):
             # for value
@@ -114,6 +114,9 @@ class BaseGraphDataset(Dataset):
                 data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
             else:
                 data[k] = torch.tensor([v], dtype=torch.float32)
+        elif isinstance(v, str):
+            # for string
+            data[k] = v
         elif len(v.shape) == 0:
             # for 0-dim array
             if add_batch:
@@ -132,7 +135,7 @@ class List2GraphDataset(BaseGraphDataset):
     def __init__(
         self,
         structures: list[Structure | ase.Atoms],
-        y_values: dict[str, list[int | float | ndarray | Tensor] | ndarray | Tensor],
+        y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
         cutoff: float,
         max_neighbors: int = 32,
         self_interaction: bool = False,
@@ -162,7 +165,7 @@ class List2GraphDataset(BaseGraphDataset):
     def _preprocess(
         self,
         structures: list[Structure | ase.Atoms],
-        y_values: dict[str, list[int | float | ndarray | Tensor] | ndarray | Tensor],
+        y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
     ):
         for i, s in enumerate(structures):
             if isinstance(s, Structure):
