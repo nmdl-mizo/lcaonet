@@ -155,7 +155,7 @@ def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
         f_coeff = 2.0 / nq / a0
 
         al = assoc_laguerre(zeta, nq + lq, 2 * lq + 1)
-        f = f_coeff * torch.exp(-zeta / 2.0) * zeta**lq * al
+        f = f_coeff * torch.exp(-zeta / 2.0) * torch.pow(zeta, lq) * al
 
         return f
 
