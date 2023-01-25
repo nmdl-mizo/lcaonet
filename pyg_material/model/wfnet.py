@@ -357,6 +357,7 @@ class WFNet(BaseGNN):
         weight_init: str | None = "glorotorthogonal",
         max_z: int = 100,
         aggr: str = "sum",
+        learnable_rbf: bool = False,
         device: str = "cpu",
     ):
         super().__init__()
@@ -367,7 +368,7 @@ class WFNet(BaseGNN):
         self.device = device
 
         self.coeffs_embed = EmbedCoeffs(coeffs_dim, device, max_z=max_z)
-        self.wfrbf = RadialWaveBasis(cutoff)
+        self.wfrbf = RadialWaveBasis(cutoff, learnable=learnable_rbf)
 
         self.initial_embed = EmbedZ(hidden_dim, coeffs_dim, act, weight_init=wi, max_z=max_z)
 
