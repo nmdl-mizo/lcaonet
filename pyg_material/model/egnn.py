@@ -177,7 +177,7 @@ class EGNNOutBlock(nn.Module):
             Tensor: output values of (n_batch, out_dim) shape.
         """
         out = self.node_lin(x)
-        out = out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        out = out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
         return self.out_lin(out)
 
 

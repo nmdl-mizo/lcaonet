@@ -80,3 +80,6 @@ class BaseGNN(nn.Module):
         edge_idx_ji = adj_t_row.storage.row()[mask]
 
         return (idx_i, idx_j, tri_idx_i, tri_idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+
+    def num_params(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)

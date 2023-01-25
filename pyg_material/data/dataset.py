@@ -29,7 +29,7 @@ class BaseGraphDataset(Dataset):
     def len(self) -> int:
         raise NotImplementedError
 
-    def getitem(self, idx: int) -> Data:
+    def get(self, idx: int) -> Data:
         raise NotImplementedError
 
     def _structure2atoms(self, s: Structure) -> ase.Atoms:
@@ -90,31 +90,78 @@ class BaseGraphDataset(Dataset):
         data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
 
-    def _set_properties(self, data: Data, k: str, v: int | float | ndarray | Tensor):
-        # add a dimension for batching
-        if isinstance(v, int) or isinstance(v, float):
-            # for value
-            data[k] = torch.tensor([v], dtype=torch.float32).unsqueeze(0)
+    def _geometricdata2structure(self, data: Data) -> Structure:
+        """Helper function to convert one `torch_geometric.data.Data` object to
+        `pymatgen.core.Structure`.
+
+        Args:
+            data (torch_geometric.data.Data): one Data object with edge information include pbc.
+
+        Returns:
+            s (pymatgen.core.Structure): one structure object.
+        """
+        pos = data[DataKeys.Position].numpy()
+        atom_num = data[DataKeys.Atom_numbers].numpy()
+        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
+        s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
+        return s
+
+    def _set_data(
+        self,
+        data: Data,
+        k: str,
+        v: int | float | ndarray | Tensor,
+        add_dim: bool,
+        add_batch: bool,
+        dtype: torch.dtype,
+    ):
+        if add_dim:
+            val = torch.tensor([v], dtype=dtype)
+        else:
+            val = torch.tensor(v, dtype=dtype)
+        data[k] = val.unsqueeze(0) if add_batch else val
+
+    def _set_properties(self, data: Data, k: str, v: int | float | str | ndarray | Tensor, add_batch: bool = True):
+        if isinstance(v, int):
+            self._set_data(data, k, v, add_dim=True, add_batch=add_batch, dtype=torch.long)
+        elif isinstance(v, float):
+            self._set_data(data, k, v, add_dim=True, add_batch=add_batch, dtype=torch.float32)
+        elif isinstance(v, str):
+            data[k] = v
         elif len(v.shape) == 0:
             # for 0-dim array
-            data[k] = torch.tensor([float(v)], dtype=torch.float32).unsqueeze(0)
+            if isinstance(v, ndarray):
+                dtype = torch.long if v.dtype == int else torch.float32
+            elif isinstance(v, Tensor):
+                dtype = v.dtype
+            else:
+                raise ValueError(f"Unknown type of {v}")
+            self._set_data(data, k, v, add_dim=True, add_batch=add_batch, dtype=dtype)
         else:
             # for array-like
-            data[k] = torch.tensor(v, dtype=torch.float32).unsqueeze(0)
+            if isinstance(v, ndarray):
+                dtype = torch.long if v.dtype == int else torch.float32
+            elif isinstance(v, Tensor):
+                dtype = v.dtype
+            else:
+                raise ValueError(f"Unknown type of {v}")
+            self._set_data(data, k, v, add_dim=False, add_batch=add_batch, dtype=dtype)
 
 
 class List2GraphDataset(BaseGraphDataset):
     def __init__(
         self,
         structures: list[Structure | ase.Atoms],
-        y_values: dict[str, list[int | float | ndarray | Tensor] | ndarray | Tensor],
+        y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
         cutoff: float,
         max_neighbors: int = 32,
         self_interaction: bool = False,
         pbc: bool | tuple[bool, ...] = True,
+        remove_batch_key: list[str] | None = None,
     ):
         super().__init__(cutoff, max_neighbors, self_interaction, pbc)
         self.graph_data_list: list[Data] = []
+        self.remove_batch_key = remove_batch_key
         self._preprocess(structures, y_values)
         del structures
         del y_values
@@ -135,20 +182,26 @@ class List2GraphDataset(BaseGraphDataset):
     def _preprocess(
         self,
         structures: list[Structure | ase.Atoms],
-        y_values: dict[str, list[int | float | ndarray | Tensor] | ndarray | Tensor],
+        y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
     ):
         for i, s in enumerate(structures):
             if isinstance(s, Structure):
                 s = self._structure2atoms(s)
             data = self._atoms2geometricdata(s)
             for k, v in y_values.items():
-                self._set_properties(data, k, v[i])
+                add_batch = True
+                if self.remove_batch_key is not None and k in self.remove_batch_key:
+                    add_batch = False
+                self._set_properties(data, k, v[i], add_batch)
             self.graph_data_list.append(data)
+
+    def to_structure(self, idx: int) -> Structure:
+        return self._geometricdata2structure(self.graph_data_list[idx])
 
     def len(self) -> int:
         if len(self.graph_data_list) == 0:
             raise ValueError("The dataset is empty.")
         return len(self.graph_data_list)
 
-    def getitem(self, idx: int) -> Data:
+    def get(self, idx: int) -> Data:
         return self.graph_data_list[idx]

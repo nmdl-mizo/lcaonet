@@ -228,7 +228,7 @@ class SchNetOutBlock(nn.Module):
         """
         out = self.output_lin(x)
         # aggregation
-        out = out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        out = out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
         # scaler
         if self.scaler is not None:
             out = self.scaler(out)

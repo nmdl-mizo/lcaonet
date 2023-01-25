@@ -73,7 +73,8 @@ def test_dimenet(
 
         with torch.no_grad():
             out = model(one_graph_data)
-            assert out.size() == (out_dim,)
+            # no batch
+            assert out.size() == (1, out_dim)
 
             jit = torch.jit.export(model)
             assert torch.allclose(jit(one_graph_data), out)
@@ -84,7 +85,8 @@ def test_dimenet(
         for _ in range(100):
             optimizer.zero_grad()
             out = model(one_graph_data)
-            loss = F.l1_loss(out, torch.ones((out_dim,)))
+            # no batch
+            loss = F.l1_loss(out, torch.ones((1, out_dim)))
             loss.backward()
             optimizer.step()
             min_loss = min(float(loss), min_loss)
@@ -163,7 +165,8 @@ def test_dimenet_plus_plus(
 
         with torch.no_grad():
             out = model(one_graph_data)
-            assert out.size() == (out_dim,)
+            # no batch
+            assert out.size() == (1, out_dim)
 
             jit = torch.jit.export(model)
             assert torch.allclose(jit(one_graph_data), out)
@@ -174,7 +177,7 @@ def test_dimenet_plus_plus(
         for _ in range(100):
             optimizer.zero_grad()
             out = model(one_graph_data)
-            loss = F.l1_loss(out, torch.ones((out_dim,)))
+            loss = F.l1_loss(out, torch.ones((1, out_dim)))
             loss.backward()
             optimizer.step()
             min_loss = min(float(loss), min_loss)
