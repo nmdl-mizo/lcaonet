@@ -506,7 +506,7 @@ class DimeNet(BaseGNN):
             out += ob(m, rbf, idx_i, num_nodes=atom_numbers.size(0))
 
         # aggregation each batch
-        return out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
 
 # DimeNetPlusPlus
@@ -860,4 +860,4 @@ class DimeNetPlusPlus(BaseGNN):
             out += ob(m, rbf, idx_i, num_nodes=atom_numbers.size(0))
 
         # aggregation each batch
-        return out.sum(dim=0) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)

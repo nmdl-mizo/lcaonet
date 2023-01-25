@@ -54,7 +54,6 @@ def test_wfnet(
         out_dim=out_dim,
         n_conv_layer=2,
         cutoff=cutoff,
-        standarize_basis=True if cutoff is not None else False,
         activation="Silu",
         weight_init="glorot_orthogonal",
         max_z=max_z,
@@ -63,7 +62,8 @@ def test_wfnet(
 
     with torch.no_grad():
         out = model(one_graph_data)
-        assert out.size() == (out_dim,)
+        # no batch
+        assert out.size() == (1, out_dim)
 
         jit = torch.jit.export(model)
         assert torch.allclose(jit(one_graph_data), out)
@@ -74,7 +74,7 @@ def test_wfnet(
     for _ in range(100):
         optimizer.zero_grad()
         out = model(one_graph_data)
-        loss = F.l1_loss(out, torch.ones((out_dim,)))
+        loss = F.l1_loss(out, torch.ones((1, out_dim)))
         loss.backward()
         optimizer.step()
         min_loss = min(float(loss), min_loss)
