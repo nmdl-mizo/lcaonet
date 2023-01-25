@@ -141,8 +141,8 @@ def assoc_laguerre(x: Tensor, n: int, k: int) -> Tensor:
     return torch.sum(m / denomi * x, dim=-1) * torch.pow(nume, 2)
 
 
-def R_nl(nq: int, lq: int, a0: Tensor) -> Callable[[Tensor], Tensor]:
-    def r_nl(r: Tensor) -> Tensor:
+def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
+    def r_nl(r: Tensor, a0: Tensor) -> Tensor:
         device = r.device
 
         zeta = 2.0 / nq / a0 * r
@@ -162,13 +162,15 @@ def R_nl(nq: int, lq: int, a0: Tensor) -> Callable[[Tensor], Tensor]:
 class RadialWaveBasis(nn.Module):
     n_radial: int = ELEC_DICT.size(-1)
 
-    def __init__(self, cutoff: float | None, standarize: bool = True):
+    def __init__(self, cutoff: float | None = None, radius: float = 0.529, learnable: bool = False):
         super().__init__()
-        if standarize:
-            assert cutoff is not None
         self.cutoff = cutoff
-        self.stadarize = standarize
-        self.a0 = nn.Parameter(torch.ones((1,)) * 0.529)
+        self.radius = radius
+        self.learnable = learnable
+        if self.learnable:
+            self.a0 = nn.Parameter(torch.ones((1,)) * self.radius)
+        else:
+            self.register_buffer("a0", torch.ones((1,)) * self.radius)
 
         nl_list = [
             (1, 0),  # 1s
@@ -191,26 +193,12 @@ class RadialWaveBasis(nn.Module):
             (6, 2),  # 6d
         ]
         self.basis_func = []
-        self.normalize_coeff = []
         for n, l in nl_list:
-            r_nl = R_nl(n, l, self.a0)
+            r_nl = R_nl(n, l)
             self.basis_func.append(r_nl)
-            if self.stadarize:
-                self.normalize_coeff.append(self._standarized_coeff(r_nl))
-
-    def _standarized_coeff(self, func: Callable[[Tensor], Tensor], n_gird: int = 10000):
-        cutoff = self.cutoff if self.cutoff is not None else 10.0
-        with torch.no_grad():
-            area = torch.linspace(0.001, cutoff, n_gird)
-            rbf = func(area)
-        return 1 / (torch.sqrt(torch.sum(rbf**2, dim=0, keepdim=True)) + 1e-12)
 
     def forward(self, dist: Tensor) -> Tensor:
-        device = dist.device
-        if self.stadarize:
-            rbf = torch.stack([f(dist) * n.to(device) for f, n in zip(self.basis_func, self.normalize_coeff)], dim=1)
-        else:
-            rbf = torch.stack([f(dist) for f in self.basis_func], dim=1)
+        rbf = torch.stack([f(dist, self.a0) for f in self.basis_func], dim=1)
         return rbf
 
 
@@ -320,6 +308,7 @@ class WFConv(nn.Module):
 
         # get rbf values
         rbfs = torch.einsum("ed,edh->eh", rbfs, coeffs)
+        rbfs = rbfs / (torch.sqrt(torch.sum(rbfs**2, dim=1, keepdim=True)) + 1e-12)
 
         return self.up_lin(scatter(x[edge_dst] * rbfs, edge_src, dim=0))
 
@@ -361,7 +350,6 @@ class WFNet(BaseGNN):
         out_dim: int = 1,
         n_conv_layer: int = 3,
         cutoff: float | None = 3.5,
-        standarize_basis: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
         max_z: int = 100,
@@ -376,7 +364,7 @@ class WFNet(BaseGNN):
         self.device = device
 
         self.coeffs_embed = EmbedCoeffs(coeffs_dim, device, max_z=max_z)
-        self.wfrbf = RadialWaveBasis(cutoff, standarize=standarize_basis)
+        self.wfrbf = RadialWaveBasis(cutoff)
 
         self.initial_embed = EmbedZ(hidden_dim, coeffs_dim, act, weight_init=wi, max_z=max_z)
 
