@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
@@ -143,21 +144,20 @@ def assoc_laguerre(x: Tensor, n: int, k: int) -> Tensor:
 
 def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
     def r_nl(r: Tensor, a0: Tensor) -> Tensor:
-        # device = r.device
-
         zeta = 2.0 / nq / a0 * r
         # # Standardization in all spaces
+        # device = r.device
         # f_coeff = -(
         #     ((2.0 / nq / a0) ** 3 * factorial(nq - lq - 1).to(device) / 2.0 / nq / (factorial(nq + lq).to(device) ** 3)) # NOQA: E501
         #     ** (1.0 / 2.0)
         # )
         # no standardization
-        f_coeff = 2.0 / nq / a0
+        f_coeff = -2.0 / nq / a0
 
         al = assoc_laguerre(zeta, nq + lq, 2 * lq + 1)
-        f = f_coeff * torch.exp(-zeta / 2.0) * torch.pow(zeta, lq) * al
+        o = f_coeff * al * torch.pow(zeta, lq) * torch.exp(-zeta / 2.0)
 
-        return f
+        return o
 
     return r_nl
 
@@ -307,11 +307,11 @@ class WFConv(nn.Module):
 
         coeffs = self.coeffs_lin(coeffs)
         coeffs = coeffs[edge_dst] * coeffs[edge_src] + coeffs[edge_dst]
-        coeffs = coeffs / (torch.sqrt(torch.sum(coeffs**2, dim=1, keepdim=True)) + 1e-12)
+        coeffs = F.normalize(coeffs, dim=-1)
 
         # get rbf values
         rbfs = torch.einsum("ed,edh->eh", rbfs, coeffs)
-        rbfs = rbfs / (torch.sqrt(torch.sum(rbfs**2, dim=1, keepdim=True)) + 1e-12)
+        rbfs = F.normalize(rbfs, dim=-1)
 
         return self.up_lin(scatter(x[edge_dst] * rbfs, edge_src, dim=0))
 
