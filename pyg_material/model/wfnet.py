@@ -143,16 +143,19 @@ def assoc_laguerre(x: Tensor, n: int, k: int) -> Tensor:
 
 def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
     def r_nl(r: Tensor, a0: Tensor) -> Tensor:
-        device = r.device
+        # device = r.device
 
         zeta = 2.0 / nq / a0 * r
-        f_coff = -(
-            ((2.0 / nq / a0) ** 3 * factorial(nq - lq - 1).to(device) / 2.0 / nq / (factorial(nq + lq).to(device) ** 3))
-            ** (1.0 / 2.0)
-        )
+        # # Standardization in all spaces
+        # f_coeff = -(
+        #     ((2.0 / nq / a0) ** 3 * factorial(nq - lq - 1).to(device) / 2.0 / nq / (factorial(nq + lq).to(device) ** 3)) # NOQA: E501
+        #     ** (1.0 / 2.0)
+        # )
+        # no standardization
+        f_coeff = 2.0 / nq / a0
 
         al = assoc_laguerre(zeta, nq + lq, 2 * lq + 1)
-        f = f_coff * torch.exp(-zeta / 2.0) * zeta**lq * al
+        f = f_coeff * torch.exp(-zeta / 2.0) * torch.pow(zeta, lq) * al
 
         return f
 
@@ -354,6 +357,7 @@ class WFNet(BaseGNN):
         weight_init: str | None = "glorotorthogonal",
         max_z: int = 100,
         aggr: str = "sum",
+        learnable_rbf: bool = False,
         device: str = "cpu",
     ):
         super().__init__()
@@ -364,7 +368,7 @@ class WFNet(BaseGNN):
         self.device = device
 
         self.coeffs_embed = EmbedCoeffs(coeffs_dim, device, max_z=max_z)
-        self.wfrbf = RadialWaveBasis(cutoff)
+        self.wfrbf = RadialWaveBasis(cutoff, learnable=learnable_rbf)
 
         self.initial_embed = EmbedZ(hidden_dim, coeffs_dim, act, weight_init=wi, max_z=max_z)
 
