@@ -235,8 +235,8 @@ class List2ChgFiedlDataset(List2GraphDataset):
         node field information."""
         sphere = self._create_sphere(self.out_field_radi, self.in_field_radi, self.field_grid_interval)
         for i, g in enumerate(self.graph_data_list):
-            pos = g[DataKeys.Position]
-            ce = g[DataKeys.Lattice]
+            pos = np.array(g[DataKeys.Position])
+            ce = np.array(g[DataKeys.Lattice][0])
             chg_data = self._preprocess_chgcar(chgcar[i], ce)
 
             # get field data
