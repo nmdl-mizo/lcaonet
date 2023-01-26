@@ -27,10 +27,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install black
 
-      - name: Formatting with Black
-        run: |
-          black -v -l 120 ./pyg_material
-
       - name: Checking with Black
         uses: psf/black@stable
         with:
