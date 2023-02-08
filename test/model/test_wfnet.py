@@ -12,7 +12,7 @@ from pyg_material.model.wfnet import ELEC_DICT, EmbedCoeffs, WFNet
 
 @pytest.fixture(scope="module")
 def set_seed():
-    seed_everything(42)
+    seed_everything(12)
 
 
 @pytest.mark.parametrize("embed_dim", [2, 5, 10, 32])
@@ -29,15 +29,17 @@ def test_embed_coeffs(
 
 
 param_wfnet = [
-    (16, 8, 10, 1, 2.0),
-    (16, 32, 10, 1, 2.0),
-    (16, 8, 10, 2, 2.0),
-    (16, 8, 10, 1, None),
-    (16, 10, 10, 2, None),
+    (16, 8, 10, 1, 2.0, False),
+    (16, 32, 10, 1, 2.0, False),
+    (16, 8, 10, 2, 2.0, False),
+    (16, 8, 10, 2, 2.0, True),
+    (16, 8, 10, 1, None, False),
+    (16, 10, 10, 2, None, False),
+    (16, 10, 10, 2, None, True),
 ]
 
 
-@pytest.mark.parametrize("hidden_dim, down_dim, coeffs_dim, out_dim, cutoff", param_wfnet)
+@pytest.mark.parametrize("hidden_dim, down_dim, coeffs_dim, out_dim, cutoff, assoc_lag", param_wfnet)
 def test_wfnet(
     one_graph_data: Data,
     hidden_dim: int,
@@ -45,6 +47,7 @@ def test_wfnet(
     coeffs_dim: int,
     out_dim: int,
     cutoff: float | None,
+    assoc_lag: bool,
 ):
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item() + 1
     model = WFNet(
@@ -55,6 +58,7 @@ def test_wfnet(
         n_conv_layer=2,
         cutoff=cutoff,
         activation="Silu",
+        assoc_lag=assoc_lag,
         weight_init="glorot_orthogonal",
         max_z=max_z,
         device="cpu",
@@ -74,7 +78,7 @@ def test_wfnet(
     for _ in range(100):
         optimizer.zero_grad()
         out = model(one_graph_data)
-        loss = F.l1_loss(out, torch.ones((1, out_dim)))
+        loss = F.mse_loss(out, torch.ones((1, out_dim)))
         loss.backward()
         optimizer.step()
         min_loss = min(float(loss), min_loss)

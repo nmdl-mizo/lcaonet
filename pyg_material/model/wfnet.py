@@ -142,7 +142,17 @@ def assoc_laguerre(x: Tensor, n: int, k: int) -> Tensor:
     return torch.sum(m / denomi * x, dim=-1) * torch.pow(nume, 2)
 
 
-def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
+def R_nl_assoc_lag(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
+    """RBF with the associated Laguerre polynomial.
+
+    Args:
+        nq (int): principal quantum number.
+        lq (int): azimuthal quantum number.
+
+    Returns:
+        Callable[[Tensor, Tensor], Tensor]: RBF function.
+    """
+
     def r_nl(r: Tensor, a0: Tensor) -> Tensor:
         zeta = 2.0 / nq / a0 * r
         # # Standardization in all spaces
@@ -151,6 +161,7 @@ def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
         #     ((2.0 / nq / a0) ** 3 * factorial(nq - lq - 1).to(device) / 2.0 / nq / (factorial(nq + lq).to(device) ** 3)) # NOQA: E501
         #     ** (1.0 / 2.0)
         # )
+
         # no standardization
         f_coeff = -2.0 / nq / a0
 
@@ -162,18 +173,128 @@ def R_nl(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
     return r_nl
 
 
-class RadialWaveBasis(nn.Module):
+def R_nl_learnable(nq: int) -> Callable[[Tensor, Tensor, Tensor], Tensor]:
+    """RBF with the learnable coefficient and the exponential decay.
+
+    Args:
+        nq (int): principal quantum number.
+
+    Returns:
+        Callable[[Tensor, Tensor, Tensor], Tensor]: RBF function.
+    """
+
+    def r_nl(r: Tensor, coeff: Tensor, zeta: Tensor) -> Tensor:
+        o = coeff * torch.pow(r, nq - 1) * torch.exp(-zeta * r)
+        return o
+
+    return r_nl
+
+
+class EmbedNL(nn.Module):
+    def __init__(
+        self,
+        nl_embed_dim: int = 16,
+        device: str = "cpu",
+        activation: nn.Module = nn.SiLU(),
+        weight_init: Callable[[Tensor], Tensor] | None = None,
+    ):
+        super().__init__()
+        self.nl_embed_dim = nl_embed_dim
+        self.n_orb = SlaterOrbBasis.n_radial
+        self.n_embed = nn.Embedding(8, nl_embed_dim)
+        self.l_embed = nn.Embedding(4, nl_embed_dim)
+        self.coeffs_lin = nn.Sequential(
+            activation,
+            Dense(2 * nl_embed_dim, nl_embed_dim, weight_init=weight_init),
+            activation,
+            Dense(nl_embed_dim, 2, False, weight_init=weight_init),
+        )
+        self.n_list = torch.tensor(
+            [
+                1,  # 1s
+                2,  # 2s
+                2,  # 2p
+                3,  # 3s
+                3,  # 3p
+                4,  # 4s
+                3,  # 3d
+                4,  # 4p
+                5,  # 5s
+                4,  # 4d
+                5,  # 5p
+                6,  # 6s
+                4,  # 4f
+                5,  # 5d
+                6,  # 6p
+                7,  # 7s
+                5,  # 5f
+                6,  # 6d
+            ]
+        ).to(device)
+        self.l_list = torch.tensor(
+            [
+                0,  # 1s
+                0,  # 2s
+                1,  # 2p
+                0,  # 3s
+                1,  # 3p
+                0,  # 4s
+                2,  # 3d
+                1,  # 4p
+                0,  # 5s
+                2,  # 4d
+                1,  # 5p
+                0,  # 6s
+                3,  # 4f
+                2,  # 5d
+                1,  # 6p
+                0,  # 7s
+                3,  # 5f
+                2,  # 6d
+            ]
+        ).to(device)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.n_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
+        self.l_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
+
+    def forward(self) -> tuple[Tensor, Tensor]:
+        """
+        Returns:
+            coeffs (torch.Tensor): coeffs of (n_orb) shape.
+            zeta (torch.Tensor): zeta vectors of (n_orb) shape.
+        """
+        # (n_orb, dim)
+        nq = self.n_embed(self.n_list)
+
+        # (n_orb, dim)
+        lq = self.l_embed(self.l_list)
+
+        # concat and linear transformation
+        # (n_orb, 2 * dim)
+        c = torch.cat([nq, lq], dim=-1)
+        # (n_node, n_orb, dim)
+        c = self.coeffs_lin(c)
+        coeff, zeta = torch.chunk(c, 2, dim=-1)
+
+        return coeff.flatten(), zeta.flatten()
+
+
+class SlaterOrbBasis(nn.Module):
     n_radial: int = ELEC_DICT.size(-1)
 
-    def __init__(self, cutoff: float | None = None, radius: float = 0.529, learnable: bool = False):
+    def __init__(self, cutoff: float | None = None, assoc_lag: bool = False, **kwargs):
         super().__init__()
         self.cutoff = cutoff
-        self.radius = radius
-        self.learnable = learnable
-        if self.learnable:
+        self.assoc_lag = assoc_lag
+        if self.assoc_lag:
+            # if R_nl_assoc_lag func, a0 is always learnable
+            self.radius = 0.529
             self.a0 = nn.Parameter(torch.ones((1,)) * self.radius)
         else:
-            self.register_buffer("a0", torch.ones((1,)) * self.radius)
+            self.nl_embed = EmbedNL(**kwargs)
 
         nl_list = [
             (1, 0),  # 1s
@@ -195,13 +316,30 @@ class RadialWaveBasis(nn.Module):
             (5, 3),  # 5f
             (6, 2),  # 6d
         ]
-        self.basis_func = []
+        self.basis_func_assoc = []
+        self.basis_func_learnable = []
         for n, l in nl_list:
-            r_nl = R_nl(n, l)
-            self.basis_func.append(r_nl)
+            if self.assoc_lag:
+                r_nl_assoc = R_nl_assoc_lag(n, l)
+                self.basis_func_assoc.append(r_nl_assoc)
+            else:
+                r_nl_learnable = R_nl_learnable(n)
+                self.basis_func_learnable.append(r_nl_learnable)
 
     def forward(self, dist: Tensor) -> Tensor:
-        rbf = torch.stack([f(dist, self.a0) for f in self.basis_func], dim=1)
+        """Forward calculation of SlaterOrbBasis.
+
+        Args:
+            dist (Tensor): atomic distances with (n_edge) shape.
+
+        Returns:
+            rbf (Tensor): rbf with (n_edge, n_orb) shape.
+        """
+        if self.assoc_lag:
+            rbf = torch.stack([f(dist, self.a0) for f in self.basis_func_assoc], dim=1)
+        else:
+            coeff, zeta = self.nl_embed()
+            rbf = torch.stack([f(dist, coeff[i], zeta[i]) for i, f in enumerate(self.basis_func_learnable)], dim=1)
         return rbf
 
 
@@ -211,7 +349,7 @@ class EmbedCoeffs(nn.Module):
         embed_dim: int,
         device: str,
         max_z: int = 37,
-        n_orb: int = RadialWaveBasis.n_radial,
+        n_orb: int = SlaterOrbBasis.n_radial,
     ):
         super().__init__()
         self.elec = ELEC_DICT.to(device)
@@ -355,10 +493,11 @@ class WFNet(BaseGNN):
         cutoff: float | None = 3.5,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
+        assoc_lag: bool = False,
         max_z: int = 100,
         aggr: str = "sum",
-        learnable_rbf: bool = False,
         device: str = "cpu",
+        **kwargs,
     ):
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
@@ -367,14 +506,25 @@ class WFNet(BaseGNN):
         self.n_conv_layer = n_conv_layer
         self.device = device
 
-        self.coeffs_embed = EmbedCoeffs(coeffs_dim, device, max_z=max_z)
-        self.wfrbf = RadialWaveBasis(cutoff, learnable=learnable_rbf)
+        # Coeff is used for LCAO and initial embedding
+        self.coeffs_embed = EmbedCoeffs(2 * coeffs_dim, device, max_z=max_z)
+
+        # RBF
+        if assoc_lag:
+            self.wfrbf = SlaterOrbBasis(cutoff, assoc_lag=assoc_lag)
+        else:
+            kwargs["weight_init"] = wi
+            kwargs["activation"] = act
+            kwargs["device"] = device
+            kwargs["nl_embed_dim"] = 32 if kwargs.get("nl_embed_dim") is None else kwargs.get("nl_embed_dim")
+            self.wfrbf = SlaterOrbBasis(cutoff, assoc_lag=assoc_lag, **kwargs)
 
         self.initial_embed = EmbedZ(hidden_dim, coeffs_dim, act, weight_init=wi, max_z=max_z)
 
         self.conv_layers = nn.ModuleList(
             [WFConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
         )
+
         self.out_layer = WFOut(hidden_dim, out_dim, act, wi, aggr=aggr)
 
     def forward(self, batch: Batch) -> Tensor:
@@ -390,13 +540,14 @@ class WFNet(BaseGNN):
 
         # calc coefficent vectors
         coeffs = self.coeffs_embed(atom_numbers)
+        coeff1, coeff2 = torch.chunk(coeffs, 2, dim=-1)
 
         # embedding
-        x = self.initial_embed(atom_numbers, coeffs)
+        x = self.initial_embed(atom_numbers, coeff1)
 
         # conv layers
         for conv in self.conv_layers:
-            x = x + conv(x, edge_idx, rbfs, coeffs)
+            x = x + conv(x, edge_idx, rbfs, coeff2)
 
         # out layer
         out = self.out_layer(x, batch_idx)
