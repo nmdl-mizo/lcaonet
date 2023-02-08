@@ -120,94 +120,32 @@ ELEC_DICT = torch.tensor(
 MAX_IND = [3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11]
 
 
-def factorial(n: int):
-    return torch.tensor([math.factorial(n)])
-
-
-def assoc_laguerre(x: Tensor, n: int, k: int) -> Tensor:
-    device = x.device
-    ranges_1 = torch.tensor([m + k for m in range(n - k + 1)]).to(device)
-    m = torch.pow(-1.0, ranges_1)[None, ...]
-    del ranges_1
-    denomi = (
-        torch.tensor([math.factorial(m) for m in range(n - k + 1)])
-        * torch.tensor([math.factorial(m + k) for m in range(n - k + 1)])
-        * torch.tensor([math.factorial(n - m - k) for m in range(n - k + 1)])
-    )
-    denomi = denomi[None, ...].to(device)
-    ranges_2 = torch.tensor([m for m in range(n - k + 1)]).to(device)
-    x = torch.pow(x[..., None], ranges_2)
-    del ranges_2
-    nume = factorial(n).to(device)
-    return torch.sum(m / denomi * x, dim=-1) * torch.pow(nume, 2)
-
-
-def R_nl_assoc_lag(nq: int, lq: int) -> Callable[[Tensor, Tensor], Tensor]:
-    """RBF with the associated Laguerre polynomial.
-
-    Args:
-        nq (int): principal quantum number.
-        lq (int): azimuthal quantum number.
-
-    Returns:
-        Callable[[Tensor, Tensor], Tensor]: RBF function.
-    """
-
-    def r_nl(r: Tensor, a0: Tensor) -> Tensor:
-        zeta = 2.0 / nq / a0 * r
-        # # Standardization in all spaces
-        # device = r.device
-        # f_coeff = -(
-        #     ((2.0 / nq / a0) ** 3 * factorial(nq - lq - 1).to(device) / 2.0 / nq / (factorial(nq + lq).to(device) ** 3)) # NOQA: E501
-        #     ** (1.0 / 2.0)
-        # )
-
-        # no standardization
-        f_coeff = -2.0 / nq / a0
-
-        al = assoc_laguerre(zeta, nq + lq, 2 * lq + 1)
-        o = f_coeff * al * torch.pow(zeta, lq) * torch.exp(-zeta / 2.0)
-
-        return o
-
-    return r_nl
-
-
-def R_nl_learnable(nq: int) -> Callable[[Tensor, Tensor, Tensor], Tensor]:
-    """RBF with the learnable coefficient and the exponential decay.
-
-    Args:
-        nq (int): principal quantum number.
-
-    Returns:
-        Callable[[Tensor, Tensor, Tensor], Tensor]: RBF function.
-    """
-
+def R_nl(nq: int) -> Callable[[Tensor, Tensor, Tensor], Tensor]:
     def r_nl(r: Tensor, coeff: Tensor, zeta: Tensor) -> Tensor:
-        o = coeff * torch.pow(r, nq - 1) * torch.exp(-zeta * r)
+        o = coeff * torch.pow(r, nq - 1) * torch.exp(-zeta * r**2)
         return o
 
     return r_nl
 
 
-class EmbedNL(nn.Module):
+class OrbNL(nn.Module):
     def __init__(
         self,
-        nl_embed_dim: int = 16,
+        embed_dim: int,
         device: str = "cpu",
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         super().__init__()
-        self.nl_embed_dim = nl_embed_dim
-        self.n_orb = SlaterOrbBasis.n_radial
-        self.n_embed = nn.Embedding(8, nl_embed_dim)
-        self.l_embed = nn.Embedding(4, nl_embed_dim)
+        self.embed_dim = embed_dim
+        self.n_orb = GaussianOrbBasis.n_radial
+        self.n_embed = nn.Embedding(8, embed_dim)
+        self.l_embed = nn.Embedding(4, embed_dim)
         self.coeffs_lin = nn.Sequential(
             activation,
-            Dense(2 * nl_embed_dim, nl_embed_dim, weight_init=weight_init),
+            Dense(2 * embed_dim, embed_dim, weight_init=weight_init),
             activation,
-            Dense(nl_embed_dim, 2, False, weight_init=weight_init),
+            Dense(embed_dim, 2, False, weight_init=weight_init),
         )
         self.n_list = torch.tensor(
             [
@@ -277,24 +215,25 @@ class EmbedNL(nn.Module):
         c = torch.cat([nq, lq], dim=-1)
         # (n_node, n_orb, dim)
         c = self.coeffs_lin(c)
+
         coeff, zeta = torch.chunk(c, 2, dim=-1)
 
         return coeff.flatten(), zeta.flatten()
 
 
-class SlaterOrbBasis(nn.Module):
+class GaussianOrbBasis(nn.Module):
     n_radial: int = ELEC_DICT.size(-1)
 
-    def __init__(self, cutoff: float | None = None, assoc_lag: bool = False, **kwargs):
+    def __init__(
+        self,
+        cutoff: float | None = None,
+        device: str = "cpu",
+        activation: nn.Module = nn.SiLU(),
+        weight_init: Callable[[Tensor], Tensor] | None = None,
+    ):
         super().__init__()
         self.cutoff = cutoff
-        self.assoc_lag = assoc_lag
-        if self.assoc_lag:
-            # if R_nl_assoc_lag func, a0 is always learnable
-            self.radius = 0.529
-            self.a0 = nn.Parameter(torch.ones((1,)) * self.radius)
-        else:
-            self.nl_embed = EmbedNL(**kwargs)
+        self.nl_embed = OrbNL(32, device, activation, weight_init)
 
         nl_list = [
             (1, 0),  # 1s
@@ -316,30 +255,22 @@ class SlaterOrbBasis(nn.Module):
             (5, 3),  # 5f
             (6, 2),  # 6d
         ]
-        self.basis_func_assoc = []
-        self.basis_func_learnable = []
-        for n, l in nl_list:
-            if self.assoc_lag:
-                r_nl_assoc = R_nl_assoc_lag(n, l)
-                self.basis_func_assoc.append(r_nl_assoc)
-            else:
-                r_nl_learnable = R_nl_learnable(n)
-                self.basis_func_learnable.append(r_nl_learnable)
+        self.basis_func: list[Callable[[Tensor, Tensor, Tensor], Tensor]] = []
+        for n, _ in nl_list:
+            r_nl = R_nl(n)
+            self.basis_func.append(r_nl)
 
     def forward(self, dist: Tensor) -> Tensor:
-        """Forward calculation of SlaterOrbBasis.
+        """Forward calculation of GaussianOrbBasis.
 
         Args:
-            dist (Tensor): atomic distances with (n_edge) shape.
+            dist (Tensor): (n_edge) shape.
 
         Returns:
             rbf (Tensor): rbf with (n_edge, n_orb) shape.
         """
-        if self.assoc_lag:
-            rbf = torch.stack([f(dist, self.a0) for f in self.basis_func_assoc], dim=1)
-        else:
-            coeff, zeta = self.nl_embed()
-            rbf = torch.stack([f(dist, coeff[i], zeta[i]) for i, f in enumerate(self.basis_func_learnable)], dim=1)
+        coe, zeta = self.nl_embed()
+        rbf = torch.stack([f(dist, coe[i], zeta[i]) for i, f in enumerate(self.basis_func)], dim=1)
         return rbf
 
 
@@ -347,9 +278,9 @@ class EmbedCoeffs(nn.Module):
     def __init__(
         self,
         embed_dim: int,
-        device: str,
+        device: str = "cpu",
         max_z: int = 37,
-        n_orb: int = SlaterOrbBasis.n_radial,
+        n_orb: int = GaussianOrbBasis.n_radial,
     ):
         super().__init__()
         self.elec = ELEC_DICT.to(device)
@@ -409,7 +340,7 @@ class EmbedZ(nn.Module):
         return self.z_embed(z) + self.coeffs_lin(coeffs).sum(1)
 
 
-class WFConv(nn.Module):
+class GOConv(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
@@ -454,7 +385,7 @@ class WFConv(nn.Module):
         return self.up_lin(scatter(x[edge_dst] * rbfs, edge_src, dim=0))
 
 
-class WFOut(nn.Module):
+class GOOut(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
@@ -482,7 +413,7 @@ class WFOut(nn.Module):
         return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
 
-class WFNet(BaseGNN):
+class GONet(BaseGNN):
     def __init__(
         self,
         hidden_dim: int = 128,
@@ -493,11 +424,9 @@ class WFNet(BaseGNN):
         cutoff: float | None = 3.5,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
-        assoc_lag: bool = False,
         max_z: int = 100,
         aggr: str = "sum",
         device: str = "cpu",
-        **kwargs,
     ):
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
@@ -506,26 +435,15 @@ class WFNet(BaseGNN):
         self.n_conv_layer = n_conv_layer
         self.device = device
 
-        # Coeff is used for LCAO and initial embedding
         self.coeffs_embed = EmbedCoeffs(2 * coeffs_dim, device, max_z=max_z)
-
-        # RBF
-        if assoc_lag:
-            self.wfrbf = SlaterOrbBasis(cutoff, assoc_lag=assoc_lag)
-        else:
-            kwargs["weight_init"] = wi
-            kwargs["activation"] = act
-            kwargs["device"] = device
-            kwargs["nl_embed_dim"] = 32 if kwargs.get("nl_embed_dim") is None else kwargs.get("nl_embed_dim")
-            self.wfrbf = SlaterOrbBasis(cutoff, assoc_lag=assoc_lag, **kwargs)
+        self.wfrbf = GaussianOrbBasis(cutoff, device, act, weight_init=wi)
 
         self.initial_embed = EmbedZ(hidden_dim, coeffs_dim, act, weight_init=wi, max_z=max_z)
 
         self.conv_layers = nn.ModuleList(
-            [WFConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
+            [GOConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
         )
-
-        self.out_layer = WFOut(hidden_dim, out_dim, act, wi, aggr=aggr)
+        self.out_layer = GOOut(hidden_dim, out_dim, act, wi, aggr=aggr)
 
     def forward(self, batch: Batch) -> Tensor:
         batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)

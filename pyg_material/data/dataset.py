@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from numpy import ndarray
 from pymatgen.core import Structure
+from scipy.interpolate import RegularGridInterpolator
 from torch import Tensor
 from torch_geometric.data import Data, Dataset
 
@@ -205,3 +206,126 @@ class List2GraphDataset(BaseGraphDataset):
 
     def get(self, idx: int) -> Data:
         return self.graph_data_list[idx]
+
+
+class List2ChgFiedlDataset(List2GraphDataset):
+    def __init__(
+        self,
+        structures: list[Structure | ase.Atoms],
+        y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
+        chgcar: list[np.ndarray],
+        cutoff: float,
+        out_field_radi: float,
+        in_field_radi: float,
+        field_grid_interval: float,
+        max_neighbors: int = 32,
+        self_interaction: bool = False,
+        pbc: bool | tuple[bool, ...] = True,
+        remove_batch_key: list[str] | None = None,
+    ):
+        super().__init__(structures, y_values, cutoff, max_neighbors, self_interaction, pbc, remove_batch_key)
+        self.out_field_radi = out_field_radi
+        self.in_field_radi = in_field_radi
+        self.field_grid_interval = field_grid_interval
+        self._preprocess_chg(chgcar)
+        del chgcar
+
+    def _preprocess_chg(self, chgcar):
+        """Preprocess the graph information list to make the graph Data with
+        node field information."""
+        sphere = self._create_sphere(self.out_field_radi, self.in_field_radi, self.field_grid_interval)
+        for i, g in enumerate(self.graph_data_list):
+            pos = np.array(g[DataKeys.Position])
+            ce = np.array(g[DataKeys.Lattice][0])
+            chg_data = self._preprocess_chgcar(chgcar[i], ce)
+
+            # get field data
+            ffc = self._create_field(sphere, pos, ce)
+            self._set_chg_interpolator(chg_data)
+            densities = self._get_chg_densities(ffc)
+
+            # add chg info
+            g["field_dens"] = torch.tensor(densities)
+            g["sphere_coords"] = torch.tensor(sphere).unsqueeze(0)
+
+    def _create_sphere(self, out_radius: float, in_radious: float, grid_interval: float) -> np.ndarray:
+        xyz = np.arange(-out_radius, out_radius + 1e-3, grid_interval)
+        sphere = [
+            [x, y, z]
+            for x in xyz
+            for y in xyz
+            for z in xyz
+            if (x**2 + y**2 + z**2 <= out_radius**2)
+            and [x, y, z] != [0, 0, 0]
+            and (x**2 + y**2 + z**2 > in_radious**2)
+        ]
+        return np.array(sphere)
+
+    def _create_field(self, sphere: np.ndarray, coords: np.ndarray, lat_mat: np.ndarray) -> np.ndarray:
+        """Create the grid field of a material.
+
+        Args:
+            sphere (np.ndarray): Sphere to be placed on each atom of a material.
+            coords (np.ndarray): Cartesian coordinates of atoms of a material.
+            lat_mat (np.ndarray): Lattice matrix of a material.
+
+        Returns:
+            ffc (np.ndarray): Fractional coordinates of the grid field shape of (n_node, n_field, 3).
+
+        Notes:
+            ref: https://github.com/masashitsubaki/QuantumDeepField_molecule
+        """
+        fcc_list = [sphere + c for c in coords]
+        fcc = np.array(fcc_list)
+        # fractional coords
+        ffc: np.ndarray = np.array([np.dot(f, np.linalg.inv(lat_mat)) for f in fcc])
+        # move negative to positive, over 1 to less than 1
+        ffc = np.where(ffc < 0, ffc + 1, ffc)
+        ffc = np.where(ffc > 1, ffc - 1, ffc)
+        return ffc
+
+    def _preprocess_chgcar(self, chgcar: np.ndarray, lat_matrix: np.ndarray) -> np.ndarray:
+        """Preprocess the charge density data.
+
+        Args:
+            chgcar (np.ndarray): Charge density data shape of (nx, ny, nz).
+            lat_matrix (np.ndarray): Lattice matrix shape of (3, 3, 3).
+
+        Returns:
+            chgcar (np.ndarray): Preprocessed charge density data shape of (nx, ny, nz).
+        """
+        volume = float(abs(np.dot(np.cross(lat_matrix[0], lat_matrix[1]), lat_matrix[2])))
+        return chgcar / volume
+
+    def _set_chg_interpolator(self, chg_data: np.ndarray):
+        """Set the interpolator for the charge density.
+
+        Args:
+            chg_data (np.ndarray): Charge density data shape of (nx, ny, nz).
+
+        Notes:
+            ref: https://github.com/materialsproject/pymatgen
+        """
+        dim = chg_data.shape
+        xpoints = np.linspace(0.0, 1.0, num=dim[0])
+        ypoints = np.linspace(0.0, 1.0, num=dim[1])
+        zpoints = np.linspace(0.0, 1.0, num=dim[2])
+        self.chg_interpolator = RegularGridInterpolator((xpoints, ypoints, zpoints), chg_data, bounds_error=True)
+
+    def _get_chg_densities(self, ffc: np.ndarray) -> np.ndarray:
+        """Get the charge density at a fractional point (x, y, z).
+
+        Args:
+            ffc (np.ndarray): Fractional coordinates of field shape of (n_node, n_field, 3)
+
+        Returns:
+            d (np.ndarray): Charge densities shape of (n_node, n_field)
+
+        Notes:
+            ref: https://github.com/materialsproject/pymatgen
+        """
+        try:
+            d = self.chg_interpolator(ffc)
+        except AttributeError:
+            raise AttributeError("The interpolator is not set. Please call `self._set_chg_interpolator` first.")
+        return d
