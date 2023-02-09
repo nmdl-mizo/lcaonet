@@ -190,98 +190,6 @@ def R_nl_learnable(nq: int) -> Callable[[Tensor, Tensor, Tensor], Tensor]:
     return r_nl
 
 
-class EmbedNL(nn.Module):
-    def __init__(
-        self,
-        nl_embed_dim: int = 16,
-        device: str = "cpu",
-        activation: nn.Module = nn.SiLU(),
-        weight_init: Callable[[Tensor], Tensor] | None = None,
-    ):
-        super().__init__()
-        self.nl_embed_dim = nl_embed_dim
-        self.n_orb = SlaterOrbBasis.n_radial
-        self.n_embed = nn.Embedding(8, nl_embed_dim)
-        self.l_embed = nn.Embedding(4, nl_embed_dim)
-        self.coeffs_lin = nn.Sequential(
-            activation,
-            Dense(2 * nl_embed_dim, nl_embed_dim, weight_init=weight_init),
-            activation,
-            Dense(nl_embed_dim, 2, False, weight_init=weight_init),
-        )
-        self.n_list = torch.tensor(
-            [
-                1,  # 1s
-                2,  # 2s
-                2,  # 2p
-                3,  # 3s
-                3,  # 3p
-                4,  # 4s
-                3,  # 3d
-                4,  # 4p
-                5,  # 5s
-                4,  # 4d
-                5,  # 5p
-                6,  # 6s
-                4,  # 4f
-                5,  # 5d
-                6,  # 6p
-                7,  # 7s
-                5,  # 5f
-                6,  # 6d
-            ]
-        ).to(device)
-        self.l_list = torch.tensor(
-            [
-                0,  # 1s
-                0,  # 2s
-                1,  # 2p
-                0,  # 3s
-                1,  # 3p
-                0,  # 4s
-                2,  # 3d
-                1,  # 4p
-                0,  # 5s
-                2,  # 4d
-                1,  # 5p
-                0,  # 6s
-                3,  # 4f
-                2,  # 5d
-                1,  # 6p
-                0,  # 7s
-                3,  # 5f
-                2,  # 6d
-            ]
-        ).to(device)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.n_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
-        self.l_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
-
-    def forward(self) -> tuple[Tensor, Tensor]:
-        """
-        Returns:
-            coeffs (torch.Tensor): coeffs of (n_orb) shape.
-            zeta (torch.Tensor): zeta vectors of (n_orb) shape.
-        """
-        # (n_orb, dim)
-        nq = self.n_embed(self.n_list)
-
-        # (n_orb, dim)
-        lq = self.l_embed(self.l_list)
-
-        # concat and linear transformation
-        # (n_orb, 2 * dim)
-        c = torch.cat([nq, lq], dim=-1)
-        # (n_node, n_orb, dim)
-        c = self.coeffs_lin(c)
-        coeff, zeta = torch.chunk(c, 2, dim=-1)
-
-        return coeff.flatten(), zeta.flatten()
-
-
 class SlaterOrbBasis(nn.Module):
     n_radial: int = ELEC_DICT.size(-1)
 
@@ -343,20 +251,108 @@ class SlaterOrbBasis(nn.Module):
         return rbf
 
 
-class EmbedCoeffs(nn.Module):
+class EmbedNL(nn.Module):
     def __init__(
         self,
-        embed_dim: int,
-        device: str,
-        max_z: int = 37,
-        n_orb: int = SlaterOrbBasis.n_radial,
+        nl_hidden_dim: int = 32,
+        device: str = "cpu",
+        activation: nn.Module = nn.SiLU(),
+        weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         super().__init__()
-        self.elec = ELEC_DICT.to(device)
-        self.n_orb = n_orb
-        self.embed_dim = embed_dim
-        self.z_embed = nn.Embedding(max_z, embed_dim, padding_idx=0)
-        self.coeff_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=0) for m in MAX_IND])
+        self.nl_hidden_dim = nl_hidden_dim
+        self.n_orb = SlaterOrbBasis.n_radial
+        self.n_embed = nn.Embedding(8, nl_hidden_dim)
+        self.l_embed = nn.Embedding(4, nl_hidden_dim)
+        self.coeffs_lin = nn.Sequential(
+            activation,
+            Dense(2 * nl_hidden_dim, nl_hidden_dim, weight_init=weight_init),
+            activation,
+            Dense(nl_hidden_dim, nl_hidden_dim, False, weight_init=weight_init),
+        )
+        self.n_list = torch.tensor(
+            [
+                1,  # 1s
+                2,  # 2s
+                2,  # 2p
+                3,  # 3s
+                3,  # 3p
+                4,  # 4s
+                3,  # 3d
+                4,  # 4p
+                5,  # 5s
+                4,  # 4d
+                5,  # 5p
+                6,  # 6s
+                4,  # 4f
+                5,  # 5d
+                6,  # 6p
+                7,  # 7s
+                5,  # 5f
+                6,  # 6d
+            ]
+        ).to(device)
+        self.l_list = torch.tensor(
+            [
+                0,  # 1s
+                0,  # 2s
+                1,  # 2p
+                0,  # 3s
+                1,  # 3p
+                0,  # 4s
+                2,  # 3d
+                1,  # 4p
+                0,  # 5s
+                2,  # 4d
+                1,  # 5p
+                0,  # 6s
+                3,  # 4f
+                2,  # 5d
+                1,  # 6p
+                0,  # 7s
+                3,  # 5f
+                2,  # 6d
+            ]
+        ).to(device)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.n_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
+        self.l_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
+
+    def forward(self) -> tuple[Tensor, Tensor]:
+        """
+        Returns:
+            coeffs (torch.Tensor): coeffs of (n_orb) shape.
+            zeta (torch.Tensor): zeta vectors of (n_orb) shape.
+        """
+        # (n_orb, hidden_dim)
+        nq = self.n_embed(self.n_list)
+
+        # (n_orb, hidden_dim)
+        lq = self.l_embed(self.l_list)
+
+        # concat and linear transformation
+        # (n_orb, 2 * hidden_dim)
+        c = torch.cat([nq, lq], dim=-1)
+
+        # (n_orb, 2)
+        c = self.coeffs_lin(c)
+        coeff, zeta = torch.chunk(c, 2, dim=-1)
+
+        return coeff.flatten(), zeta.flatten()
+
+
+class EmbedZ(nn.Module):
+    def __init__(self, embed_dim: int, max_z: int = 37):
+        super().__init__()
+        self.z_embed = nn.Embedding(max_z, embed_dim)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.z_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
     def forward(self, z: Tensor) -> Tensor:
         """
@@ -364,52 +360,89 @@ class EmbedCoeffs(nn.Module):
             z (torch.Tensor): atomic numbers of (n_node) shape.
 
         Returns:
-            coeffs (torch.Tensor): coefficent vectors of (n_node, n_orb, dim) shape.
+            z_embed (torch.Tensor): coefficent vectors of (n_node, embed_dim) shape.
+        """
+        # (n_node) -> (n_node, embed_dim)
+        z_embed = self.z_embed(z)
+
+        return z_embed
+
+
+class EmbedElec(nn.Module):
+    def __init__(
+        self,
+        embed_dim: int,
+        device: str,
+        n_orb: int = SlaterOrbBasis.n_radial,
+    ):
+        super().__init__()
+        self.elec = ELEC_DICT.to(device)
+        self.n_orb = n_orb
+        self.embed_dim = embed_dim
+        self.elec_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=0) for m in MAX_IND])
+        # !!Caution!! padding_idx parameter stops working when reset_parameter() is called
+
+    def forward(self, z: Tensor, z_embed: Tensor) -> Tensor:
+        """
+        Args:
+            z (torch.Tensor): atomic numbers of (n_node) shape.
+            z_embed (torch.Tensor): embedding of atomic number with (n_node, embed_dim) shape.
+
+        Returns:
+            elec_embed (torch.Tensor): embedding vectors of (n_node, n_orb, embed_dim) shape.
         """
         # (n_node) -> (n_node, n_orb)
         elec = self.elec[z]
         # (n_orb, n_node)
         elec = torch.transpose(elec, 0, 1)
-        # (n_orb, n_node, dim)
-        coeffs = torch.stack([ce(elec[i]) for i, ce in enumerate(self.coeff_embeds)], dim=0)
-        # (n_node, n_orb, dim)
-        coeffs = torch.transpose(coeffs, 0, 1)
+        # (n_orb, n_node, embed_dim)
+        elec_embed = torch.stack([ce(elec[i]) for i, ce in enumerate(self.elec_embeds)], dim=0)
+        # (n_node, n_orb, embed_dim)
+        elec_embed = torch.transpose(elec_embed, 0, 1)
 
-        # (n_node) -> (n_node, 1, dim)
-        z = self.z_embed(z).unsqueeze(1)
-        # inject atomic information to coefficent vectors
-        coeffs = coeffs + coeffs * z
+        # (n_node) -> (n_node, 1, embed_dim)
+        z_embed = z_embed.unsqueeze(1)
+        # inject atomic information to nl_embed vectors
+        elec_embed = elec_embed + elec_embed * z_embed
 
-        return coeffs
+        return elec_embed
 
 
-class EmbedZ(nn.Module):
+class EmbedNode(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
-        coeffs_dim: int,
+        z_dim: int,
+        elec_dim: int,
         activation: nn.Module = nn.SiLU(),
-        max_z: int = 100,
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
-        self.coeffs_dim = coeffs_dim
+        self.z_dim = z_dim
+        self.elec_dim = elec_dim
 
-        self.z_embed = nn.Embedding(max_z, hidden_dim)
-        # No bias is used to keep coefficient values at 0
-        self.coeffs_lin = nn.Sequential(
+        self.elec_z_lin = nn.Sequential(
             activation,
-            Dense(coeffs_dim, hidden_dim, False, weight_init),
+            Dense(z_dim + elec_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, False, weight_init),
         )
 
-    def forward(self, z: Tensor, coeffs: Tensor) -> Tensor:
-        return self.z_embed(z) + self.coeffs_lin(coeffs).sum(1)
+    def forward(self, z_embed: Tensor, elec_embed: Tensor) -> Tensor:
+        """
+        Args:
+            z_embed (torch.Tensor): embedding of atomic number with (n_node, z_dim) shape.
+            elec_embed (torch.Tensor): embedding of nl values with (n_node, n_orb, elec_dim) shape.
+
+        Returns:
+            torch.Tensor: node embedding vector of (n_node, hidden_dim) shape.
+        """
+        elec_z_embed = torch.cat([z_embed, elec_embed.sum(1)], dim=-1)
+        return self.elec_z_lin(elec_z_embed)
 
 
-class WFConv(nn.Module):
+class LCAOConv(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
@@ -454,7 +487,7 @@ class WFConv(nn.Module):
         return self.up_lin(scatter(x[edge_dst] * rbfs, edge_src, dim=0))
 
 
-class WFOut(nn.Module):
+class LCAOOut(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
@@ -482,7 +515,7 @@ class WFOut(nn.Module):
         return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
 
-class WFNet(BaseGNN):
+class LCAONet(BaseGNN):
     def __init__(
         self,
         hidden_dim: int = 128,
@@ -504,10 +537,9 @@ class WFNet(BaseGNN):
         act: nn.Module = activation_resolver(activation)
 
         self.n_conv_layer = n_conv_layer
+        self.hidden_dim = hidden_dim
+        self.coeffs_dim = coeffs_dim
         self.device = device
-
-        # Coeff is used for LCAO and initial embedding
-        self.coeffs_embed = EmbedCoeffs(2 * coeffs_dim, device, max_z=max_z)
 
         # RBF
         if assoc_lag:
@@ -516,20 +548,29 @@ class WFNet(BaseGNN):
             kwargs["weight_init"] = wi
             kwargs["activation"] = act
             kwargs["device"] = device
-            kwargs["nl_embed_dim"] = 32 if kwargs.get("nl_embed_dim") is None else kwargs.get("nl_embed_dim")
+            kwargs["nl_hidden_dim"] = 32 if kwargs.get("nl_hidden_dim") is None else kwargs.get("nl_hidden_dim")
             self.wfrbf = SlaterOrbBasis(cutoff, assoc_lag=assoc_lag, **kwargs)
 
-        self.initial_embed = EmbedZ(hidden_dim, coeffs_dim, act, weight_init=wi, max_z=max_z)
-
-        self.conv_layers = nn.ModuleList(
-            [WFConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
+        # z and elec embedding layers
+        self.node_z_embed_dim = 32  # fix
+        self.node_elec_embed_dim = 32  # fix
+        self.elec_embed_dim = self.coeffs_dim + self.node_elec_embed_dim
+        self.z_embed_dim = self.elec_embed_dim + self.node_z_embed_dim
+        self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
+        self.elec_embed = EmbedElec(embed_dim=self.elec_embed_dim, device=device)
+        self.node_embed = EmbedNode(
+            hidden_dim, z_dim=self.node_z_embed_dim, elec_dim=self.node_elec_embed_dim, activation=act, weight_init=wi
         )
 
-        self.out_layer = WFOut(hidden_dim, out_dim, act, wi, aggr=aggr)
+        self.conv_layers = nn.ModuleList(
+            [LCAOConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
+        )
+
+        self.out_layer = LCAOOut(hidden_dim, out_dim, act, wi, aggr=aggr)
 
     def forward(self, batch: Batch) -> Tensor:
         batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
-        atom_numbers = batch[DataKeys.Atom_numbers]
+        z = batch[DataKeys.Atom_numbers]
         edge_idx = batch[DataKeys.Edge_idx]
 
         # calc atomic distances
@@ -538,16 +579,17 @@ class WFNet(BaseGNN):
         # calc rbf values
         rbfs = self.wfrbf(distances)
 
-        # calc coefficent vectors
-        coeffs = self.coeffs_embed(atom_numbers)
-        coeff1, coeff2 = torch.chunk(coeffs, 2, dim=-1)
+        # calc node and coefficent vectors
+        z_embed = self.z_embed(z)
+        z_embed1, z_embed2 = torch.split(z_embed, [self.elec_embed_dim, self.node_z_embed_dim], dim=-1)
 
-        # embedding
-        x = self.initial_embed(atom_numbers, coeff1)
+        elec_embed = self.elec_embed(z, z_embed1)
+        elec_embed1, elec_embed2 = torch.split(elec_embed, [self.coeffs_dim, self.node_elec_embed_dim], dim=-1)
+        x = self.node_embed(z_embed2, elec_embed2)
 
         # conv layers
         for conv in self.conv_layers:
-            x = x + conv(x, edge_idx, rbfs, coeff2)
+            x = x + conv(x, edge_idx, rbfs, elec_embed1)
 
         # out layer
         out = self.out_layer(x, batch_idx)

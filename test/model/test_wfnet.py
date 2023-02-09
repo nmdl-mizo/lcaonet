@@ -7,22 +7,24 @@ from pytorch_lightning import seed_everything
 from torch_geometric.data import Data
 
 from pyg_material.data import DataKeys
-from pyg_material.model.wfnet import ELEC_DICT, EmbedCoeffs, WFNet
+from pyg_material.model.wfnet import ELEC_DICT, EmbedElec, EmbedZ, LCAONet
 
 
 @pytest.fixture(scope="module")
 def set_seed():
-    seed_everything(12)
+    seed_everything(42)
 
 
 @pytest.mark.parametrize("embed_dim", [2, 5, 10, 32])
-def test_embed_coeffs(
+def test_embed_elec(
     set_seed,  # NOQA: F811
     embed_dim: int,
 ):
     zs = torch.tensor([i for i in range(95)])
-    ec = EmbedCoeffs(embed_dim, "cpu", 96)
-    coeffs = ec(zs)
+    ez = EmbedZ(embed_dim, 96)
+    z_embed = ez(zs)
+    ec = EmbedElec(embed_dim, "cpu")
+    coeffs = ec(zs, z_embed)
     assert coeffs.size() == (zs.size(0), ec.n_orb, embed_dim)
     for i, z in enumerate(zs):
         assert coeffs[i, ELEC_DICT[z] == 0, :].sum().item() == 0
@@ -40,7 +42,7 @@ param_wfnet = [
 
 
 @pytest.mark.parametrize("hidden_dim, down_dim, coeffs_dim, out_dim, cutoff, assoc_lag", param_wfnet)
-def test_wfnet(
+def test_LCAONet(
     one_graph_data: Data,
     hidden_dim: int,
     down_dim: int,
@@ -50,7 +52,7 @@ def test_wfnet(
     assoc_lag: bool,
 ):
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item() + 1
-    model = WFNet(
+    model = LCAONet(
         hidden_dim=hidden_dim,
         down_dim=down_dim,
         coeffs_dim=coeffs_dim,
@@ -72,7 +74,7 @@ def test_wfnet(
         jit = torch.jit.export(model)
         assert torch.allclose(jit(one_graph_data), out)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     min_loss = float("inf")
     for _ in range(100):
