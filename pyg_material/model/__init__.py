@@ -1,7 +1,7 @@
 from .dimenet import DimeNet, DimeNetPlusPlus
 from .egnn import EGNN
+from .lcaonet import LCAONet
 from .schnet import SchNet
-from .wfnet import LCAONet
 
 __all__ = [
     "DimeNet",
