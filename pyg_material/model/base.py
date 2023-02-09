@@ -13,11 +13,12 @@ class BaseGNN(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def calc_atomic_distances(self, batch: Batch) -> Tensor:
+    def calc_atomic_distances(self, batch: Batch, return_vec: bool = False) -> Tensor | tuple[Tensor, Tensor]:
         """calculate atomic distances for periodic boundary conditions.
 
         Args:
             batch (torch_geometric.data.Batch): material graph batch.
+            return_vec (bool, optional): return distance vector. Defaults to `False`.
 
         Returns:
             distance (torch.Tensor): inter atomic distances of (num_edge) shape.
@@ -38,6 +39,8 @@ class BaseGNN(nn.Module):
             # TODO: einsum can use only Double, change float
             + torch.einsum("ni,nij->nj", batch[DataKeys.Edge_shift], batch[DataKeys.Lattice][edge_batch])
         )
+        if return_vec:
+            return torch.norm(edge_vec, dim=1), edge_vec
         return torch.norm(edge_vec, dim=1)
 
     def get_triplets(self, batch: Batch) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
