@@ -204,26 +204,15 @@ class SlaterOrbBasis(nn.Module):
         else:
             self.nl_embed = EmbedNL(**kwargs)
 
+        # fmt: off
         nl_list = [
-            (1, 0),  # 1s
-            (2, 0),  # 2s
-            (2, 1),  # 2p
-            (3, 0),  # 3s
-            (3, 1),  # 3p
-            (4, 0),  # 4s
-            (3, 2),  # 3d
-            (4, 1),  # 4p
-            (5, 0),  # 5s
-            (4, 2),  # 4d
-            (5, 1),  # 5p
-            (6, 0),  # 6s
-            (4, 3),  # 4f
-            (5, 2),  # 5d
-            (6, 1),  # 6p
-            (7, 0),  # 7s
-            (5, 3),  # 5f
-            (6, 2),  # 6d
+            # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s,
+            (1, 0), (2, 0), (2, 1), (3, 0), (3, 1), (4, 0), (3, 2), (4, 1), (5, 0),
+            # 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d,
+            (4, 2), (5, 1), (6, 0), (4, 3), (5, 2), (6, 1), (7, 0), (5, 3), (6, 2),
         ]
+        # fmt: on
+
         self.basis_func_assoc = []
         self.basis_func_learnable = []
         for n, l in nl_list:
@@ -270,50 +259,21 @@ class EmbedNL(nn.Module):
             activation,
             Dense(nl_hidden_dim, nl_hidden_dim, False, weight_init=weight_init),
         )
+
+        # fmt: off
         self.n_list = torch.tensor(
             [
-                1,  # 1s
-                2,  # 2s
-                2,  # 2p
-                3,  # 3s
-                3,  # 3p
-                4,  # 4s
-                3,  # 3d
-                4,  # 4p
-                5,  # 5s
-                4,  # 4d
-                5,  # 5p
-                6,  # 6s
-                4,  # 4f
-                5,  # 5d
-                6,  # 6p
-                7,  # 7s
-                5,  # 5f
-                6,  # 6d
+                # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d,
+                1, 2, 2, 3, 3, 4, 3, 4, 5, 4, 5, 6, 4, 5, 6, 7, 5, 6,
             ]
         ).to(device)
         self.l_list = torch.tensor(
             [
-                0,  # 1s
-                0,  # 2s
-                1,  # 2p
-                0,  # 3s
-                1,  # 3p
-                0,  # 4s
-                2,  # 3d
-                1,  # 4p
-                0,  # 5s
-                2,  # 4d
-                1,  # 5p
-                0,  # 6s
-                3,  # 4f
-                2,  # 5d
-                1,  # 6p
-                0,  # 7s
-                3,  # 5f
-                2,  # 6d
+                # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d,
+                0, 0, 1, 0, 1, 0, 2, 1, 0, 2, 1, 0, 3, 2, 1, 0, 3, 2,
             ]
         ).to(device)
+        # fmt: on
 
         self.reset_parameters()
 
