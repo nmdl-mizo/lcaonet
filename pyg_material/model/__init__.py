@@ -1,7 +1,7 @@
 from .dimenet import DimeNet, DimeNetPlusPlus
 from .egnn import EGNN
 from .lcaonet import LCAONet
-from .lcaonet_direction import LCAODirectionNet
+from .lcaonet_sph import LCAOSpheNet
 from .schnet import SchNet
 
 __all__ = [
@@ -10,5 +10,5 @@ __all__ = [
     "EGNN",
     "SchNet",
     "LCAONet",
-    "LCAODirectionNet",
+    "LCAOSpheNet",
 ]
