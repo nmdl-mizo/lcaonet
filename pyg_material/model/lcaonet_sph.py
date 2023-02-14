@@ -530,11 +530,11 @@ class LCAOConv(nn.Module):
         # triple conv
         coeffs_kj = coeffs[idx_k] * coeffs[idx_j] + coeffs[idx_k]
         coeffs_kj = F.normalize(coeffs_kj, dim=-1)
-        triple_weight = (shbs * robs[edge_idx_kj]).unsqueeze(-1) * coeffs_kj
-        triple_weight = scatter(triple_weight, edge_idx_ji, dim=0, dim_size=robs.size(0))
+        three_body_weight = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], coeffs_kj)
+        three_body_weight = scatter(three_body_weight, edge_idx_ji, dim=0, dim_size=robs.size(0))
 
         coeffs_ji = coeffs[edge_dst] * coeffs[edge_src] + coeffs[edge_dst]
-        coeffs_ji = coeffs_ji * triple_weight
+        coeffs_ji = coeffs_ji * three_body_weight.unsqueeze(1)
         coeffs_ji = F.normalize(coeffs_ji, dim=-1)
         # LCAO conv: summation of all orbitals multiplied by coefficient vectors
         robs = torch.einsum("ed,edh->eh", robs, coeffs_ji)
