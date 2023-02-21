@@ -560,11 +560,11 @@ class LCAOConv(nn.Module):
             activation,
             Dense(conv_dim, 2 * conv_dim, False, weight_init),
         )
-        self.node_before_lin = Dense(hidden_dim, conv_dim, True, weight_init)
+        self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         self.node_lin = nn.Sequential(
             activation,
-            Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
+            Dense(2 * conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
         )
@@ -588,11 +588,12 @@ class LCAOConv(nn.Module):
         cji = self.coeffs_before_lin(cji)
         cji, ckj = torch.chunk(cji, 2, dim=-1)
         x = self.node_before_lin(x)
+        x, xk = torch.chunk(x, 2, dim=-1)
 
         # triple conv
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
-        xk = torch.sigmoid(x[tri_idx_k])
+        xk = torch.sigmoid(xk[tri_idx_k])
 
         three_body_orbs = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], ckj)
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
