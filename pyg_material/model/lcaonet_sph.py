@@ -562,10 +562,6 @@ class LCAOConv(nn.Module):
         )
         self.node_before_lin = Dense(hidden_dim, conv_dim, True, weight_init)
 
-        self.three_lin = nn.Sequential(
-            activation,
-            Dense(conv_dim, 2 * conv_dim, True, weight_init),
-        )
         self.node_lin = nn.Sequential(
             activation,
             Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
@@ -601,7 +597,7 @@ class LCAOConv(nn.Module):
         three_body_orbs = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], ckj)
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
         three_body_orbs = three_body_orbs * xk
-        three_body_w = self.three_lin(scatter(three_body_orbs, edge_idx_ji, dim=0, dim_size=robs.size(0)))
+        three_body_w = scatter(three_body_orbs, edge_idx_ji, dim=0, dim_size=robs.size(0))
         # threebody orbital information is injected to the coefficient vector
         cji = cji + cji * three_body_w.unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
