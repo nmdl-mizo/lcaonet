@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 __version__ = "0.0.1"
-URL = "https://github.com/nmdl-mizo/pyg_material"
+URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
 install_requires = [
@@ -36,9 +36,9 @@ dev_requires = test_requires + [
 ]
 
 setup(
-    name="pyg_material",
+    name="lcaonet",
     version=__version__,
-    description="PyGMaterial - GNNs for Materials Informatics implemented in PyTorch Geometric",
+    description="LCAONet - GNN including orbital interaction, physically motivatied by the LCAO method.",
     author="Kento Nishio",
     author_email="knishio@iis.u-tokyo.ac.jp",
     url=URL,
@@ -46,11 +46,11 @@ setup(
         "deep-learning",
         "pytorch",
         "graph-neural-networks",
-        "graph-convolutional-networks",
+        "graph-convolutional-neural-networks",
         "materials-informatics",
         "machine-learning-interatomic-potential",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     install_requires=install_requires,
     extras_require={
         "test": test_requires,
