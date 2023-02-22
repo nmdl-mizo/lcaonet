@@ -1,1 +1,1 @@
-# PyGMaterial
+# LCAONet
