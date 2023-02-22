@@ -116,13 +116,36 @@ ELEC_TABLE = torch.tensor(
         [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 2, 1],  # Pa
         [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 3, 1],  # U
         [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 4, 1],  # Np
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 6, 0],  # Pu (94)
+        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 6, 0],  # Pu
         [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 7, 0],  # Am
         [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 7, 1],  # Cm (96)
     ]
 )
 MAX_IDX = [3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11]
-ORB_SPH = 37
+N_ORB_BIG = 37
+
+# fmt: off
+NL_LIST_BIG: list[tuple[int, int]] = [
+    (1, 0),                             # 1s
+    (2, 0),                             # 2s
+    (2, 1), (2, 1),                     # 2p
+    (3, 0),                             # 3s
+    (3, 1), (3, 1),                     # 3p
+    (4, 0),                             # 4s
+    (3, 2), (3, 2), (3, 2),             # 3d
+    (4, 1), (4, 1),                     # 4p
+    (5, 0),                             # 5s
+    (4, 2), (4, 2), (4, 2),             # 4d
+    (5, 1), (5, 1),                     # 5p
+    (6, 0),                             # 6s
+    (4, 3), (4, 3), (4, 3), (4, 3),     # 4f
+    (5, 2), (5, 2), (5, 2),             # 5d
+    (6, 1), (6, 1),                     # 6p
+    (7, 0),                             # 7s
+    (5, 3), (5, 3), (5, 3), (5, 3),     # 5f
+    (6, 2), (6, 2), (6, 2),             # 6d
+]
+# fmt: on
 
 
 def modify_elec_table(elec: Tensor = ELEC_TABLE, max_idx: list[int] = MAX_IDX) -> tuple[Tensor, Tensor]:
@@ -146,7 +169,7 @@ def modify_elec_table(elec: Tensor = ELEC_TABLE, max_idx: list[int] = MAX_IDX) -
     # 6d, 6d, 6d,
 
     def modify_one(one_elec: Tensor) -> Tensor:
-        out_elec = torch.zeros((ORB_SPH,), dtype=torch.long)
+        out_elec = torch.zeros((N_ORB_BIG,), dtype=torch.long)
         j = 0
         for i in range(one_elec.size(0)):
             # s
@@ -171,7 +194,7 @@ def modify_elec_table(elec: Tensor = ELEC_TABLE, max_idx: list[int] = MAX_IDX) -
         return out_elec
 
     def modify_max_ind() -> Tensor:
-        out_max_ind = torch.zeros((ORB_SPH,), dtype=torch.long)
+        out_max_ind = torch.zeros((N_ORB_BIG,), dtype=torch.long)
         j = 0
         for i in range(len(max_idx)):
             # s
@@ -195,7 +218,7 @@ def modify_elec_table(elec: Tensor = ELEC_TABLE, max_idx: list[int] = MAX_IDX) -
                     j += 1
         return out_max_ind
 
-    out_elec = torch.zeros((len(elec), ORB_SPH), dtype=torch.long)
+    out_elec = torch.zeros((len(elec), N_ORB_BIG), dtype=torch.long)
     out_max_ind = modify_max_ind()
     for i in range(len(elec)):
         out_elec[i] = modify_one(elec[i])
@@ -206,55 +229,88 @@ def modify_elec_table(elec: Tensor = ELEC_TABLE, max_idx: list[int] = MAX_IDX) -
 ELEC_TABLE_BIG, MAX_IDX_BIG = modify_elec_table()
 
 
-class RadialOrbitalBasis(nn.Module):
-    n_orb: int = ORB_SPH
-    # fmt: off
-    nl_list: list[tuple[int, int]] = [
-        (1, 0),                             # 1s
-        (2, 0),                             # 2s
-        (2, 1), (2, 1),                     # 2p
-        (3, 0),                             # 3s
-        (3, 1), (3, 1),                     # 3p
-        (4, 0),                             # 4s
-        (3, 2), (3, 2), (3, 2),             # 3d
-        (4, 1), (4, 1),                     # 4p
-        (5, 0),                             # 5s
-        (4, 2), (4, 2), (4, 2),             # 4d
-        (5, 1), (5, 1),                     # 5p
-        (6, 0),                             # 6s
-        (4, 3), (4, 3), (4, 3), (4, 3),     # 4f
-        (5, 2), (5, 2), (5, 2),             # 5d
-        (6, 1), (6, 1),                     # 6p
-        (7, 0),                             # 7s
-        (5, 3), (5, 3), (5, 3), (5, 3),     # 5f
-        (6, 2), (6, 2), (6, 2),             # 6d
-    ]
-    # fmt: on
+def get_max_nl_index(max_z: int) -> int:
+    if max_z <= 2:
+        return 0
+    if max_z <= 4:
+        return 1
+    if max_z <= 10:
+        return 3
+    if max_z <= 12:
+        return 4
+    if max_z <= 18:
+        return 6
+    if max_z <= 20:
+        return 7
+    if max_z <= 30:
+        return 10
+    if max_z <= 36:
+        return 12
+    if max_z <= 38:
+        return 13
+    if max_z <= 48:
+        return 16
+    if max_z <= 54:
+        return 18
+    if max_z <= 56:
+        return 19
+    if max_z <= 80:
+        return 26
+    if max_z <= 86:
+        return 28
+    if max_z <= 88:
+        return 29
+    if max_z <= 96:
+        return 36
+    raise ValueError(f"max_z={max_z} is too large")
 
-    def __init__(self, cutoff: float | None = None, stand_in_cutoff: bool = True, radius: float = 0.529):
+
+def get_elec_table(max_z: int, max_idx: int) -> Tensor:
+    return ELEC_TABLE_BIG[: max_z + 1, : max_idx + 1]
+
+
+def get_max_idx(max_z: int) -> Tensor:
+    return MAX_IDX_BIG[: max_z + 1]
+
+
+def get_nl_list(max_idx: int) -> list[tuple[int, int]]:
+    return NL_LIST_BIG[: max_idx + 1]
+
+
+class RadialOrbitalBasis(nn.Module):
+    def __init__(
+        self,
+        cutoff: float | None = None,
+        stand_in_cutoff: bool = True,
+        radius: float = 0.529,
+        max_z: int = 36,
+    ):
         super().__init__()
+        max_idx = get_max_nl_index(max_z)
+        self.n_orb = max_idx + 1
+        self.n_l_list = get_nl_list(max_idx)
         self.cutoff = cutoff
         self.stand_in_cutoff = stand_in_cutoff
         if self.stand_in_cutoff and self.cutoff is None:
             raise ValueError("Cutoff must be specified if standardize is True.")
         self.radius = radius
-        # self.a0 = nn.Parameter(torch.ones((1.0,)) * self.radius)
 
         self.basis_func = []
         self.stand_coeff = []
-        for n, l in RadialOrbitalBasis.nl_list:
-            r_nl = self._R_nl(n, l, self.radius)
+        for n, l in self.n_l_list:
+            r_nl = self._get_r_nl(n, l, self.radius)
             self.basis_func.append(r_nl)
             if self.stand_in_cutoff:
                 self.stand_coeff.append(self._standardized_coeff(r_nl).requires_grad_(True))
 
-    def _R_nl(self, nq: int, lq: int, a0: float = 0.529) -> Callable[[Tensor | float], Tensor | float]:
-        """RBF with the associated Laguerre polynomial.
+    def _get_r_nl(self, nq: int, lq: int, r0: float = 0.529) -> Callable[[Tensor | float], Tensor | float]:
+        """Get RadialOrbitalBasis functions with the associated Laguerre
+        polynomial.
 
         Args:
             nq (int): principal quantum number.
             lq (int): azimuthal quantum number.
-            a0 (float): bohr radius.
+            r0 (float): bohr radius.
 
         Returns:
             r_nl (Callable[[Tensor | float], Tensor | float]): Orbital Basis function.
@@ -269,15 +325,15 @@ class RadialOrbitalBasis(nn.Module):
             ),
         )
         if self.stand_in_cutoff:
-            stand_coeff = -2.0 / nq / a0
+            stand_coeff = -2.0 / nq / r0
         else:
             # standardize in all space
             stand_coeff = -math.sqrt(
-                (2.0 / nq / a0) ** 3 * math.factorial(nq - lq - 1) / 2.0 / nq / math.factorial(nq + lq) ** 3
+                (2.0 / nq / r0) ** 3 * math.factorial(nq - lq - 1) / 2.0 / nq / math.factorial(nq + lq) ** 3
             )
 
         def r_nl(r: Tensor | float) -> Tensor | float:
-            zeta = 2.0 / nq / a0 * r
+            zeta = 2.0 / nq / r0 * r
 
             if isinstance(r, float):
                 return stand_coeff * assoc_lag_coeff(zeta) * zeta**lq * math.exp(-zeta / 2.0)
@@ -297,7 +353,7 @@ class RadialOrbitalBasis(nn.Module):
             return 1 / (torch.sqrt(torch.tensor([inte[0]])) + 1e-12)
 
     def forward(self, dist: Tensor) -> Tensor:
-        """Forward calculation of SlaterOrbBasis.
+        """Forward calculation of RadialOrbitalBasis.
 
         Args:
             dist (Tensor): atomic distances with (n_edge) shape.
@@ -313,23 +369,6 @@ class RadialOrbitalBasis(nn.Module):
         return rbf
 
 
-def _y00(theta: Tensor, phi: Tensor) -> Tensor:
-    r"""
-    Spherical Harmonics with `l=m=0`.
-    ..math::
-        Y_0^0 = \frac{1}{2} \sqrt{\frac{1}{\pi}}
-
-    Args:
-        theta: the azimuthal angle.
-        phi: the polar angle.
-
-    Returns:
-        `Y_0^0`: the spherical harmonics with `l=m=0`.
-    """
-    dtype = theta.dtype
-    return (0.5 * torch.ones_like(theta) * math.sqrt(1.0 / pi)).to(dtype)
-
-
 class SphericalHarmonicsBasis(nn.Module):
     """Layer that expand inter atomic distances and angles in spherical
     harmonics function.
@@ -337,23 +376,46 @@ class SphericalHarmonicsBasis(nn.Module):
     Args:
     """
 
-    def __init__(self, cutoff: float | None = None, stand_in_cutoff: bool = True, radius: float = 0.529):
+    def __init__(
+        self,
+        cutoff: float | None = None,
+        stand_in_cutoff: bool = False,
+        radius: float = 0.529,
+        max_z: int = 36,
+    ):
         super().__init__()
-        self.radial_basis = RadialOrbitalBasis(cutoff=cutoff, stand_in_cutoff=stand_in_cutoff, radius=radius)
+        self.radial_basis = RadialOrbitalBasis(cutoff, stand_in_cutoff, radius=radius, max_z=max_z)
 
         # make spherical basis functions
         self.sph_funcs = self._calculate_symbolic_sh_funcs()
+
+    @staticmethod
+    def _y00(theta: Tensor, phi: Tensor) -> Tensor:
+        r"""
+        Spherical Harmonics with `l=m=0`.
+        ..math::
+            Y_0^0 = \frac{1}{2} \sqrt{\frac{1}{\pi}}
+
+        Args:
+            theta: the azimuthal angle.
+            phi: the polar angle.
+
+        Returns:
+            `Y_0^0`: the spherical harmonics with `l=m=0`.
+        """
+        dtype = theta.dtype
+        return (0.5 * torch.ones_like(theta) * math.sqrt(1.0 / pi)).to(dtype)
 
     def _calculate_symbolic_sh_funcs(self) -> list:
         funcs = []
         theta, phi = sym.symbols("theta phi")
         modules = {"sin": torch.sin, "cos": torch.cos, "conjugate": torch.conj, "sqrt": torch.sqrt, "exp": torch.exp}
-        for nl in RadialOrbitalBasis.nl_list:
+        for nl in self.radial_basis.n_l_list:
             # !! only zero m is used
             m_list = [0]
             for m in m_list:
                 if nl[1] == 0:
-                    funcs.append(_y00)
+                    funcs.append(SphericalHarmonicsBasis._y00)
                 else:
                     func = sym.functions.special.spherical_harmonics.Znm(nl[1], m, theta, phi).expand(func=True)
                     func = sym.simplify(func).evalf()
@@ -384,9 +446,9 @@ class SphericalHarmonicsBasis(nn.Module):
 
 
 class EmbedZ(nn.Module):
-    def __init__(self, embed_dim: int, max_z: int = 37):
+    def __init__(self, embed_dim: int, max_z: int = 36):
         super().__init__()
-        self.z_embed = nn.Embedding(max_z, embed_dim)
+        self.z_embed = nn.Embedding(max_z + 1, embed_dim)
 
         self.reset_parameters()
 
@@ -408,16 +470,13 @@ class EmbedZ(nn.Module):
 
 
 class EmbedElec(nn.Module):
-    def __init__(
-        self,
-        embed_dim: int,
-        device: str,
-    ):
+    def __init__(self, embed_dim: int, max_z: int = 36):
         super().__init__()
-        self.elec = ELEC_TABLE_BIG.to(device)
-        self.n_orb = RadialOrbitalBasis.n_orb
+        max_idx = get_max_nl_index(max_z)
+        self.register_buffer("elec", get_elec_table(max_z, max_idx))
+        self.n_orb = max_idx + 1
         self.embed_dim = embed_dim
-        self.elec_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=0) for m in MAX_IDX_BIG])
+        self.elec_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=0) for m in MAX_IDX_BIG[: self.n_orb]])
         # !!Caution!! padding_idx parameter stops working when reset_parameter() is called
 
     def forward(self, z: Tensor, z_embed: Tensor) -> Tensor:
@@ -429,8 +488,8 @@ class EmbedElec(nn.Module):
         Returns:
             elec_embed (torch.Tensor): embedding vectors of (n_node, n_orb, embed_dim) shape.
         """
-        # (n_node) -> (n_node, n_orb)
-        elec = self.elec[z]
+        # (n_node, n_orb)
+        elec = self.elec[z]  # type: ignore
         # (n_orb, n_node)
         elec = torch.transpose(elec, 0, 1)
         # (n_orb, n_node, embed_dim)
@@ -484,63 +543,80 @@ class LCAOConv(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
-        down_dim: int,
         coeffs_dim: int,
+        conv_dim: int,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
-        self.down_dim = down_dim
         self.coeffs_dim = coeffs_dim
+        self.conv_dim = conv_dim
+
+        # No bias is used to keep 0 coefficient vectors at 0
+        self.coeffs_before_lin = nn.Sequential(
+            activation,
+            Dense(coeffs_dim, conv_dim, False, weight_init),
+            activation,
+            Dense(conv_dim, 2 * conv_dim, False, weight_init),
+        )
+        self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
+
+        self.three_lin = nn.Sequential(
+            activation,
+            Dense(conv_dim, conv_dim, True, weight_init),
+        )
 
         self.node_lin = nn.Sequential(
             activation,
-            Dense(hidden_dim, hidden_dim, True, weight_init),
+            Dense(2 * conv_dim, conv_dim, True, weight_init),
             activation,
-            Dense(hidden_dim, down_dim, True, weight_init),
+            Dense(conv_dim, conv_dim, True, weight_init),
         )
-        # No bias is used to keep coefficient values at 0
-        self.coeffs_lin = nn.Sequential(
-            activation,
-            Dense(coeffs_dim, hidden_dim, False, weight_init),
-            activation,
-            Dense(hidden_dim, down_dim, False, weight_init),
-        )
-        self.up_lin = nn.Sequential(Dense(down_dim, hidden_dim, False, weight_init))
+
+        self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
 
     def forward(
         self,
         x: Tensor,
+        cji: Tensor,
         robs: Tensor,
         shbs: Tensor,
-        coeffs: Tensor,
-        edge_index: Tensor,
+        idx_i: Tensor,
         idx_j: Tensor,
-        idx_k: Tensor,
+        tri_idx_k: Tensor,
         edge_idx_kj: torch.LongTensor,
         edge_idx_ji: torch.LongTensor,
     ) -> Tensor:
-        edge_src, edge_dst = edge_index[0], edge_index[1]
+        x_before = x
 
-        x = self.node_lin(x)
-
-        coeffs = self.coeffs_lin(coeffs)
+        cji = self.coeffs_before_lin(cji)
+        cji, ckj = torch.chunk(cji, 2, dim=-1)
+        x = self.node_before_lin(x)
+        x, xk = torch.chunk(x, 2, dim=-1)
 
         # triple conv
-        coeffs_kj = coeffs[idx_k] * coeffs[idx_j] + coeffs[idx_k]
-        coeffs_kj = F.normalize(coeffs_kj, dim=-1)
-        three_body_weight = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], coeffs_kj)
-        three_body_weight = scatter(three_body_weight, edge_idx_ji, dim=0, dim_size=robs.size(0))
+        ckj = ckj[edge_idx_kj]
+        ckj = F.normalize(ckj, dim=-1)
+        xk = torch.sigmoid(xk[tri_idx_k])
 
-        coeffs_ji = coeffs[edge_dst] * coeffs[edge_src] + coeffs[edge_dst]
-        coeffs_ji = coeffs_ji * three_body_weight.unsqueeze(1)
-        coeffs_ji = F.normalize(coeffs_ji, dim=-1)
+        three_body_orbs = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], ckj)
+        three_body_orbs = F.normalize(three_body_orbs, dim=-1)
+        three_body_orbs = three_body_orbs * xk
+        three_body_w = self.three_lin(scatter(three_body_orbs, edge_idx_ji, dim=0, dim_size=robs.size(0)))
+        # threebody orbital information is injected to the coefficient vector
+        cji = cji + cji * three_body_w.unsqueeze(1)
+        cji = F.normalize(cji, dim=-1)
+
         # LCAO conv: summation of all orbitals multiplied by coefficient vectors
-        robs = torch.einsum("ed,edh->eh", robs, coeffs_ji)
-        robs = F.normalize(robs, dim=-1)
+        lcao_w = torch.einsum("ed,edh->eh", robs, cji)
+        lcao_w = F.normalize(lcao_w, dim=-1)
 
-        return self.up_lin(scatter(x[edge_dst] * robs, edge_src, dim=0))
+        x = x_before + self.node_after_lin(
+            scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+        )
+
+        return x
 
 
 class LCAOOut(nn.Module):
@@ -548,9 +624,9 @@ class LCAOOut(nn.Module):
         self,
         hidden_dim: int,
         out_dim: int,
+        aggr: str = "sum",
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
-        aggr: str = "sum",
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -571,64 +647,61 @@ class LCAOOut(nn.Module):
         return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
 
 
-class LCAOSpheNet(BaseGNN):
+class LCAONet(BaseGNN):
     def __init__(
         self,
         hidden_dim: int = 128,
-        down_dim: int = 64,
-        coeffs_dim: int = 16,
+        coeffs_dim: int = 64,
+        conv_dim: int = 64,
         out_dim: int = 1,
         n_conv_layer: int = 3,
-        cutoff: float | None = 3.5,
+        cutoff: float | None = None,
+        standardize_in_cutoff: bool = False,
+        bohr_radius: float = 0.529,
+        max_z: int = 36,
+        aggr: str = "sum",
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
-        standardize_in_cutoff: bool = True,
-        bohr_radius: float = 0.529,
-        max_z: int = 100,
-        aggr: str = "sum",
-        device: str = "cpu",
     ):
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
         act: nn.Module = activation_resolver(activation)
 
         self.hidden_dim = hidden_dim
-        self.down_dim = down_dim
         self.coeffs_dim = coeffs_dim
+        self.conv_dim = conv_dim
         self.out_dim = out_dim
         self.n_conv_layer = n_conv_layer
-        self.device = device
 
-        # Radial basis
-        self.rob = RadialOrbitalBasis(cutoff, radius=bohr_radius, stand_in_cutoff=standardize_in_cutoff)
-        # Sphereical harmonics basis
-        self.shb = SphericalHarmonicsBasis(cutoff, radius=bohr_radius, stand_in_cutoff=standardize_in_cutoff)
+        # Radial orbital basis layer
+        self.rob = RadialOrbitalBasis(cutoff, standardize_in_cutoff, radius=bohr_radius, max_z=max_z)
+        # Sphereical harmonics basis layer
+        self.shb = SphericalHarmonicsBasis(cutoff, standardize_in_cutoff, radius=bohr_radius, max_z=max_z)
 
-        # z and elec embedding layers
-        self.node_z_embed_dim = 32  # fix
+        # node and coefficient embedding layers
+        self.node_z_embed_dim = 64  # fix
         self.node_elec_embed_dim = 32  # fix
         self.elec_embed_dim = self.coeffs_dim + self.node_elec_embed_dim
         self.z_embed_dim = self.elec_embed_dim + self.node_z_embed_dim
         self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
-        self.elec_embed = EmbedElec(embed_dim=self.elec_embed_dim, device=device)
+        self.elec_embed = EmbedElec(embed_dim=self.elec_embed_dim, max_z=max_z)
         self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, self.node_elec_embed_dim, act, wi)
 
+        # convolutional layers
         self.conv_layers = nn.ModuleList(
-            [LCAOConv(hidden_dim, down_dim, coeffs_dim, act, wi) for _ in range(n_conv_layer)]
+            [LCAOConv(hidden_dim, coeffs_dim, conv_dim, act, wi) for _ in range(n_conv_layer)]
         )
 
-        self.out_layer = LCAOOut(hidden_dim, out_dim, act, wi, aggr=aggr)
+        # output layer
+        self.out_layer = LCAOOut(hidden_dim, out_dim, aggr, act, wi)
 
     def forward(self, batch: Batch) -> Tensor:
         batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
         pos = batch[DataKeys.Position]
         z = batch[DataKeys.Atom_numbers]
-        edge_idx = batch[DataKeys.Edge_idx]
+        idx_i, idx_j = batch[DataKeys.Edge_idx]
 
-        # calc atomic distances
-        distances = self.calc_atomic_distances(batch)
-
-        # get index and triplets
+        # get triplets
         (
             _,
             _,
@@ -639,29 +712,32 @@ class LCAOSpheNet(BaseGNN):
             edge_idx_ji,
         ) = self.get_triplets(batch)
 
+        # calc atomic distances
+        distances = self.calc_atomic_distances(batch)
+
         # calc angle each triplets
-        # arctan is more stable than arccos
         pos_i = pos[tri_idx_i]
         pos_ji, pos_ki = pos[tri_idx_j] - pos_i, pos[tri_idx_k] - pos_i
         inner = (pos_ji * pos_ki).sum(dim=-1)
         outter = torch.cross(pos_ji, pos_ki).norm(dim=-1)
+        # arctan is more stable than arccos
         angle = torch.atan2(outter, inner)
 
-        # calc rbf values
+        # calc basis
         robs = self.rob(distances)
         shbs = self.shb(distances, angle, edge_idx_kj)
 
-        # calc node and coefficent vectors
+        # calc node and coefficient embedding vector
         z_embed = self.z_embed(z)
         z_embed1, z_embed2 = torch.split(z_embed, [self.elec_embed_dim, self.node_z_embed_dim], dim=-1)
-
         elec_embed = self.elec_embed(z, z_embed1)
         elec_embed1, elec_embed2 = torch.split(elec_embed, [self.coeffs_dim, self.node_elec_embed_dim], dim=-1)
+        cji = elec_embed1[idx_j] + elec_embed1[idx_i] * elec_embed1[idx_j]
         x = self.node_embed(z_embed2, elec_embed2)
 
         # conv layers
         for conv in self.conv_layers:
-            x = x + conv(x, robs, shbs, elec_embed1, edge_idx, tri_idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = conv(x, cji, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # out layer
         out = self.out_layer(x, batch_idx)
