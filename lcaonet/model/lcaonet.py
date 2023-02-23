@@ -14,10 +14,10 @@ from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
 
-from pyg_material.data import DataKeys
-from pyg_material.model.base import BaseGNN
-from pyg_material.nn import Dense
-from pyg_material.utils import activation_resolver, init_resolver
+from lcaonet.data import DataKeys
+from lcaonet.model.base import BaseGNN
+from lcaonet.nn import Dense
+from lcaonet.utils import activation_resolver, init_resolver
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
 ELEC_TABLE = torch.tensor(
@@ -449,7 +449,7 @@ class RadialOrbitalBasis(nn.Module):
         for n, l in self.n_l_list:
             r_nl = self._get_r_nl(n, l, self.bohr_radius)
             self.basis_func.append(r_nl)
-            if self.stand_in_cutoff:
+            if self.cutoff is not None:
                 self.stand_coeff.append(self._get_standardized_coeff(r_nl).requires_grad_(True))
 
     def _get_r_nl(self, nq: int, lq: int, r0: float = 0.529) -> Callable[[Tensor | float], Tensor | float]:
