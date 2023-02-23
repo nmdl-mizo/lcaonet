@@ -14,10 +14,10 @@ from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
 
-from pyg_material.data import DataKeys
-from pyg_material.model.base import BaseGNN
-from pyg_material.nn import Dense
-from pyg_material.utils import activation_resolver, init_resolver
+from lcaonet.data import DataKeys
+from lcaonet.model.base import BaseGNN
+from lcaonet.nn import Dense
+from lcaonet.utils import activation_resolver, init_resolver
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
 ELEC_TABLE = torch.tensor(
@@ -122,6 +122,7 @@ ELEC_TABLE = torch.tensor(
     ]
 )
 MAX_IDX = [3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11]
+
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
 OUTER_TABLE = torch.tensor(
     [
@@ -426,6 +427,9 @@ def get_nl_list(max_idx: int) -> list[tuple[int, int]]:
 
 
 class RadialOrbitalBasis(nn.Module):
+    """The layer that expand the interatomic distance with the radial
+    wavefunctions of hydrogen."""
+
     def __init__(
         self,
         cutoff: float | None = None,
@@ -433,6 +437,13 @@ class RadialOrbitalBasis(nn.Module):
         max_z: int = 36,
         max_orb: str | None = None,
     ):
+        """
+        Args:
+            cutoff (float | None, optional): the cutoff radius. Defaults to `None`.
+            bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
+            max_z (int, optional): the maximum atomic number. Defaults to `36`.
+            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+        """
         super().__init__()
         # get elec table
         if max_orb is None:
@@ -449,7 +460,7 @@ class RadialOrbitalBasis(nn.Module):
         for n, l in self.n_l_list:
             r_nl = self._get_r_nl(n, l, self.bohr_radius)
             self.basis_func.append(r_nl)
-            if self.stand_in_cutoff:
+            if self.cutoff is not None:
                 self.stand_coeff.append(self._get_standardized_coeff(r_nl).requires_grad_(True))
 
     def _get_r_nl(self, nq: int, lq: int, r0: float = 0.529) -> Callable[[Tensor | float], Tensor | float]:
@@ -459,7 +470,7 @@ class RadialOrbitalBasis(nn.Module):
         Args:
             nq (int): principal quantum number.
             lq (int): azimuthal quantum number.
-            r0 (float): bohr radius.
+            r0 (float): bohr radius. Defaults to `0.529`.
 
         Returns:
             r_nl (Callable[[Tensor | float], Tensor | float]): Orbital Basis function.
@@ -492,6 +503,18 @@ class RadialOrbitalBasis(nn.Module):
         return r_nl
 
     def _get_standardized_coeff(self, func: Callable[[Tensor | float], Tensor | float]) -> Tensor:
+        """If a cutoff radius is specified, the standardization coefficient is
+        computed by numerical integration.
+
+        Args:
+            func (Callable[[Tensor | float], Tensor | float]): radial wave function.
+
+        Raises:
+            ValueError: Occurs when cutoff radius is not specified.
+
+        Returns:
+            torch.Tensor: Standardization coefficient such that the probability of existence within the cutoff sphere is 1.
+        """
         if self.cutoff is None:
             raise ValueError("cutoff is None")
         cutoff = self.cutoff
@@ -508,10 +531,10 @@ class RadialOrbitalBasis(nn.Module):
         """Forward calculation of RadialOrbitalBasis.
 
         Args:
-            dist (Tensor): atomic distances with (n_edge) shape.
+            dist (torch.Tensor): the interatomic distance with (n_edge) shape.
 
         Returns:
-            rbf (Tensor): rbf with (n_edge, n_orb) shape.
+            rbf (torch.Tensor): the expanded distance with (n_edge, n_orb) shape.
         """
         if self.cutoff is not None:
             device = dist.device
@@ -522,11 +545,8 @@ class RadialOrbitalBasis(nn.Module):
 
 
 class SphericalHarmonicsBasis(nn.Module):
-    """Layer that expand inter atomic distances and angles in spherical
-    harmonics function.
-
-    Args:
-    """
+    """The layer that expand interatomic distance and angles with radial
+    wavefunctions of hydrogen and spherical harmonics functions."""
 
     def __init__(
         self,
@@ -535,6 +555,13 @@ class SphericalHarmonicsBasis(nn.Module):
         max_z: int = 36,
         max_orb: str | None = None,
     ):
+        """
+        Args:
+            cutoff (float | None, optional): the cutoff radius. Defaults to `None`.
+            bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
+            max_z (int, optional): the maximum atomic number. Defaults to `36`.
+            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+        """
         super().__init__()
         self.radial_basis = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
 
@@ -559,6 +586,11 @@ class SphericalHarmonicsBasis(nn.Module):
         return (0.5 * torch.ones_like(theta) * math.sqrt(1.0 / pi)).to(dtype)
 
     def _calculate_symbolic_sh_funcs(self) -> list:
+        """Calculate symbolic spherical harmonics functions.
+
+        Returns:
+            funcs (list[Callable]): the list of spherical harmonics functions.
+        """
         funcs = []
         theta, phi = sym.symbols("theta phi")
         modules = {"sin": torch.sin, "cos": torch.cos, "conjugate": torch.conj, "sqrt": torch.sqrt, "exp": torch.exp}
@@ -577,16 +609,15 @@ class SphericalHarmonicsBasis(nn.Module):
         return funcs
 
     def forward(self, dist: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
-        """Compute expanded distances and angles with Bessel spherical and
-        radial basis.
+        """Forward calculation of SphericalHarmonicsBasis.
 
         Args:
-            dist (Tensor): interatomic distances with (n_edge) shape.
-            angle (Tensor): angles of triplets with (n_triplets) shape.
-            edge_idx_kj (torch.LongTensor): edge index from atom k to j with (n_triplets) shape.
+            dist (torch.Tensor): the interatomic distance with (n_edge) shape.
+            angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
+            edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
 
         Returns:
-            Tensor: expanded distances and angles of (n_triplets, n_orb) shape.
+            torch.Tensor: the expanded distance and angles of (n_triplets, n_orb) shape.
         """
         # (n_edge, n_orb)
         rob = self.radial_basis(dist)
@@ -598,7 +629,14 @@ class SphericalHarmonicsBasis(nn.Module):
 
 
 class EmbedZ(nn.Module):
+    """The layer that embeds atomic numbers into latent vectors."""
+
     def __init__(self, embed_dim: int, max_z: int = 36):
+        """
+        Args:
+            embed_dim (int): the dimension of embedding.
+            max_z (int, optional): the maximum atomic number. Defaults to `36`.
+        """
         super().__init__()
         self.embed_dim = embed_dim
         self.z_embed = nn.Embedding(max_z + 1, embed_dim)
@@ -609,18 +647,32 @@ class EmbedZ(nn.Module):
         self.z_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
 
     def forward(self, z: Tensor) -> Tensor:
-        """
+        """Forward calculation of EmbedZ.
+
         Args:
-            z (torch.Tensor): atomic numbers with (n_node) shape.
+            z (torch.Tensor): the atomic numbers with (n_node) shape.
 
         Returns:
-            z_embed (torch.Tensor): coefficent vectors with (n_node, embed_dim) shape.
+            z_embed (torch.Tensor): the embedding vectors with (n_node, embed_dim) shape.
         """
         return self.z_embed(z)
 
 
 class EmbedElec(nn.Module):
+    """The layer that embeds electron numbers into latent vectors.
+
+    If `extend_orb=False`, then if the number of electrons in the ground
+    state is zero, the orbital is a zero vector embedding.
+    """
+
     def __init__(self, embed_dim: int, max_z: int = 36, max_orb: str | None = None, extend_orb: bool = False):
+        """
+        Args:
+            embed_dim (int): the dimension of embedding.
+            max_z (int, optional): the maximum atomic number. Defaults to `36`.
+            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+            extend_orb (bool, optional): Whether to use an extended basis. Defaults to `False`.
+        """
         super().__init__()
         # get elec table
         if max_orb is None:
@@ -644,13 +696,14 @@ class EmbedElec(nn.Module):
                 ee.weight.data[0] = torch.zeros(self.embed_dim)
 
     def forward(self, z: Tensor, z_embed: Tensor) -> Tensor:
-        """
+        """Forward calculation of EmbedElec.
+
         Args:
-            z (torch.Tensor): atomic numbers with (n_node) shape.
-            z_embed (torch.Tensor): embedding of atomic number with (n_node, embed_dim) shape.
+            z (torch.Tensor): the atomic numbers with (n_node) shape.
+            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, embed_dim) shape.
 
         Returns:
-            e_embed (torch.Tensor): embedding of elec with (n_node, n_orb, embed_dim) shape.
+            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, embed_dim) shape.
         """
         # (n_node, n_orb)
         elec = self.elec[z]  # type: ignore
@@ -670,7 +723,20 @@ class EmbedElec(nn.Module):
 
 
 class OuterMask(nn.Module):
+    """The layer that generates outer orbital mask.
+
+    Only the coefficients for valence orbitals are set to 1, and the
+    coefficients for all other orbitals (including inner-shell orbitals)
+    are set to 0.
+    """
+
     def __init__(self, embed_dim: int, max_z: int = 36, max_orb: str | None = None):
+        """
+        Args:
+            embed_dim (int): the dimension of embedding.
+            max_z (int, optional): the maximum atomic number. Defaults to `36`.
+            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+        """
         super().__init__()
         # get outer table
         if max_orb is None:
@@ -683,9 +749,10 @@ class OuterMask(nn.Module):
         self.embed_dim = embed_dim
 
     def forward(self, z: Tensor) -> Tensor:
-        """
+        """Forward calculation of OuterMask.
+
         Args:
-            z (torch.Tensor): atomic numbers with (n_node) shape.
+            z (torch.Tensor): the atomic numbers with (n_node) shape.
 
         Returns:
             outer (torch.Tensor): outer orbital mask with (n_node, n_orb, embed_dim) shape.
@@ -695,6 +762,9 @@ class OuterMask(nn.Module):
 
 
 class EmbedNode(nn.Module):
+    """The layer that embeds atomic numbers and electron numbers into node
+    embedding vectors."""
+
     def __init__(
         self,
         hidden_dim: int,
@@ -703,6 +773,14 @@ class EmbedNode(nn.Module):
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
+        """
+        Args:
+            hidden_dim (int): the dimension of node vector.
+            z_dim (int): the dimension of atomic number embedding.
+            e_dim (int): the dimension of electron number embedding.
+            activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
+        """
         super().__init__()
         self.hidden_dim = hidden_dim
         self.z_dim = z_dim
@@ -716,19 +794,22 @@ class EmbedNode(nn.Module):
         )
 
     def forward(self, z_embed: Tensor, e_embed: Tensor) -> Tensor:
-        """
+        """Forward calculation of EmbedNode.
+
         Args:
-            z_embed (torch.Tensor): embedding of atomic number with (n_node, z_dim) shape.
-            e_embed (torch.Tensor): embedding of nl values with (n_node, n_orb, e_dim) shape.
+            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
+            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
 
         Returns:
-            torch.Tensor: node embedding vector of (n_node, hidden_dim) shape.
+            torch.Tensor: node embedding vectors with (n_node, hidden_dim) shape.
         """
         z_e_embed = torch.cat([z_embed, e_embed.sum(1)], dim=-1)
         return self.z_e_lin(z_e_embed)
 
 
 class LCAOConv(nn.Module):
+    """The layer that performs LCAO convolution."""
+
     def __init__(
         self,
         hidden_dim: int,
@@ -738,6 +819,15 @@ class LCAOConv(nn.Module):
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
+        """
+        Args:
+            hidden_dim (int): the dimension of node vector.
+            coeffs_dim (int): the dimension of coefficient vectors.
+            conv_dim (int): the dimension of embedding vectors at convolution.
+            outer (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
+            activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
+        """
         super().__init__()
         self.hidden_dim = hidden_dim
         self.coeffs_dim = coeffs_dim
@@ -782,12 +872,29 @@ class LCAOConv(nn.Module):
         edge_idx_kj: torch.LongTensor,
         edge_idx_ji: torch.LongTensor,
     ) -> Tensor:
-        # linear transformation of node
+        """Forward calculation of LCAOConv.
+
+        Args:
+            x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
+            cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
+            outer_mask (torch.Tensor | None): outer orbital mask with (n_node, n_orb, conv_dim) shape.
+            robs (torch.Tensor): the radial orbital basis with (n_edge, n_orb) shape.
+            shbs (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
+            idx_i (torch.Tensor): the indices of the first node of each edge with (n_edge) shape.
+            idx_j (torch.Tensor): the indices of the second node of each edge with (n_edge) shape.
+            tri_idx_k (torch.Tensor): the indices of the third node of each triplet with (n_triplets) shape.
+            edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
+            edge_idx_ji (torch.LongTensor): the edge index from atom j to i with (n_triplets) shape.
+
+        Returns:
+            torch.Tensor: updated node embedding vectors with (n_node, hidden_dim) shape.
+        """
+        # Transformation of the node by NN
         x_before = x
         x = self.node_before_lin(x)
         x, xk = torch.chunk(x, 2, dim=-1)
 
-        # linear transformation of coefficients
+        # Transformation of the coefficient vectors by NN
         cji = self.coeffs_before_lin(cji)
         if self.outer:
             cji, ckj = torch.split(cji, [2 * self.conv_dim, self.conv_dim], dim=-1)
@@ -804,7 +911,7 @@ class LCAOConv(nn.Module):
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_orbs * xk
         three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=robs.size(0)))
-        # threebody orbital information is injected to the coefficient vector
+        # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
         if self.outer:
@@ -830,6 +937,12 @@ class LCAOConv(nn.Module):
 
 
 class LCAOOut(nn.Module):
+    """The output layer of LCAONet.
+
+    Three-layer neural networks to output desired physical property
+    values.
+    """
+
     def __init__(
         self,
         hidden_dim: int,
@@ -838,6 +951,14 @@ class LCAOOut(nn.Module):
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
+        """
+        Args:
+            hidden_dim (int): the dimension of node embedding vectors.
+            out_dim (int): the dimension of output property.
+            aggr (str): the aggregation method of node embedding vectors. Defaults to `"sum"`.
+            activation (nn.Module): the activation function. Defaults to `nn.SiLU()`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None): the weight initialization function. Defaults to `None`.
+        """
         super().__init__()
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim
@@ -853,11 +974,34 @@ class LCAOOut(nn.Module):
         )
 
     def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
+        """Forward calculation of LCAOOut.
+
+        Args:
+            x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
+            batch_idx (torch.Tensor | None): the batch indices of nodes with (n_node) shape.
+
+        Raises:
+            ValueError: if `aggr` is not one of ["sum", "mean"].
+
+        Returns:
+            torch.Tensor: the output property values with (n_batch, out_dim) shape.
+        """
         out = self.out_lin(x)
-        return out.sum(dim=0, keepdim=True) if batch_idx is None else scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        if batch_idx is not None:
+            return scatter(out, batch_idx, dim=0, reduce=self.aggr)
+        if self.aggr == "sum":
+            return out.sum(dim=0, keepdim=True)
+        if self.aggr == "mean":
+            return out.mean(dim=0, keepdim=True)
+        else:
+            raise ValueError(f"aggr must be one of ['sum', 'mean'], got {self.aggr}")
 
 
 class LCAONet(BaseGNN):
+    """
+    LCAONet - GNN including orbital interaction, physically motivatied by the LCAO method.
+    """
+
     def __init__(
         self,
         hidden_dim: int = 128,
@@ -875,6 +1019,24 @@ class LCAONet(BaseGNN):
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
     ):
+        """
+        Args:
+            hidden_dim (int): the dimension of node embedding vectors. Defaults to `128`.
+            coeffs_dim (int): the dimension of coefficient vectors. Defaults to `64`.
+            conv_dim (int): the dimension of embedding vectors at convolution. Defaults to `64`.
+            out_dim (int): the dimension of output property. Defaults to `1`.
+            n_interaction (int): the number of interaction layers. Defaults to `3`.
+            cutoff (float | None): the cutoff radius. Defaults to `None`.
+            bohr_radius (float): the bohr radius. Defaults to `0.529`.
+            max_z (int): the maximum atomic number. Defaults to `36`.
+            max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
+            outer (bool): whether to add the effect of valence orbitals. Defaults to `False`.
+            extend_orb (bool): whether to extend the basis set. Defaults to `False`.
+                If `True`, convolution is performed including unoccupied orbitals of the ground state.
+            aggr (str): the aggregation method of node embedding vectors. Defaults to `"sum"`.
+            activation (str): the name of activation function. Defaults to `"SiLU"`.
+            weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
+        """
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
         act: nn.Module = activation_resolver(activation)
@@ -910,6 +1072,14 @@ class LCAONet(BaseGNN):
         self.out_layer = LCAOOut(hidden_dim, out_dim, aggr, act, wi)
 
     def forward(self, batch: Batch) -> Tensor:
+        """Forward calculation of LCAONet.
+
+        Args:
+            batch (Batch): the input graph batch data.
+
+        Returns:
+            torch.Tensor: the output property with (n_batch, out_dim) shape.
+        """
         batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
         pos = batch[DataKeys.Position]
         z = batch[DataKeys.Atom_numbers]
