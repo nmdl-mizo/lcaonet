@@ -513,7 +513,8 @@ class RadialOrbitalBasis(nn.Module):
             ValueError: Occurs when cutoff radius is not specified.
 
         Returns:
-            torch.Tensor: Standardization coefficient such that the probability of existence within the cutoff sphere is 1.
+            torch.Tensor: Standardization coefficient such that the probability of existence
+                within the cutoff sphere is 1.
         """
         if self.cutoff is None:
             raise ValueError("cutoff is None")
@@ -779,7 +780,8 @@ class EmbedNode(nn.Module):
             z_dim (int): the dimension of atomic number embedding.
             e_dim (int): the dimension of electron number embedding.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
+                Defaults to `None`.
         """
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -826,7 +828,8 @@ class LCAOConv(nn.Module):
             conv_dim (int): the dimension of embedding vectors at convolution.
             outer (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
+                Defaults to `None`.
         """
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -957,7 +960,8 @@ class LCAOOut(nn.Module):
             out_dim (int): the dimension of output property.
             aggr (str): the aggregation method of node embedding vectors. Defaults to `"sum"`.
             activation (nn.Module): the activation function. Defaults to `nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None): the weight initialization function. Defaults to `None`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None): the weight initialization function.
+                Defaults to `None`.
         """
         super().__init__()
         self.hidden_dim = hidden_dim
