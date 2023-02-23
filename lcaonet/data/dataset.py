@@ -10,7 +10,7 @@ from scipy.interpolate import RegularGridInterpolator
 from torch import Tensor
 from torch_geometric.data import Data, Dataset
 
-from pyg_material.data.datakeys import DataKeys
+from lcaonet.data.datakeys import DataKeys
 
 
 class BaseGraphDataset(Dataset):

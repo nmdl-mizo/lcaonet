@@ -4,9 +4,8 @@ from collections.abc import Callable
 
 import torch.nn as nn
 from torch import Tensor
-from torch_geometric.nn.inits import glorot_orthogonal
 
-from pyg_material.utils.resolve import init_param_resolver
+from lcaonet.utils.resolve import init_param_resolver
 
 
 class Dense(nn.Linear):
@@ -68,49 +67,3 @@ class Dense(nn.Linear):
         """
         # compute linear layer y = xW^T + b
         return super().forward(x)
-
-
-class ResidualBlock(nn.Module):
-    """The Blocks combining the multiple Dense layers and ResNet.
-
-    Args:
-        hidden_dim (int): hidden dimension of the Dense layers.
-        activation (nn.Module, optional): activation function of the Dense layers. Defaults to `nn.SiLU()`.
-        n_layers (int, optional): the number of Dense layers. Defaults to `2`.
-        weight_init (Callable, optional): weight initialize methods. Defaults to `torch_geometric.nn.inits.glorot_orthogonal`.
-    """  # NOQA: E501
-
-    def __init__(
-        self,
-        hidden_dim: int,
-        activation: nn.Module = nn.SiLU(),
-        n_layers: int = 2,
-        weight_init: Callable[[Tensor], Tensor] | None = glorot_orthogonal,
-        **kwargs,
-    ):
-        super().__init__()
-
-        denses: list[nn.Module] = []
-        for _ in range(n_layers):
-            denses.append(
-                Dense(
-                    hidden_dim,
-                    hidden_dim,
-                    bias=True,
-                    weight_init=weight_init,
-                    **kwargs,
-                )
-            )
-            denses.append(activation)
-        self.denses = nn.Sequential(*denses)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Forward caclulation of the residual block.
-
-        Args:
-            x (Tensor): input tensor of (*, hidden_dim) shape.
-
-        Returns:
-            Tensor: output tensor of (*, hidden_dim) shape.
-        """
-        return x + self.denses(x)

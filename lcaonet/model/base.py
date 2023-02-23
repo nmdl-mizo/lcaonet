@@ -6,7 +6,7 @@ from torch import Tensor
 from torch_geometric.data import Batch
 from torch_sparse import SparseTensor
 
-from pyg_material.data.datakeys import DataKeys
+from lcaonet.data.datakeys import DataKeys
 
 
 class BaseGNN(nn.Module):

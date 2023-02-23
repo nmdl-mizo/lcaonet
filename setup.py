@@ -5,8 +5,8 @@ URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
 install_requires = [
-    "pyrootutils",
     "numpy",
+    "scipy",
     "sympy",
     "h5py",
     "ase",
@@ -18,6 +18,7 @@ install_requires = [
     "torch-cluster",
     "torch-spline-conv",
     "torch-geometric",
+    "pyrootutils",
     "hydra-core==1.2.0",
     "hydra-colorlog==1.2.0",
     "hydra-optuna-sweeper==1.2.0",
@@ -33,6 +34,7 @@ test_requires = [
 
 dev_requires = test_requires + [
     "pre-commit",
+    "black",
 ]
 
 setup(

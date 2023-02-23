@@ -1,19 +1,20 @@
-pyrootutils
 numpy
+scipy
 sympy
 h5py
 ase
 pymatgen==2022.4.19
-hydra-core==1.2.0
-hydra-colorlog==1.2.0
-hydra-optuna-sweeper==1.2.0
 torch==1.13.0
-pytorch-lightning
-rich
-wandb
 pyg-lib -f https://data.pyg.org/whl/torch-1.13.0+cpu.html
 torch-scatter -f https://data.pyg.org/whl/torch-1.13.0+cpu.html
 torch-sparse -f https://data.pyg.org/whl/torch-1.13.0+cpu.html
 torch-cluster -f https://data.pyg.org/whl/torch-1.13.0+cpu.html
 torch-spline-conv -f https://data.pyg.org/whl/torch-1.13.0+cpu.html
 torch-geometric -f https://data.pyg.org/whl/torch-1.13.0+cpu.html
+pyrootutils
+hydra-core==1.2.0
+hydra-colorlog==1.2.0
+hydra-optuna-sweeper==1.2.0
+pytorch-lightning
+rich
+wandb
