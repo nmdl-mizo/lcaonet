@@ -8,7 +8,7 @@ import torch
 from torch.nn.init import calculate_gain
 from torch_geometric.nn.inits import glorot, glorot_orthogonal
 
-from pyg_material.nn.activation import ShiftedSoftplus, Swish
+from lcaonet.nn.activation import ShiftedSoftplus, Swish
 
 
 def _normalize_string(s: str) -> str:

@@ -14,10 +14,10 @@ from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
 
-from pyg_material.data import DataKeys
-from pyg_material.model.base import BaseGNN
-from pyg_material.nn import Dense
-from pyg_material.utils import activation_resolver, init_resolver
+from lcaonet.data import DataKeys
+from lcaonet.model.base import BaseGNN
+from lcaonet.nn import Dense
+from lcaonet.utils import activation_resolver, init_resolver
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
 ELEC_TABLE = torch.tensor(
