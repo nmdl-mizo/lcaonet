@@ -17,6 +17,7 @@ from torch_scatter import scatter
 from lcaonet.data import DataKeys
 from lcaonet.model.base import BaseGNN
 from lcaonet.nn import Dense
+from lcaonet.nn.cutoff import BaseCutoff, PolynomialCutoff
 from lcaonet.utils import activation_resolver, init_resolver
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
@@ -867,6 +868,7 @@ class LCAOConv(nn.Module):
         x: Tensor,
         cji: Tensor,
         outer_mask: Tensor | None,
+        cutoff_w: Tensor | None,
         robs: Tensor,
         shbs: Tensor,
         idx_i: Tensor,
@@ -881,6 +883,7 @@ class LCAOConv(nn.Module):
             x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
             cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
             outer_mask (torch.Tensor | None): outer orbital mask with (n_node, n_orb, conv_dim) shape.
+            cutoff_w (torch.Tensor | None): cutoff weight with (n_edge) shape.
             robs (torch.Tensor): the radial orbital basis with (n_edge, n_orb) shape.
             shbs (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
             idx_i (torch.Tensor): the indices of the first node of each edge with (n_edge) shape.
@@ -892,17 +895,21 @@ class LCAOConv(nn.Module):
         Returns:
             torch.Tensor: updated node embedding vectors with (n_node, hidden_dim) shape.
         """
-        # Transformation of the node by NN
+        # Transformation of the node
         x_before = x
         x = self.node_before_lin(x)
         x, xk = torch.chunk(x, 2, dim=-1)
 
-        # Transformation of the coefficient vectors by NN
+        # Transformation of the coefficient vectors
         cji = self.coeffs_before_lin(cji)
         if self.outer:
             cji, ckj = torch.split(cji, [2 * self.conv_dim, self.conv_dim], dim=-1)
         else:
             cji, ckj = torch.chunk(cji, 2, dim=-1)
+
+        # cutoff
+        if cutoff_w is not None:
+            robs = robs * cutoff_w.unsqueeze(-1)
 
         # triple conv
         ckj = ckj[edge_idx_kj]
@@ -1014,6 +1021,7 @@ class LCAONet(BaseGNN):
         out_dim: int = 1,
         n_interaction: int = 3,
         cutoff: float | None = None,
+        cutoff_net: type[BaseCutoff] | None = PolynomialCutoff,
         bohr_radius: float = 0.529,
         max_z: int = 36,
         max_orb: str | None = None,
@@ -1031,6 +1039,9 @@ class LCAONet(BaseGNN):
             out_dim (int): the dimension of output property. Defaults to `1`.
             n_interaction (int): the number of interaction layers. Defaults to `3`.
             cutoff (float | None): the cutoff radius. Defaults to `None`.
+                If specified, the basis functions are normalized within the cutoff radius.
+                If `cutoff_net` is specified, the `cutoff` radius must be specified.
+            cutoff_net (type[BaseCutoff] | None): the cutoff network. Defaults to `lcaonet.nn.PolynomialCutoff`.
             bohr_radius (float): the bohr radius. Defaults to `0.529`.
             max_z (int): the maximum atomic number. Defaults to `36`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
@@ -1050,11 +1061,17 @@ class LCAONet(BaseGNN):
         self.conv_dim = conv_dim
         self.out_dim = out_dim
         self.n_interaction = n_interaction
+        self.cutoff = cutoff
+        if cutoff_net is not None and cutoff is None:
+            raise ValueError("cutoff must be specified when cutoff_net is used")
+        self.cutoff_net = cutoff_net
         self.outer = outer
 
         # calc basis layers
         self.rob = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
         self.shb = SphericalHarmonicsBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
+        if cutoff_net:
+            self.cn = cutoff_net(cutoff)  # type: ignore
 
         # node and coefficient embedding layers
         self.node_z_embed_dim = 64  # fix
@@ -1114,6 +1131,7 @@ class LCAONet(BaseGNN):
         # calc basis
         robs = self.rob(distances)
         shbs = self.shb(distances, angle, edge_idx_kj)
+        cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
         z_embed = self.z_embed(z)
@@ -1130,7 +1148,7 @@ class LCAONet(BaseGNN):
 
         # calc interaction
         for inte in self.int_layers:
-            x = inte(x, cji, outer_mask, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(x, cji, outer_mask, cutoff_w, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # output
         out = self.out_layer(x, batch_idx)

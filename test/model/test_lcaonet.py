@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 
 from lcaonet.data import DataKeys
 from lcaonet.model.lcaonet import EmbedElec, EmbedZ, LCAONet
+from lcaonet.nn.cutoff import BaseCutoff, CosineCutoff, PolynomialCutoff
 
 
 @pytest.fixture(scope="module")
@@ -45,28 +46,36 @@ def test_embed_elec(
     for i, z in enumerate(zs):
         # check padding_idx
         if not extend_orb:
-            assert (coeffs[i, ec.elec[z] == 0, :] == torch.zeros_like(coeffs[i, ec.elec[z] == 0, :])).all()  # type: ignore
+            assert (coeffs[i, ec.elec[z] == 0, :] == torch.zeros_like(coeffs[i, ec.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
         if extend_orb:
-            assert (coeffs[i, ec.elec[z] == 0, :] != torch.zeros_like(coeffs[i, ec.elec[z] == 0, :])).all()  # type: ignore
+            assert (coeffs[i, ec.elec[z] == 0, :] != torch.zeros_like(coeffs[i, ec.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
 
 
 param_lcaonet = [
-    (16, 16, 10, 1, 2.0, False, False),
-    (16, 16, 10, 1, 2.0, False, True),
-    (16, 16, 10, 1, 2.0, True, False),
-    (16, 16, 10, 1, 2.0, True, True),
-    (16, 16, 10, 2, 2.0, False, False),
-    (16, 16, 10, 2, 2.0, False, True),
-    (16, 16, 10, 2, 2.0, True, False),
-    (16, 16, 10, 2, 2.0, True, True),
-    (16, 16, 10, 1, None, False, False),
-    (16, 16, 10, 1, None, False, True),
-    (16, 16, 10, 1, None, True, False),
-    (16, 16, 10, 1, None, True, True),
+    (16, 16, 10, 1, 2.0, False, False, PolynomialCutoff),
+    (16, 16, 10, 1, 2.0, False, True, PolynomialCutoff),
+    (16, 16, 10, 1, 2.0, True, False, PolynomialCutoff),
+    (16, 16, 10, 1, 2.0, True, True, PolynomialCutoff),
+    (16, 16, 10, 1, 2.0, True, True, CosineCutoff),
+    (16, 16, 10, 1, 2.0, True, True, None),
+    (16, 16, 10, 2, 2.0, False, False, PolynomialCutoff),
+    (16, 16, 10, 2, 2.0, False, True, PolynomialCutoff),
+    (16, 16, 10, 2, 2.0, True, False, PolynomialCutoff),
+    (16, 16, 10, 2, 2.0, True, True, PolynomialCutoff),
+    (16, 16, 10, 2, 2.0, True, True, CosineCutoff),
+    (16, 16, 10, 2, 2.0, True, True, None),
+    (16, 16, 10, 1, None, False, False, None),
+    (16, 16, 10, 1, None, False, True, None),
+    (16, 16, 10, 1, None, True, False, None),
+    (16, 16, 10, 1, None, True, True, None),
+    (16, 16, 10, 1, None, True, True, PolynomialCutoff),
+    (16, 16, 10, 1, None, True, True, CosineCutoff),
 ]
 
 
-@pytest.mark.parametrize("hidden_dim, coeffs_dim,conv_dim, out_dim, cutoff, extend_orb, outer", param_lcaonet)
+@pytest.mark.parametrize(
+    "hidden_dim, coeffs_dim,conv_dim, out_dim, cutoff, extend_orb, outer, cutoff_net", param_lcaonet
+)
 def test_LCAONet(
     one_graph_data: Data,
     hidden_dim: int,
@@ -76,38 +85,58 @@ def test_LCAONet(
     cutoff: float | None,
     extend_orb: bool,
     outer: bool,
+    cutoff_net: type[BaseCutoff] | None,
 ):
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item()
-    model = LCAONet(
-        hidden_dim=hidden_dim,
-        coeffs_dim=coeffs_dim,
-        conv_dim=conv_dim,
-        out_dim=out_dim,
-        n_interaction=2,
-        cutoff=cutoff,
-        activation="Silu",
-        outer=outer,
-        extend_orb=extend_orb,
-        weight_init="glorot_orthogonal",
-        max_z=max_z,
-    )
+    if cutoff_net is not None and cutoff is None:
+        with pytest.raises(ValueError) as e:
+            LCAONet(
+                hidden_dim=hidden_dim,
+                coeffs_dim=coeffs_dim,
+                conv_dim=conv_dim,
+                out_dim=out_dim,
+                n_interaction=2,
+                cutoff=cutoff,
+                cutoff_net=cutoff_net,
+                activation="Silu",
+                outer=outer,
+                extend_orb=extend_orb,
+                weight_init="glorot_orthogonal",
+                max_z=max_z,
+            )
+            assert str(e.value) == "cutoff_net must be specified when cutoff is not None"
+    else:
+        model = LCAONet(
+            hidden_dim=hidden_dim,
+            coeffs_dim=coeffs_dim,
+            conv_dim=conv_dim,
+            out_dim=out_dim,
+            n_interaction=2,
+            cutoff=cutoff,
+            cutoff_net=cutoff_net,
+            activation="Silu",
+            outer=outer,
+            extend_orb=extend_orb,
+            weight_init="glorot_orthogonal",
+            max_z=max_z,
+        )
 
-    with torch.no_grad():
-        out = model(one_graph_data)
-        # no batch
-        assert out.size() == (1, out_dim)
+        with torch.no_grad():
+            out = model(one_graph_data)
+            # no batch
+            assert out.size() == (1, out_dim)
 
-        jit = torch.jit.export(model)
-        assert torch.allclose(jit(one_graph_data), out)
+            jit = torch.jit.export(model)
+            assert torch.allclose(jit(one_graph_data), out)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    min_loss = float("inf")
-    for _ in range(100):
-        optimizer.zero_grad()
-        out = model(one_graph_data)
-        loss = F.mse_loss(out, torch.ones((1, out_dim)))
-        loss.backward()
-        optimizer.step()
-        min_loss = min(float(loss), min_loss)
-    assert min_loss < 2
+        min_loss = float("inf")
+        for _ in range(100):
+            optimizer.zero_grad()
+            out = model(one_graph_data)
+            loss = F.mse_loss(out, torch.ones((1, out_dim)))
+            loss.backward()
+            optimizer.step()
+            min_loss = min(float(loss), min_loss)
+        assert min_loss < 2
