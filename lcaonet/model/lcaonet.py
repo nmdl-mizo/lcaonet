@@ -959,7 +959,7 @@ class LCAOOut(nn.Module):
         self,
         hidden_dim: int,
         out_dim: int,
-        aggr: str = "sum",
+        is_extensive: bool = True,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
@@ -967,7 +967,7 @@ class LCAOOut(nn.Module):
         Args:
             hidden_dim (int): the dimension of node embedding vectors.
             out_dim (int): the dimension of output property.
-            aggr (str): the aggregation method of node embedding vectors. Defaults to `"sum"`.
+            is_extensive (bool): whether the output property is extensive or not. Defaults to `True`.
             activation (nn.Module): the activation function. Defaults to `nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None): the weight initialization function.
                 Defaults to `None`.
@@ -975,7 +975,7 @@ class LCAOOut(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim
-        self.aggr = aggr
+        self.is_extensive = is_extensive
 
         self.out_lin = nn.Sequential(
             activation,
@@ -993,21 +993,35 @@ class LCAOOut(nn.Module):
             x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
             batch_idx (torch.Tensor | None): the batch indices of nodes with (n_node) shape.
 
-        Raises:
-            ValueError: if `aggr` is not one of ["sum", "mean"].
-
         Returns:
             torch.Tensor: the output property values with (n_batch, out_dim) shape.
         """
         out = self.out_lin(x)
         if batch_idx is not None:
-            return scatter(out, batch_idx, dim=0, reduce=self.aggr)
-        if self.aggr == "sum":
+            return scatter(out, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
+        if self.is_extensive:
             return out.sum(dim=0, keepdim=True)
-        if self.aggr == "mean":
-            return out.mean(dim=0, keepdim=True)
         else:
-            raise ValueError(f"aggr must be one of ['sum', 'mean'], got {self.aggr}")
+            return out.mean(dim=0, keepdim=True)
+
+
+class QM9PostProcess(nn.Module):
+    def __init__(self, atomref: Tensor | None, is_extensive: bool = True):
+        super().__init__()
+        if atomref is None:
+            atomref = torch.zeros(100)
+        self.register_buffer("atomref", atomref)
+        self.is_extensive = is_extensive
+
+    def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
+        aref = self.atomref[z]  # type: ignore
+        if self.is_extensive:
+            aref = aref.sum(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="sum")
+        else:
+            aref = (
+                aref.mean(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="mean")
+            )
+        return out + aref
 
 
 class LCAONet(BaseGNN):
@@ -1029,9 +1043,11 @@ class LCAONet(BaseGNN):
         max_orb: str | None = None,
         outer: bool = False,
         extend_orb: bool = False,
-        aggr: str = "sum",
+        is_extensive: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
+        qm9: bool = False,
+        atomref: Tensor | None = None,
     ):
         """
         Args:
@@ -1050,9 +1066,11 @@ class LCAONet(BaseGNN):
             outer (bool): whether to add the effect of valence orbitals. Defaults to `False`.
             extend_orb (bool): whether to extend the basis set. Defaults to `False`.
                 If `True`, convolution is performed including unoccupied orbitals of the ground state.
-            aggr (str): the aggregation method of node embedding vectors. Defaults to `"sum"`.
+            is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
+            qm9 (bool): whether to use the QM9 dataset. Defaults to `False`.
+            atomref (torch.Tensor | None): the atom reference property. Defaults to `None`.
         """
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
@@ -1068,6 +1086,7 @@ class LCAONet(BaseGNN):
             raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
         self.outer = outer
+        self.qm9 = qm9
 
         # calc basis layers
         self.rob = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
@@ -1092,7 +1111,10 @@ class LCAONet(BaseGNN):
         )
 
         # output layer
-        self.out_layer = LCAOOut(hidden_dim, out_dim, aggr, act, wi)
+        self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
+
+        if qm9:
+            self.post_process = QM9PostProcess(atomref, is_extensive)
 
     def forward(self, batch: Batch) -> Tensor:
         """Forward calculation of LCAONet.
@@ -1154,5 +1176,8 @@ class LCAONet(BaseGNN):
 
         # output
         out = self.out_layer(x, batch_idx)
+
+        if self.qm9:
+            out = self.post_process(out, z, batch_idx)
 
         return out
