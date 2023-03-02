@@ -686,7 +686,9 @@ class EmbedElec(nn.Module):
 
         self.embed_dim = embed_dim
         self.extend_orb = extend_orb
-        self.e_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=0) for m in MAX_IDX_BIG[: self.n_orb]])
+        self.e_embeds = nn.ModuleList(
+            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in MAX_IDX_BIG[: self.n_orb]]
+        )
 
         self.reset_parameters()
 
