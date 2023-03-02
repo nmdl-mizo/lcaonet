@@ -686,7 +686,7 @@ class EmbedElec(nn.Module):
 
         self.embed_dim = embed_dim
         self.extend_orb = extend_orb
-        self.e_embeds = nn.ModuleList([nn.Embedding(m, embed_dim) for m in MAX_IDX_BIG[: self.n_orb]])
+        self.e_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=0) for m in MAX_IDX_BIG[: self.n_orb]])
 
         self.reset_parameters()
 
@@ -695,7 +695,7 @@ class EmbedElec(nn.Module):
             ee.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
             # set padding_idx to zero
             if not self.extend_orb:
-                ee.weight.data[0] = torch.zeros(self.embed_dim)
+                ee._fill_padding_idx_with_zero()
 
     def forward(self, z: Tensor, z_embed: Tensor) -> Tensor:
         """Forward calculation of EmbedElec.
