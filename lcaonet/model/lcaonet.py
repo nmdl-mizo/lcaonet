@@ -1014,7 +1014,7 @@ class QM9PostProcess(nn.Module):
         self.is_extensive = is_extensive
 
     def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
-        aref = self.atomref[z]  # type: ignore
+        aref = self.atomref[z].unsqueeze(-1)  # type: ignore
         if self.is_extensive:
             aref = aref.sum(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="sum")
         else:
