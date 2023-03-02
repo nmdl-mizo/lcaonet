@@ -52,29 +52,32 @@ def test_embed_elec(
 
 
 param_lcaonet = [
-    (16, 16, 10, 1, 2.0, False, False, PolynomialCutoff),
-    (16, 16, 10, 1, 2.0, False, True, PolynomialCutoff),
-    (16, 16, 10, 1, 2.0, True, False, PolynomialCutoff),
-    (16, 16, 10, 1, 2.0, True, True, PolynomialCutoff),
-    (16, 16, 10, 1, 2.0, True, True, CosineCutoff),
-    (16, 16, 10, 1, 2.0, True, True, None),
-    (16, 16, 10, 2, 2.0, False, False, PolynomialCutoff),
-    (16, 16, 10, 2, 2.0, False, True, PolynomialCutoff),
-    (16, 16, 10, 2, 2.0, True, False, PolynomialCutoff),
-    (16, 16, 10, 2, 2.0, True, True, PolynomialCutoff),
-    (16, 16, 10, 2, 2.0, True, True, CosineCutoff),
-    (16, 16, 10, 2, 2.0, True, True, None),
-    (16, 16, 10, 1, None, False, False, None),
-    (16, 16, 10, 1, None, False, True, None),
-    (16, 16, 10, 1, None, True, False, None),
-    (16, 16, 10, 1, None, True, True, None),
-    (16, 16, 10, 1, None, True, True, PolynomialCutoff),
-    (16, 16, 10, 1, None, True, True, CosineCutoff),
+    (16, 16, 10, 1, 2.0, False, False, PolynomialCutoff, False),
+    (16, 16, 10, 1, 2.0, False, True, PolynomialCutoff, False),
+    (16, 16, 10, 1, 2.0, True, False, PolynomialCutoff, False),
+    (16, 16, 10, 1, 2.0, True, True, PolynomialCutoff, False),
+    (16, 16, 10, 1, 2.0, True, True, CosineCutoff, False),
+    (16, 16, 10, 1, 2.0, True, True, None, False),
+    (16, 16, 10, 1, 2.0, True, True, CosineCutoff, True),
+    (16, 16, 10, 1, 2.0, True, True, None, True),
+    (16, 16, 10, 2, 2.0, False, False, PolynomialCutoff, False),
+    (16, 16, 10, 2, 2.0, False, True, PolynomialCutoff, False),
+    (16, 16, 10, 2, 2.0, True, False, PolynomialCutoff, False),
+    (16, 16, 10, 2, 2.0, True, True, PolynomialCutoff, False),
+    (16, 16, 10, 2, 2.0, True, True, CosineCutoff, False),
+    (16, 16, 10, 2, 2.0, True, True, None, False),
+    (16, 16, 10, 1, None, False, False, None, False),
+    (16, 16, 10, 1, None, False, True, None, False),
+    (16, 16, 10, 1, None, True, False, None, False),
+    (16, 16, 10, 1, None, True, True, None, False),
+    (16, 16, 10, 1, None, True, True, PolynomialCutoff, False),
+    (16, 16, 10, 1, None, True, True, CosineCutoff, False),
+    (16, 16, 10, 1, None, True, True, PolynomialCutoff, True),
 ]
 
 
 @pytest.mark.parametrize(
-    "hidden_dim, coeffs_dim,conv_dim, out_dim, cutoff, extend_orb, outer, cutoff_net", param_lcaonet
+    "hidden_dim, coeffs_dim,conv_dim, out_dim, cutoff, extend_orb, outer, cutoff_net, qm9", param_lcaonet
 )
 def test_LCAONet(
     one_graph_data: Data,
@@ -86,6 +89,7 @@ def test_LCAONet(
     extend_orb: bool,
     outer: bool,
     cutoff_net: type[BaseCutoff] | None,
+    qm9: bool,
 ):
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item()
     if cutoff_net is not None and cutoff is None:
@@ -103,6 +107,7 @@ def test_LCAONet(
                 extend_orb=extend_orb,
                 weight_init="glorot_orthogonal",
                 max_z=max_z,
+                qm9=qm9,
             )
             assert str(e.value) == "cutoff_net must be specified when cutoff is not None"
     else:
@@ -119,6 +124,7 @@ def test_LCAONet(
             extend_orb=extend_orb,
             weight_init="glorot_orthogonal",
             max_z=max_z,
+            qm9=qm9,
         )
 
         with torch.no_grad():
