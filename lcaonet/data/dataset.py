@@ -4,6 +4,7 @@ import ase
 import ase.neighborlist
 import numpy as np
 import torch
+from ase.data import atomic_masses
 from numpy import ndarray
 from pymatgen.core import Structure
 from scipy.interpolate import RegularGridInterpolator
@@ -20,12 +21,14 @@ class BaseGraphDataset(Dataset):
         max_neighbors: int = 32,
         self_interaction: bool = False,
         pbc: bool | tuple[bool, ...] = True,
+        subtract_center_of_mass: bool = False,
     ):
         super().__init__()
         self.cutoff = cutoff
         self.max_neighbors = max_neighbors
         self.self_interaction = self_interaction
         self.pbc = pbc
+        self.subtract_center_of_mass = subtract_center_of_mass
 
     def len(self) -> int:
         raise NotImplementedError
@@ -59,6 +62,12 @@ class BaseGraphDataset(Dataset):
         Returns:
             data (torch_geometric.data.Data): one Data object with edge information include pbc.
         """
+        if self.subtract_center_of_mass:
+            masses = np.array(atomic_masses[atoms.numbers])
+            pos = atoms.positions
+            pos -= (masses[:, None] * pos).sum(0) / masses.sum()
+            atoms.positions = pos
+
         # for edge_shift
         edge_src, edge_dst, dist, edge_shift = ase.neighborlist.neighbor_list(
             "ijdS",
@@ -158,9 +167,10 @@ class List2GraphDataset(BaseGraphDataset):
         max_neighbors: int = 32,
         self_interaction: bool = False,
         pbc: bool | tuple[bool, ...] = True,
+        subtract_center_of_mass: bool = False,
         remove_batch_key: list[str] | None = None,
     ):
-        super().__init__(cutoff, max_neighbors, self_interaction, pbc)
+        super().__init__(cutoff, max_neighbors, self_interaction, pbc, subtract_center_of_mass)
         self.graph_data_list: list[Data] = []
         self.remove_batch_key = remove_batch_key
         self._preprocess(structures, y_values)
@@ -223,7 +233,9 @@ class List2ChgFiedlDataset(List2GraphDataset):
         pbc: bool | tuple[bool, ...] = True,
         remove_batch_key: list[str] | None = None,
     ):
-        super().__init__(structures, y_values, cutoff, max_neighbors, self_interaction, pbc, remove_batch_key)
+        super().__init__(
+            structures, y_values, cutoff, max_neighbors, self_interaction, pbc, remove_batch_key=remove_batch_key
+        )
         self.out_field_radi = out_field_radi
         self.in_field_radi = in_field_radi
         self.field_grid_interval = field_grid_interval
