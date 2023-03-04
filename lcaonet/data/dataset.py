@@ -65,8 +65,7 @@ class BaseGraphDataset(Dataset):
         if self.subtract_center_of_mass:
             masses = np.array(atomic_masses[atoms.numbers])
             pos = atoms.positions
-            pos -= (masses[:, None] * pos).sum(0) / masses.sum()
-            atoms.positions = pos
+            atoms.positions -= (masses[:, None] * pos).sum(0) / masses.sum()
 
         # for edge_shift
         edge_src, edge_dst, dist, edge_shift = ase.neighborlist.neighbor_list(
