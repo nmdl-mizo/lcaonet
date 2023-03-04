@@ -1006,14 +1006,30 @@ class LCAOOut(nn.Module):
 
 
 class QM9PostProcess(nn.Module):
-    def __init__(self, atomref: Tensor | None, is_extensive: bool = True):
+    def __init__(
+        self, atomref: Tensor | None, add_mean: bool = True, mean: Tensor | None = None, is_extensive: bool = True
+    ):
         super().__init__()
         if atomref is None:
             atomref = torch.zeros(100)
         self.register_buffer("atomref", atomref)
+        self.add_mean = add_mean
+        self.register_buffer("mean", mean if mean else torch.tensor([1.0]))
         self.is_extensive = is_extensive
 
     def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
+        if self.add_mean:
+            if self.is_extensive:
+                mean = self.mean.repeat(z.size(-1)).unsqueeze(-1)  # type: ignore
+                mean = (
+                    mean.sum(dim=0, keepdim=True)
+                    if batch_idx is None
+                    else scatter(mean, batch_idx, dim=0, reduce="sum")
+                )
+            else:
+                mean = self.mean  # type: ignore
+            out = out + mean
+
         aref = self.atomref[z].unsqueeze(-1)  # type: ignore
         if self.is_extensive:
             aref = aref.sum(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="sum")
@@ -1048,6 +1064,8 @@ class LCAONet(BaseGNN):
         weight_init: str | None = "glorotorthogonal",
         qm9: bool = False,
         atomref: Tensor | None = None,
+        add_mean: bool = True,
+        mean: Tensor | None = None,
     ):
         """
         Args:
@@ -1071,6 +1089,8 @@ class LCAONet(BaseGNN):
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
             qm9 (bool): whether to use the QM9 dataset. Defaults to `False`.
             atomref (torch.Tensor | None): the atom reference property. Defaults to `None`.
+            add_mean (bool): whether to add mean to output. Defaults to `True`.
+            mean (torch.Tensor | None): property mean. Defaults to `None`.
         """
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
@@ -1114,7 +1134,7 @@ class LCAONet(BaseGNN):
         self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
 
         if qm9:
-            self.post_process = QM9PostProcess(atomref, is_extensive)
+            self.post_process = QM9PostProcess(atomref, add_mean, mean, is_extensive)
 
     def forward(self, batch: Batch) -> Tensor:
         """Forward calculation of LCAONet.
