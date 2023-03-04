@@ -1062,7 +1062,7 @@ class LCAONet(BaseGNN):
         is_extensive: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
-        qm9: bool = False,
+        qm9_postprocess: bool = False,
         atomref: Tensor | None = None,
         add_mean: bool = True,
         mean: Tensor | None = None,
@@ -1087,7 +1087,7 @@ class LCAONet(BaseGNN):
             is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
-            qm9 (bool): whether to use the QM9 dataset. Defaults to `False`.
+            qm9_postprocess (bool): whether to use the QM9 dataset. Defaults to `False`.
             atomref (torch.Tensor | None): the atom reference property. Defaults to `None`.
             add_mean (bool): whether to add mean to output. Defaults to `True`.
             mean (torch.Tensor | None): property mean. Defaults to `None`.
@@ -1106,7 +1106,7 @@ class LCAONet(BaseGNN):
             raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
         self.outer = outer
-        self.qm9 = qm9
+        self.qm9_postprocess = qm9_postprocess
 
         # calc basis layers
         self.rob = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
@@ -1133,7 +1133,7 @@ class LCAONet(BaseGNN):
         # output layer
         self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
 
-        if qm9:
+        if qm9_postprocess:
             self.post_process = QM9PostProcess(atomref, add_mean, mean, is_extensive)
 
     def forward(self, batch: Batch) -> Tensor:
@@ -1197,7 +1197,7 @@ class LCAONet(BaseGNN):
         # output
         out = self.out_layer(x, batch_idx)
 
-        if self.qm9:
+        if self.qm9_postprocess:
             out = self.post_process(out, z, batch_idx)
 
         return out
