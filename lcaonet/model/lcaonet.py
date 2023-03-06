@@ -17,7 +17,7 @@ from torch_scatter import scatter
 from lcaonet.data import DataKeys
 from lcaonet.model.base import BaseGNN
 from lcaonet.nn import Dense
-from lcaonet.nn.cutoff import BaseCutoff, PolynomialCutoff
+from lcaonet.nn.cutoff import BaseCutoff
 from lcaonet.utils import activation_resolver, init_resolver
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
@@ -125,7 +125,7 @@ ELEC_TABLE = torch.tensor(
 MAX_IDX = [3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11]
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
-OUTER_TABLE = torch.tensor(
+VALENCE_TABLE = torch.tensor(
     [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # dummy
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # H
@@ -331,7 +331,7 @@ def modify_max_ind(max_idx: list[int] = MAX_IDX) -> Tensor:
 
 
 ELEC_TABLE_BIG = modify_elec_table()
-OUTER_TABLE_BIG = modify_elec_table(OUTER_TABLE)
+VALENCE_TABLE_BIG = modify_elec_table(VALENCE_TABLE)
 MAX_IDX_BIG = modify_max_ind()
 
 
@@ -415,8 +415,8 @@ def get_elec_table(max_z: int, max_idx: int) -> Tensor:
     return ELEC_TABLE_BIG[: max_z + 1, : max_idx + 1]
 
 
-def get_outer_table(max_z: int, max_idx: int) -> Tensor:
-    return OUTER_TABLE_BIG[: max_z + 1, : max_idx + 1]
+def get_valence_table(max_z: int, max_idx: int) -> Tensor:
+    return VALENCE_TABLE_BIG[: max_z + 1, : max_idx + 1]
 
 
 def get_max_idx(max_z: int) -> Tensor:
@@ -726,8 +726,8 @@ class EmbedElec(nn.Module):
         return e_embed
 
 
-class OuterMask(nn.Module):
-    """The layer that generates outer orbital mask.
+class ValenceMask(nn.Module):
+    """The layer that generates valence orbital mask.
 
     Only the coefficients for valence orbitals are set to 1, and the
     coefficients for all other orbitals (including inner-shell orbitals)
@@ -742,27 +742,27 @@ class OuterMask(nn.Module):
             max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
         """
         super().__init__()
-        # get outer table
+        # get valence table
         if max_orb is None:
             max_idx = get_max_nl_index_byz(max_z)
         else:
             max_idx = get_max_nl_index_byorb(max_orb)
-        self.register_buffer("outer", get_outer_table(max_z, max_idx))
+        self.register_buffer("valence", get_valence_table(max_z, max_idx))
         self.n_orb = max_idx + 1
 
         self.embed_dim = embed_dim
 
     def forward(self, z: Tensor) -> Tensor:
-        """Forward calculation of OuterMask.
+        """Forward calculation of ValenceMask.
 
         Args:
             z (torch.Tensor): the atomic numbers with (n_node) shape.
 
         Returns:
-            outer (torch.Tensor): outer orbital mask with (n_node, n_orb, embed_dim) shape.
+            valence_mask (torch.Tensor): valence orbital mask with (n_node, n_orb, embed_dim) shape.
         """
-        outer = self.outer[z]  # type: ignore
-        return outer.unsqueeze(-1).expand(-1, -1, self.embed_dim)
+        valence_mask = self.valence[z]  # type: ignore
+        return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)
 
 
 class EmbedNode(nn.Module):
@@ -820,7 +820,7 @@ class LCAOConv(nn.Module):
         hidden_dim: int,
         coeffs_dim: int,
         conv_dim: int,
-        outer: bool = False,
+        add_valence: bool = False,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
@@ -829,7 +829,7 @@ class LCAOConv(nn.Module):
             hidden_dim (int): the dimension of node vector.
             coeffs_dim (int): the dimension of coefficient vectors.
             conv_dim (int): the dimension of embedding vectors at convolution.
-            outer (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
+            add_valence (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
                 Defaults to `None`.
@@ -838,12 +838,12 @@ class LCAOConv(nn.Module):
         self.hidden_dim = hidden_dim
         self.coeffs_dim = coeffs_dim
         self.conv_dim = conv_dim
-        self.outer = outer
+        self.add_valence = add_valence
 
         self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
-        out_dim = 3 * conv_dim if outer else 2 * conv_dim
+        out_dim = 3 * conv_dim if add_valence else 2 * conv_dim
         self.coeffs_before_lin = nn.Sequential(
             activation,
             Dense(coeffs_dim, conv_dim, False, weight_init),
@@ -851,7 +851,7 @@ class LCAOConv(nn.Module):
             Dense(conv_dim, out_dim, False, weight_init),
         )
 
-        three_out_dim = 2 * conv_dim if outer else conv_dim
+        three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.three_lin = nn.Sequential(
             activation,
             Dense(conv_dim, three_out_dim, True, weight_init),
@@ -869,7 +869,7 @@ class LCAOConv(nn.Module):
         self,
         x: Tensor,
         cji: Tensor,
-        outer_mask: Tensor | None,
+        valence_mask: Tensor | None,
         cutoff_w: Tensor | None,
         robs: Tensor,
         shbs: Tensor,
@@ -884,7 +884,7 @@ class LCAOConv(nn.Module):
         Args:
             x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
             cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
-            outer_mask (torch.Tensor | None): outer orbital mask with (n_node, n_orb, conv_dim) shape.
+            valence_mask (torch.Tensor | None): valence orbital mask with (n_node, n_orb, conv_dim) shape.
             cutoff_w (torch.Tensor | None): cutoff weight with (n_edge) shape.
             robs (torch.Tensor): the radial orbital basis with (n_edge, n_orb) shape.
             shbs (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
@@ -904,7 +904,7 @@ class LCAOConv(nn.Module):
 
         # Transformation of the coefficient vectors
         cji = self.coeffs_before_lin(cji)
-        if self.outer:
+        if self.add_valence:
             cji, ckj = torch.split(cji, [2 * self.conv_dim, self.conv_dim], dim=-1)
         else:
             cji, ckj = torch.chunk(cji, 2, dim=-1)
@@ -926,17 +926,17 @@ class LCAOConv(nn.Module):
         # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
-        if self.outer:
+        if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
         lcao_w = torch.einsum("ed,edh->eh", robs, cji)
 
-        if self.outer:
+        if self.add_valence:
             # valence contribution
-            if outer_mask is None:
-                raise ValueError("outer_mask must be provided when outer=True")
-            valence_w = torch.einsum("ed,edh->eh", robs, cji_valence * outer_mask)
+            if valence_mask is None:
+                raise ValueError("valence_mask must be provided when add_valence=True")
+            valence_w = torch.einsum("ed,edh->eh", robs, cji_valence * valence_mask)
             lcao_w = lcao_w + valence_w
 
         lcao_w = F.normalize(lcao_w, dim=-1)
@@ -1005,32 +1005,61 @@ class LCAOOut(nn.Module):
             return out.mean(dim=0, keepdim=True)
 
 
-class QM9PostProcess(nn.Module):
+class PostProcess(nn.Module):
     def __init__(
-        self, atomref: Tensor | None, add_mean: bool = True, mean: Tensor | None = None, is_extensive: bool = True
+        self,
+        out_dim: int,
+        atomref: Tensor | None = None,
+        add_mean: bool = False,
+        mean: Tensor | None = None,
+        is_extensive: bool = True,
     ):
+        """postprocess the output property values.
+
+        Add atom reference property and mean value to the output property values.
+
+        Args:
+            out_dim (int): output property dimension.
+            atomref (torch.Tensor | None, optional): atom reference property values with (n_node, out_dim) shape.
+                Defaults to `None`.
+            add_mean (bool, optional): Whether to add mean value to the output property values.
+                Defaults to `False`.
+            mean (torch.Tensor | None, optional): mean value of the output property values with (out_dim) shape.
+                Defaults to `None`.
+            is_extensive (bool, optional): whether the output property is extensive or not. Defaults to `True`.
+        """
         super().__init__()
+        self.out_dim = out_dim
         if atomref is None:
-            atomref = torch.zeros(100)
+            atomref = torch.zeros((100, out_dim))
         self.register_buffer("atomref", atomref)
         self.add_mean = add_mean
-        self.register_buffer("mean", mean if mean else torch.tensor([1.0]))
+        self.register_buffer("mean", mean if mean else torch.zeros(out_dim))
         self.is_extensive = is_extensive
 
     def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
+        """Forward calculation of PostProcess.
+
+        Args:
+            out (torch.Tensor): Output property values with (n_batch, out_dim) shape.
+            z (torch.Tensor): Atomic numbers with (n_node) shape.
+            batch_idx (torch.Tensor | None): The batch indices of nodes with (n_node) shape.
+
+        Returns:
+            torch.Tensor: Offset output property values with (n_batch, out_dim) shape.
+        """
         if self.add_mean:
+            mean = self.mean  # type: ignore
             if self.is_extensive:
-                mean = self.mean.repeat(z.size(-1)).unsqueeze(-1)  # type: ignore
+                mean = mean.unsqueeze(0).expand(z.size(0), -1)  # type: ignore
                 mean = (
                     mean.sum(dim=0, keepdim=True)
                     if batch_idx is None
                     else scatter(mean, batch_idx, dim=0, reduce="sum")
                 )
-            else:
-                mean = self.mean  # type: ignore
             out = out + mean
 
-        aref = self.atomref[z].unsqueeze(-1)  # type: ignore
+        aref = self.atomref[z]  # type: ignore
         if self.is_extensive:
             aref = aref.sum(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="sum")
         else:
@@ -1048,24 +1077,22 @@ class LCAONet(BaseGNN):
     def __init__(
         self,
         hidden_dim: int = 128,
-        coeffs_dim: int = 64,
-        conv_dim: int = 64,
+        coeffs_dim: int = 128,
+        conv_dim: int = 128,
         out_dim: int = 1,
         n_interaction: int = 3,
         cutoff: float | None = None,
-        cutoff_net: type[BaseCutoff] | None = PolynomialCutoff,
+        cutoff_net: type[BaseCutoff] | None = None,
         bohr_radius: float = 0.529,
         max_z: int = 36,
         max_orb: str | None = None,
-        outer: bool = False,
+        add_valence: bool = False,
         extend_orb: bool = False,
         is_extensive: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
-        qm9_postprocess: bool = False,
-        atomref: Tensor | None = None,
-        add_mean: bool = True,
-        mean: Tensor | None = None,
+        postprocess: bool = False,
+        **kwargs,
     ):
         """
         Args:
@@ -1077,20 +1104,17 @@ class LCAONet(BaseGNN):
             cutoff (float | None): the cutoff radius. Defaults to `None`.
                 If specified, the basis functions are normalized within the cutoff radius.
                 If `cutoff_net` is specified, the `cutoff` radius must be specified.
-            cutoff_net (type[BaseCutoff] | None): the cutoff network. Defaults to `lcaonet.nn.PolynomialCutoff`.
+            cutoff_net (type[lcaonet.nn.cutoff.BaseCutoff] | None): the cutoff network. Defaults to `None`.
             bohr_radius (float): the bohr radius. Defaults to `0.529`.
             max_z (int): the maximum atomic number. Defaults to `36`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
-            outer (bool): whether to add the effect of valence orbitals. Defaults to `False`.
+            add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
             extend_orb (bool): whether to extend the basis set. Defaults to `False`.
                 If `True`, convolution is performed including unoccupied orbitals of the ground state.
             is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
-            qm9_postprocess (bool): whether to use the QM9 dataset. Defaults to `False`.
-            atomref (torch.Tensor | None): the atom reference property. Defaults to `None`.
-            add_mean (bool): whether to add mean to output. Defaults to `True`.
-            mean (torch.Tensor | None): property mean. Defaults to `None`.
+            postprocess (bool): whether to use postprocess. Defaults to `False`.
         """
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
@@ -1105,8 +1129,8 @@ class LCAONet(BaseGNN):
         if cutoff_net is not None and cutoff is None:
             raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
-        self.outer = outer
-        self.qm9_postprocess = qm9_postprocess
+        self.add_valence = add_valence
+        self.postprocess = postprocess
 
         # calc basis layers
         self.rob = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
@@ -1122,19 +1146,19 @@ class LCAONet(BaseGNN):
         self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
         self.e_embed = EmbedElec(self.e_embed_dim, max_z, max_orb, extend_orb)
         self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, self.node_e_embed_dim, act, wi)
-        if outer:
-            self.outer_mask = OuterMask(conv_dim, max_z)
+        if add_valence:
+            self.valence_mask = ValenceMask(conv_dim, max_z)
 
         # interaction layers
         self.int_layers = nn.ModuleList(
-            [LCAOConv(hidden_dim, coeffs_dim, conv_dim, outer, act, wi) for _ in range(n_interaction)]
+            [LCAOConv(hidden_dim, coeffs_dim, conv_dim, add_valence, act, wi) for _ in range(n_interaction)]
         )
 
         # output layer
         self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
 
-        if qm9_postprocess:
-            self.post_process = QM9PostProcess(atomref, add_mean, mean, is_extensive)
+        if postprocess:
+            self.pp_layer = PostProcess(out_dim=out_dim, is_extensive=is_extensive, **kwargs)
 
     def forward(self, batch: Batch) -> Tensor:
         """Forward calculation of LCAONet.
@@ -1188,16 +1212,16 @@ class LCAONet(BaseGNN):
         x = self.node_embed(z_embed2, e_embed2)
 
         # valence mask coefficients
-        outer_mask: Tensor | None = self.outer_mask(z)[idx_j] if self.outer else None
+        valence_mask: Tensor | None = self.valence_mask(z)[idx_j] if self.add_valence else None
 
         # calc interaction
         for inte in self.int_layers:
-            x = inte(x, cji, outer_mask, cutoff_w, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(x, cji, valence_mask, cutoff_w, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # output
         out = self.out_layer(x, batch_idx)
 
-        if self.qm9_postprocess:
-            out = self.post_process(out, z, batch_idx)
+        if self.postprocess:
+            out = self.pp_layer(out, z, batch_idx)
 
         return out
