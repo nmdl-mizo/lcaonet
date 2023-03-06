@@ -5,9 +5,10 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch_geometric.data import Data
+from torch_scatter import scatter
 
 from lcaonet.data import DataKeys
-from lcaonet.model.lcaonet import EmbedElec, EmbedZ, LCAONet
+from lcaonet.model.lcaonet import EmbedElec, EmbedZ, LCAONet, PostProcess
 from lcaonet.nn.cutoff import BaseCutoff, CosineCutoff, PolynomialCutoff
 
 
@@ -30,7 +31,6 @@ param_e_embed = [
 
 @pytest.mark.parametrize("embed_dim, max_z, max_orb, extend_orb", param_e_embed)
 def test_embed_elec(
-    set_seed,  # NOQA: F811
     embed_dim: int,
     max_z: int,
     max_orb: str | None,
@@ -49,6 +49,54 @@ def test_embed_elec(
             assert (coeffs[i, ec.elec[z] == 0, :] == torch.zeros_like(coeffs[i, ec.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
         if extend_orb:
             assert (coeffs[i, ec.elec[z] == 0, :] != torch.zeros_like(coeffs[i, ec.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
+
+
+param_postprocess = [
+    (1, None, False, None, True),  # default
+    (1, None, False, None, False),  # no extensive
+    (1, None, True, None, True),  # add mean
+    (1, None, True, torch.ones(1), True),  # add mean (1)
+    (1, None, True, torch.ones(1), False),  # add mean (1) and no extensive
+    (1, torch.ones((100, 1)), False, None, True),  # add atomref
+    (1, torch.ones((100, 1)), False, None, False),  # add atomref and no extensive
+    (1, torch.ones((100, 1)), True, None, True),  # add atomref and mean
+    (1, torch.ones((100, 1)), True, torch.ones(1), True),  # add atomref and mean (1)
+    (1, torch.ones((100, 1)), True, torch.ones(1), False),  # add atomref and mean (1) and no extensive
+    (10, torch.ones((100, 1)), True, torch.ones(1), True),  # add atomref and mean (1)
+    (10, torch.ones((100, 1)), True, torch.ones(1), False),  # add atomref and mean (1) and no extensive
+]
+
+
+@pytest.mark.parametrize("out_dim, atomref, add_mean, mean, is_extensive", param_postprocess)
+def test_postprocess(
+    out_dim: int,
+    atomref: torch.Tensor | None,
+    add_mean: bool,
+    mean: torch.Tensor | None,
+    is_extensive: bool,
+):
+    n_batch, n_node = 10, 100
+    out = torch.rand((n_batch, out_dim))
+    zs = torch.randint(0, 100, (n_node,))
+    batch_idx = torch.randint(0, n_batch, (n_node,))
+    pp_layer = PostProcess(out_dim, atomref, add_mean, mean, is_extensive)
+
+    out_pp = pp_layer(out, zs, batch_idx)
+
+    assert out_pp.size() == (n_batch, out_dim)
+
+    expected = out
+    reduce = "sum" if is_extensive else "mean"
+    if atomref is not None:
+        expected += scatter(atomref[zs], batch_idx, dim=0, dim_size=n_batch, reduce=reduce)
+    if add_mean:
+        if mean is None:
+            mean = torch.zeros(out_dim)
+        else:
+            mean = mean.unsqueeze(0).expand(n_node, -1)
+            mean = scatter(mean, batch_idx, dim=0, dim_size=n_batch, reduce=reduce)
+        expected += mean
+    assert torch.allclose(out_pp, expected)
 
 
 param_lcaonet = [
@@ -77,7 +125,7 @@ param_lcaonet = [
 
 
 @pytest.mark.parametrize(
-    "hidden_dim, coeffs_dim,conv_dim, out_dim, cutoff, extend_orb, outer, cutoff_net, qm9", param_lcaonet
+    "hidden_dim, coeffs_dim, conv_dim, out_dim, cutoff, extend_orb, add_valence, cutoff_net, postprocess", param_lcaonet
 )
 def test_LCAONet(
     one_graph_data: Data,
@@ -87,9 +135,9 @@ def test_LCAONet(
     out_dim: int,
     cutoff: float | None,
     extend_orb: bool,
-    outer: bool,
+    add_valence: bool,
     cutoff_net: type[BaseCutoff] | None,
-    qm9: bool,
+    postprocess: bool,
 ):
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item()
     if cutoff_net is not None and cutoff is None:
@@ -103,11 +151,11 @@ def test_LCAONet(
                 cutoff=cutoff,
                 cutoff_net=cutoff_net,
                 activation="Silu",
-                outer=outer,
+                add_valence=add_valence,
                 extend_orb=extend_orb,
                 weight_init="glorot_orthogonal",
                 max_z=max_z,
-                qm9=qm9,
+                postprocess=postprocess,
             )
             assert str(e.value) == "cutoff_net must be specified when cutoff is not None"
     else:
@@ -120,11 +168,11 @@ def test_LCAONet(
             cutoff=cutoff,
             cutoff_net=cutoff_net,
             activation="Silu",
-            outer=outer,
+            add_valence=add_valence,
             extend_orb=extend_orb,
             weight_init="glorot_orthogonal",
             max_z=max_z,
-            qm9=qm9,
+            postprocess=postprocess,
         )
 
         with torch.no_grad():
