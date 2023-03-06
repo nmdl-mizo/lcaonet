@@ -773,7 +773,8 @@ class EmbedNode(nn.Module):
         self,
         hidden_dim: int,
         z_dim: int,
-        e_dim: int,
+        use_elec: bool,
+        e_dim: int | None = None,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
@@ -781,7 +782,8 @@ class EmbedNode(nn.Module):
         Args:
             hidden_dim (int): the dimension of node vector.
             z_dim (int): the dimension of atomic number embedding.
-            e_dim (int): the dimension of electron number embedding.
+            use_elec (bool): whether to use electron number embedding.
+            e_dim (int | None): the dimension of electron number embedding.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
                 Defaults to `None`.
@@ -789,26 +791,36 @@ class EmbedNode(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.z_dim = z_dim
-        self.e_dim = e_dim
+        self.use_elec = use_elec
+        if use_elec:
+            assert e_dim is not None
+            self.e_dim = e_dim
+        else:
+            self.e_dim = 0
 
         self.z_e_lin = nn.Sequential(
             activation,
-            Dense(z_dim + e_dim, hidden_dim, True, weight_init),
+            Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, False, weight_init),
         )
 
-    def forward(self, z_embed: Tensor, e_embed: Tensor) -> Tensor:
+    def forward(self, z_embed: Tensor, e_embed: Tensor | None = None) -> Tensor:
         """Forward calculation of EmbedNode.
 
         Args:
             z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
-            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
+            e_embed (torch.Tensor | None): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
 
         Returns:
             torch.Tensor: node embedding vectors with (n_node, hidden_dim) shape.
         """
-        z_e_embed = torch.cat([z_embed, e_embed.sum(1)], dim=-1)
+        if self.use_elec:
+            if e_embed is None:
+                raise ValueError("e_embed must be set when use_elec is True.")
+            z_e_embed = torch.cat([z_embed, e_embed.sum(1)], dim=-1)
+        else:
+            z_e_embed = z_embed
         return self.z_e_lin(z_e_embed)
 
 
@@ -1086,6 +1098,7 @@ class LCAONet(BaseGNN):
         bohr_radius: float = 0.529,
         max_z: int = 36,
         max_orb: str | None = None,
+        elec_to_node: bool = True,
         add_valence: bool = False,
         extend_orb: bool = False,
         is_extensive: bool = True,
@@ -1108,6 +1121,7 @@ class LCAONet(BaseGNN):
             bohr_radius (float): the bohr radius. Defaults to `0.529`.
             max_z (int): the maximum atomic number. Defaults to `36`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
+            elec_to_node (bool): whether to use electrons information to nodes embedding. Defaults to `True`.
             add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
             extend_orb (bool): whether to extend the basis set. Defaults to `False`.
                 If `True`, convolution is performed including unoccupied orbitals of the ground state.
@@ -1129,6 +1143,7 @@ class LCAONet(BaseGNN):
         if cutoff_net is not None and cutoff is None:
             raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
+        self.elec_to_node = elec_to_node
         self.add_valence = add_valence
         self.postprocess = postprocess
 
@@ -1140,12 +1155,12 @@ class LCAONet(BaseGNN):
 
         # node and coefficient embedding layers
         self.node_z_embed_dim = 64  # fix
-        self.node_e_embed_dim = 32  # fix
+        self.node_e_embed_dim = 64 if elec_to_node else 0  # fix
         self.e_embed_dim = self.coeffs_dim + self.node_e_embed_dim
         self.z_embed_dim = self.e_embed_dim + self.node_z_embed_dim
         self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
         self.e_embed = EmbedElec(self.e_embed_dim, max_z, max_orb, extend_orb)
-        self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, self.node_e_embed_dim, act, wi)
+        self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, elec_to_node, self.node_e_embed_dim, act, wi)
         if add_valence:
             self.valence_mask = ValenceMask(conv_dim, max_z)
 
