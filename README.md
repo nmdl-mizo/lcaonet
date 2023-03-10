@@ -123,5 +123,4 @@ You can train LCAONet with custom data in the following three steps.
 
 ## References
 
-1. K. Nishio, K. Shibata, T. Mizoguchi. *LCAONet: Message passing with optimized basis
-functions for edge elemental species.* (2023) [Paper](https://arxiv.org/abs/)
+1. K. Nishio, K. Shibata, T. Mizoguchi. *LCAONet: Message passing with optimized basis functions for edge elemental species.* (2023) [Paper](https://arxiv.org/abs/)
