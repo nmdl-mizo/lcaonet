@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
@@ -8,23 +8,22 @@ install_requires = [
     "numpy",
     "scipy",
     "sympy",
-    "h5py",
-    "ase",
+    "ase==3.22.1",
     "pymatgen==2022.4.19",
-    "torch>=1.13.0",
+    "torch==1.13.0",
     "pyg-lib",
     "torch-scatter",
     "torch-sparse",
     "torch-cluster",
     "torch-spline-conv",
     "torch-geometric",
-    "pyrootutils",
-    "hydra-core==1.2.0",
-    "hydra-colorlog==1.2.0",
-    "hydra-optuna-sweeper==1.2.0",
-    "pytorch-lightning",
-    "rich",
-    "wandb",
+    # "pyrootutils",
+    # "hydra-core==1.2.0",
+    # "hydra-colorlog==1.2.0",
+    # "hydra-optuna-sweeper==1.2.0",
+    # "pytorch-lightning",
+    # "rich",
+    # "wandb",
 ]
 
 test_requires = [
