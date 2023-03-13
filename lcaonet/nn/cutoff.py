@@ -30,7 +30,7 @@ def cosine_cutoff(r: Tensor, cutoff: float) -> Tensor:
         cutoff (float): cutoff distance.
 
     Returns:
-        torch.Tensor: polynomial cutoff values.
+        torch.Tensor: cosine cutoff values.
     """
     cutoffs = 0.5 * (torch.cos(r * PI / cutoff) + 1.0)
     # Remove contributions beyond the cutoff radius
