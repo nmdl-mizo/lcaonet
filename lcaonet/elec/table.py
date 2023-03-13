@@ -318,9 +318,9 @@ def get_valence_table(max_z: int, max_idx: int) -> Tensor:
     return VALENCE_TABLE[: max_z + 1, : max_idx + 1]
 
 
-def get_max_elec_idx(max_z: int) -> Tensor:
+def get_max_elec_idx(max_idx: int) -> Tensor:
     max_elec_idx_tensor = torch.tensor(MAX_ELEC_IDX)
-    return max_elec_idx_tensor[: max_z + 1]
+    return max_elec_idx_tensor[: max_idx + 1]
 
 
 def get_nl_list(max_idx: int) -> list[tuple[int, int]]:
