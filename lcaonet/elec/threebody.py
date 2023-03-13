@@ -198,7 +198,7 @@ def get_valence_table(max_z: int, max_idx: int) -> Tensor:
     return VALENCE_TABLE_THREE_BODY[: max_z + 1, : max_idx + 1]
 
 
-def get_max_idx(max_z: int) -> Tensor:
+def get_max_elec_idx(max_z: int) -> Tensor:
     return MAX_ELEC_IDX_THREE_BODY[: max_z + 1]
 
 
