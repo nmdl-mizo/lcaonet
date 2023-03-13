@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-__version__ = "1.2.0"
+__version__ = "0.0.0"
 URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
