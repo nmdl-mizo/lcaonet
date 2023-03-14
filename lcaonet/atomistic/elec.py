@@ -1,11 +1,30 @@
-from __future__ import annotations
-
 import torch
-from torch import Tensor
 
 # 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
 N_ORB = 18
 
+NL_LIST: list[tuple[int, int]] = [
+    (1, 0),  # 1s
+    (2, 0),  # 2s
+    (2, 1),  # 2p
+    (3, 0),  # 3s
+    (3, 1),  # 3p
+    (4, 0),  # 4s
+    (3, 2),  # 3d
+    (4, 1),  # 4p
+    (5, 0),  # 5s
+    (4, 2),  # 4d
+    (5, 1),  # 5p
+    (6, 0),  # 6s
+    (4, 3),  # 4f
+    (5, 2),  # 5d
+    (6, 1),  # 6p
+    (7, 0),  # 7s
+    (5, 3),  # 5f
+    (6, 2),  # 6d
+]
+
+MAX_ELEC_IDX = [3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11]
 ELEC_TABLE = torch.tensor(
     [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # dummy
@@ -107,7 +126,6 @@ ELEC_TABLE = torch.tensor(
         [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 7, 1],  # Cm (96)
     ]
 )
-MAX_ELEC_IDX = [3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11]
 
 # 0: inner-shell orb, 1: valence orb
 VALENCE_TABLE = torch.tensor(
@@ -211,117 +229,3 @@ VALENCE_TABLE = torch.tensor(
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],  # Cm (96)
     ]
 )
-
-NL_LIST: list[tuple[int, int]] = [
-    (1, 0),  # 1s
-    (2, 0),  # 2s
-    (2, 1),  # 2p
-    (3, 0),  # 3s
-    (3, 1),  # 3p
-    (4, 0),  # 4s
-    (3, 2),  # 3d
-    (4, 1),  # 4p
-    (5, 0),  # 5s
-    (4, 2),  # 4d
-    (5, 1),  # 5p
-    (6, 0),  # 6s
-    (4, 3),  # 4f
-    (5, 2),  # 5d
-    (6, 1),  # 6p
-    (7, 0),  # 7s
-    (5, 3),  # 5f
-    (6, 2),  # 6d
-]
-
-
-def get_max_nl_index_byz(max_z: int) -> int:
-    if max_z <= 2:
-        return 0
-    if max_z <= 4:
-        return 1
-    if max_z <= 10:
-        return 2
-    if max_z <= 12:
-        return 3
-    if max_z <= 18:
-        return 4
-    if max_z <= 20:
-        return 5
-    if max_z <= 30:
-        return 6
-    if max_z <= 36:
-        return 7
-    if max_z <= 38:
-        return 8
-    if max_z <= 48:
-        return 9
-    if max_z <= 54:
-        return 10
-    if max_z <= 56:
-        return 11
-    if max_z <= 80:
-        return 13
-    if max_z <= 86:
-        return 14
-    if max_z <= 88:
-        return 15
-    if max_z <= 96:
-        return 17
-    raise ValueError(f"max_z={max_z} is too large")
-
-
-def get_max_nl_index_byorb(max_orb: str) -> int:
-    if max_orb == "1s":
-        return 0
-    if max_orb == "2s":
-        return 1
-    if max_orb == "2p":
-        return 2
-    if max_orb == "3s":
-        return 3
-    if max_orb == "3p":
-        return 4
-    if max_orb == "4s":
-        return 5
-    if max_orb == "3d":
-        return 6
-    if max_orb == "4p":
-        return 7
-    if max_orb == "5s":
-        return 8
-    if max_orb == "4d":
-        return 9
-    if max_orb == "5p":
-        return 10
-    if max_orb == "6s":
-        return 11
-    if max_orb == "4f":
-        return 12
-    if max_orb == "5d":
-        return 13
-    if max_orb == "6p":
-        return 14
-    if max_orb == "7s":
-        return 15
-    if max_orb == "5f":
-        return 16
-    if max_orb == "6d":
-        return 17
-    raise ValueError(f"max_orb={max_orb} is not supported")
-
-
-def get_elec_table(max_z: int, max_idx: int) -> Tensor:
-    return ELEC_TABLE[: max_z + 1, : max_idx + 1]
-
-
-def get_valence_table(max_z: int, max_idx: int) -> Tensor:
-    return VALENCE_TABLE[: max_z + 1, : max_idx + 1]
-
-
-def get_max_elec_idx(max_idx: int) -> Tensor:
-    max_elec_idx_tensor = torch.tensor(MAX_ELEC_IDX)
-    return max_elec_idx_tensor[: max_idx + 1]
-
-
-def get_nl_list(max_idx: int) -> list[tuple[int, int]]:
-    return NL_LIST[: max_idx + 1]
