@@ -21,7 +21,12 @@ from lcaonet.data import DataKeys
 from lcaonet.model.base import BaseGCNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
-from lcaonet.utils import activation_resolver, init_resolver, rbf_resolver
+from lcaonet.utils import (
+    activation_resolver,
+    init_resolver,
+    rbf_limit_n_orb_resolver,
+    rbf_resolver,
+)
 
 
 class SphericalHarmonicsBasis(nn.Module):
@@ -145,8 +150,8 @@ class EmbedElec(nn.Module):
         """
         super().__init__()
         self.embed_dim = embed_dim
-        self.n_orb = atom_info.n_orb
         self.extend_orb = extend_orb
+        self.n_orb = atom_info.n_orb
 
         self.register_buffer("elec", atom_info.get_elec_table)
         self.e_embeds = nn.ModuleList(
@@ -606,8 +611,13 @@ class LCAONet(BaseGCNN):
         self.add_valence = add_valence
         self.postprocess = postprocess
 
+        # atomistic information
+        limit_n_orb = rbf_limit_n_orb_resolver(rbf_form, **rbf_kwargs)
+        atom_info = ThreeBodyAtomisticInformation(max_z, max_orb, limit_n_orb=limit_n_orb)
+
         # basis layers
         rbf_kwargs["cutoff"] = cutoff
+        rbf_kwargs["atom_info"] = atom_info
         self.rbf = rbf_resolver(rbf_form, **rbf_kwargs)
         self.sbf = SphericalHarmonicsBasis(rbf_form, **rbf_kwargs)
         if cutoff_net:

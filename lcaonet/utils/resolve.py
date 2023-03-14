@@ -133,3 +133,15 @@ def rbf_resolver(query: BaseRadialBasis | str = "hydrogenradialwavefunctionbasis
 
     # Since mypy cannot identify that _resolver returns BaseRadialBasis
     return _resolver(query, rbfs, base_cls, True, **kwargs)  # type: ignore
+
+
+def rbf_limit_n_orb_resolver(query: BaseRadialBasis | str = "hydrogenradialwavefunctionbasis", **kwargs) -> int:
+    if isinstance(query, str):
+        query = _normalize_string(query)
+    base_cls: type = BaseRadialBasis
+    # activation classes
+    rbfs = [rbf for rbf in vars(lcaonet.nn.rbf).values() if isinstance(rbf, type) and issubclass(rbf, base_cls)]
+
+    # Since mypy cannot identify that _resolver returns BaseRadialBasis
+    rbf_cls: type[BaseRadialBasis] = _resolver(query, rbfs, base_cls, False, **kwargs)  # type: ignore
+    return rbf_cls.limit_n_orb

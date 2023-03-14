@@ -12,8 +12,8 @@ class BaseAtomisticInformation:
     def __init__(self, max_z: int, max_orb: str | None, limit_n_orb: int | None = None):
         self.max_z = max_z
         self.max_orb = max_orb
-        self.limit_n_orb = limit_n_orb
-        self.n_orb = ELEC_TABLE.size(1) if limit_n_orb is None else limit_n_orb
+        self.limit_n_orb = ELEC_TABLE.size(1) if limit_n_orb is None else limit_n_orb
+        self.n_orb = self.limit_n_orb
 
         # original values
         self._elec_table = ELEC_TABLE
@@ -50,35 +50,37 @@ class ThreeBodyAtomisticInformation(BaseAtomisticInformation):
         super().__init__(max_z, max_orb, limit_n_orb)
 
         # get threebody values
-        self.n_orb = 37 if self.limit_n_orb is None else self._calc_three_body_n_orb(self.limit_n_orb)
-        self.max_orb_idx = self._get_max_orb_idx_byz(self.n_orb)
-        if self.max_orb_idx is not None:
-            self.max_orb_idx = max(self.max_orb_idx, self._get_max_orb_idx_byorb(self.n_orb))
+        self.limit_threeb_n_orb = self._calc_threeb_n_orb(self.limit_n_orb)
+        self.max_orb_idx = self._get_max_orb_idx_byz(self.limit_threeb_n_orb)
+        if max_orb is not None:
+            self.max_orb_idx = max(self.max_orb_idx, self._get_max_orb_idx_byorb(self.limit_threeb_n_orb))
+        self.n_orb = self.max_orb_idx + 1
 
-        self._elec_table_threeb = self._mod_table_threeb(self._elec_table, self.n_orb)
-        self._valence_table_threeb = self._mod_table_threeb(self._valence_table, self.n_orb)
-        self._exponent_table_threeb = self._mod_table_threeb(self._exponent_table, self.n_orb)
+        # modify values
+        self._elec_table_threeb = self._mod_table_threeb(self._elec_table, self.limit_threeb_n_orb)
+        self._valence_table_threeb = self._mod_table_threeb(self._valence_table, self.limit_threeb_n_orb)
+        self._exponent_table_threeb = self._mod_table_threeb(self._exponent_table, self.limit_threeb_n_orb)
 
-        self._max_elec_idx_threeb = self._mod_max_idx_threeb(self._max_elec_idx, self.n_orb)
+        self._max_elec_idx_threeb = self._mod_max_idx_threeb(self._max_elec_idx, self.limit_threeb_n_orb)
 
         self._nl_list_threeb = self._mod_nl_list_threeb(self._nl_list)
 
-    def _calc_three_body_n_orb(self, limit_n_orb: int) -> int:
-        three_body_n_orb = 0
+    def _calc_threeb_n_orb(self, limit_n_orb: int) -> int:
+        limit_threeb_n_orb = 0
         for i in range(limit_n_orb):
             # s
             if np.isin([0, 1, 3, 5, 8, 11, 15], i).any():
-                three_body_n_orb += 1
+                limit_threeb_n_orb += 1
             # p
             elif np.isin([2, 4, 7, 10, 14], i).any():
-                three_body_n_orb += 2
+                limit_threeb_n_orb += 2
             # d
             elif np.isin([6, 9, 13, 17], i).any():
-                three_body_n_orb += 3
+                limit_threeb_n_orb += 3
             # f
             elif np.isin([12, 16], i).any():
-                three_body_n_orb += 4
-        return three_body_n_orb
+                limit_threeb_n_orb += 4
+        return limit_threeb_n_orb
 
     def _get_max_orb_idx_byz(self, limit_threeb_n_orb: int) -> int:
         max_z = self.max_z
@@ -166,9 +168,9 @@ class ThreeBodyAtomisticInformation(BaseAtomisticInformation):
             raise ValueError(f"max_orb={max_orb} is too large in limit_threeb_n_orb={limit_threeb_n_orb}")
         return idx
 
-    def _mod_table_threeb(self, tbl: Tensor, three_body_n_orb: int) -> Tensor:
+    def _mod_table_threeb(self, tbl: Tensor, limit_threeb_n_orb: int) -> Tensor:
         def mod_one(one_elec: Tensor) -> Tensor:
-            out_elec = torch.zeros((three_body_n_orb,), dtype=torch.long)
+            out_elec = torch.zeros((limit_threeb_n_orb,), dtype=torch.long)
             j = 0
             # iteration on original table
             for i in range(one_elec.size(0)):
@@ -195,14 +197,14 @@ class ThreeBodyAtomisticInformation(BaseAtomisticInformation):
                         j += 1
             return out_elec
 
-        out_elec = torch.zeros((len(tbl), three_body_n_orb), dtype=torch.long)
+        out_elec = torch.zeros((len(tbl), limit_threeb_n_orb), dtype=torch.long)
         for i in range(len(tbl)):
             out_elec[i] = mod_one(tbl[i])
 
         return out_elec
 
-    def _mod_max_idx_threeb(self, max_idx: list[int], three_body_n_orb: int) -> Tensor:
-        out_max_ind = torch.zeros((three_body_n_orb,), dtype=torch.long)
+    def _mod_max_idx_threeb(self, max_idx: list[int], limit_threeb_n_orb: int) -> Tensor:
+        out_max_ind = torch.zeros((limit_threeb_n_orb,), dtype=torch.long)
         j = 0
         # iteration on original table
         for i in range(len(max_idx)):
@@ -233,7 +235,7 @@ class ThreeBodyAtomisticInformation(BaseAtomisticInformation):
         out_nl_list = []
         # iteration on original list
         for i, nl in enumerate(nl_list):
-            if self.limit_n_orb is not None and i >= self.limit_n_orb:
+            if i >= self.limit_n_orb:
                 break
             # s
             if nl[1] == 0:
