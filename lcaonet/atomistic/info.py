@@ -13,6 +13,7 @@ class BaseAtomisticInformation:
         self.max_z = max_z
         self.max_orb = max_orb
         self.limit_n_orb = limit_n_orb
+        self.n_orb = 18 if limit_n_orb is None else limit_n_orb
 
         # original values
         self._elec_table = ELEC_TABLE
@@ -49,16 +50,16 @@ class ThreeBodyAtomisticInformation(BaseAtomisticInformation):
         super().__init__(max_z, max_orb, limit_n_orb)
 
         # get threebody values
-        self.threeb_n_orb = 37 if self.limit_n_orb is None else self._calc_three_body_n_orb(self.limit_n_orb)
-        self.max_orb_idx = self._get_max_orb_idx_byz(self.threeb_n_orb)
+        self.n_orb = 37 if self.limit_n_orb is None else self._calc_three_body_n_orb(self.limit_n_orb)
+        self.max_orb_idx = self._get_max_orb_idx_byz(self.n_orb)
         if self.max_orb_idx is not None:
-            self.max_orb_idx = max(self.max_orb_idx, self._get_max_orb_idx_byorb(self.threeb_n_orb))
+            self.max_orb_idx = max(self.max_orb_idx, self._get_max_orb_idx_byorb(self.n_orb))
 
-        self._elec_table_threeb = self._mod_table_threeb(self._elec_table, self.threeb_n_orb)
-        self._valence_table_threeb = self._mod_table_threeb(self._valence_table, self.threeb_n_orb)
-        self._exponent_table_threeb = self._mod_table_threeb(self._exponent_table, self.threeb_n_orb)
+        self._elec_table_threeb = self._mod_table_threeb(self._elec_table, self.n_orb)
+        self._valence_table_threeb = self._mod_table_threeb(self._valence_table, self.n_orb)
+        self._exponent_table_threeb = self._mod_table_threeb(self._exponent_table, self.n_orb)
 
-        self._max_elec_idx_threeb = self._mod_max_idx_threeb(self._max_elec_idx, self.threeb_n_orb)
+        self._max_elec_idx_threeb = self._mod_max_idx_threeb(self._max_elec_idx, self.n_orb)
 
         self._nl_list_threeb = self._mod_nl_list_threeb(self._nl_list)
 
