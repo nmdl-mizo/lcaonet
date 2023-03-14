@@ -1,4 +1,4 @@
-from __future__ import annotations  # type: ignore
+from __future__ import annotations
 
 import torch
 import torch.nn as nn
@@ -9,7 +9,7 @@ from torch_sparse import SparseTensor
 from lcaonet.data.datakeys import DataKeys
 
 
-class BaseGNN(nn.Module):
+class BaseGCNN(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 

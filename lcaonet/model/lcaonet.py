@@ -3,170 +3,38 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from math import pi
+from typing import Any
 
 import sympy as sym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from scipy.integrate import quad
 from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
 
-from lcaonet.data import DataKeys
-from lcaonet.elec import (
-    get_elec_table,
-    get_max_elec_idx,
-    get_max_nl_index_byorb,
-    get_max_nl_index_byz,
-    get_nl_list,
-    get_valence_table,
+from lcaonet.atomistic.info import (
+    BaseAtomisticInformation,
+    ThreeBodyAtomisticInformation,
 )
-from lcaonet.model.base import BaseGNN
+from lcaonet.data import DataKeys
+from lcaonet.model.base import BaseGCNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
-from lcaonet.utils import activation_resolver, init_resolver
-
-
-class RadialOrbitalBasis(nn.Module):
-    """The layer that expand the interatomic distance with the radial
-    wavefunctions of hydrogen."""
-
-    def __init__(
-        self,
-        cutoff: float | None = None,
-        bohr_radius: float = 0.529,
-        max_z: int = 36,
-        max_orb: str | None = None,
-    ):
-        """
-        Args:
-            cutoff (float | None, optional): the cutoff radius. Defaults to `None`.
-            bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
-        """
-        super().__init__()
-        # get elec table
-        if max_orb is None:
-            max_idx = get_max_nl_index_byz(max_z)
-        else:
-            max_idx = get_max_nl_index_byorb(max_orb)
-        self.n_orb = max_idx + 1
-        self.n_l_list = get_nl_list(max_idx)
-        self.cutoff = cutoff
-        self.bohr_radius = bohr_radius
-
-        self.basis_func = []
-        self.stand_coeff = []
-        for n, l in self.n_l_list:
-            r_nl = self._get_r_nl(n, l, self.bohr_radius)
-            self.basis_func.append(r_nl)
-            if self.cutoff is not None:
-                self.stand_coeff.append(self._get_standardized_coeff(r_nl).requires_grad_(True))
-
-    def _get_r_nl(self, nq: int, lq: int, r0: float = 0.529) -> Callable[[Tensor | float], Tensor | float]:
-        """Get RadialOrbitalBasis functions with the associated Laguerre
-        polynomial.
-
-        Args:
-            nq (int): principal quantum number.
-            lq (int): azimuthal quantum number.
-            r0 (float): bohr radius. Defaults to `0.529`.
-
-        Returns:
-            r_nl (Callable[[Tensor | float], Tensor | float]): Orbital Basis function.
-        """
-        x = sym.Symbol("x", real=True)
-        # modify for n, l parameter
-        # ref: https://zenn.dev/shittoku_xxx/articles/13afd6fdfac44e
-        assoc_lag_coeff = sym.lambdify(
-            [x],
-            sym.simplify(
-                sym.assoc_laguerre(nq - lq - 1, 2 * lq + 1, x) * sym.factorial(nq + lq) * (-1) ** (2 * lq + 1)
-            ),
-        )
-        if self.cutoff is not None:
-            stand_coeff = -2.0 / nq / r0
-        else:
-            # standardize in all space
-            stand_coeff = -math.sqrt(
-                (2.0 / nq / r0) ** 3 * math.factorial(nq - lq - 1) / 2.0 / nq / math.factorial(nq + lq) ** 3
-            )
-
-        def r_nl(r: Tensor | float) -> Tensor | float:
-            zeta = 2.0 / nq / r0 * r
-
-            if isinstance(r, float):
-                return stand_coeff * assoc_lag_coeff(zeta) * zeta**lq * math.exp(-zeta / 2.0)
-
-            return stand_coeff * assoc_lag_coeff(zeta) * torch.pow(zeta, lq) * torch.exp(-zeta / 2.0)  # type: ignore
-
-        return r_nl
-
-    def _get_standardized_coeff(self, func: Callable[[Tensor | float], Tensor | float]) -> Tensor:
-        """If a cutoff radius is specified, the standardization coefficient is
-        computed by numerical integration.
-
-        Args:
-            func (Callable[[Tensor | float], Tensor | float]): radial wave function.
-
-        Raises:
-            ValueError: Occurs when cutoff radius is not specified.
-
-        Returns:
-            torch.Tensor: Standardization coefficient such that the probability of existence
-                within the cutoff sphere is 1.
-        """
-        if self.cutoff is None:
-            raise ValueError("cutoff is None")
-        cutoff = self.cutoff
-
-        with torch.no_grad():
-
-            def interad_func(r):
-                return (r * func(r)) ** 2
-
-            inte = quad(interad_func, 0.0, cutoff)
-            return 1 / (torch.sqrt(torch.tensor([inte[0]])) + 1e-12)
-
-    def forward(self, dist: Tensor) -> Tensor:
-        """Forward calculation of RadialOrbitalBasis.
-
-        Args:
-            dist (torch.Tensor): the interatomic distance with (n_edge) shape.
-
-        Returns:
-            rbf (torch.Tensor): the expanded distance with (n_edge, n_orb) shape.
-        """
-        if self.cutoff is not None:
-            device = dist.device
-            rbf = torch.stack([f(dist) * sc.to(device) for f, sc in zip(self.basis_func, self.stand_coeff)], dim=1)
-        else:
-            rbf = torch.stack([f(dist) for f in self.basis_func], dim=1)  # type: ignore
-        return rbf
+from lcaonet.utils import activation_resolver, init_resolver, rbf_resolver
 
 
 class SphericalHarmonicsBasis(nn.Module):
-    """The layer that expand interatomic distance and angles with radial
-    wavefunctions of hydrogen and spherical harmonics functions."""
+    """The layer that expand interatomic distance and angles with radial baisis
+    functions and spherical harmonics functions."""
 
-    def __init__(
-        self,
-        cutoff: float | None = None,
-        bohr_radius: float = 0.529,
-        max_z: int = 36,
-        max_orb: str | None = None,
-    ):
+    def __init__(self, rbf: str = "hydrogenradialwavefunctionbasis", **kwargs):
         """
         Args:
-            cutoff (float | None, optional): the cutoff radius. Defaults to `None`.
-            bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+            rbf (str): the name of radial basis functions. Defaults to `hydrogenradialwavefunctionbasis`.
         """
         super().__init__()
-        self.radial_basis = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
+        self.radial_basis = rbf_resolver(rbf, **kwargs)
 
         # make spherical basis functions
         self.sph_funcs = self._calculate_symbolic_sh_funcs()
@@ -211,11 +79,11 @@ class SphericalHarmonicsBasis(nn.Module):
 
         return funcs
 
-    def forward(self, dist: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
+    def forward(self, d: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
         """Forward calculation of SphericalHarmonicsBasis.
 
         Args:
-            dist (torch.Tensor): the interatomic distance with (n_edge) shape.
+            d (torch.Tensor): the interatomic distance with (n_edge) shape.
             angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
             edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
 
@@ -223,12 +91,12 @@ class SphericalHarmonicsBasis(nn.Module):
             torch.Tensor: the expanded distance and angles of (n_triplets, n_orb) shape.
         """
         # (n_edge, n_orb)
-        rob = self.radial_basis(dist)
+        rbf = self.radial_basis(d)
         # (n_triplets, n_orb)
-        shb = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
+        sbf = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
 
         # (n_triplets, n_orb)
-        return rob[edge_idx_kj] * shb
+        return rbf[edge_idx_kj] * sbf
 
 
 class EmbedZ(nn.Module):
@@ -265,30 +133,24 @@ class EmbedElec(nn.Module):
     """The layer that embeds electron numbers into latent vectors.
 
     If `extend_orb=False`, then if the number of electrons in the ground
-    state is zero, the orbital is a zero vector embedding.
+    state is zero, the elec vector embedd into a zero vector.
     """
 
-    def __init__(self, embed_dim: int, max_z: int = 36, max_orb: str | None = None, extend_orb: bool = False):
+    def __init__(self, embed_dim: int, atom_info: BaseAtomisticInformation, extend_orb: bool = False):
         """
         Args:
             embed_dim (int): the dimension of embedding.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+            atom_info (lcaonet.atomistic.info.BaseAtomisticInformation): the atomistic information.
             extend_orb (bool, optional): Whether to use an extended basis. Defaults to `False`.
         """
         super().__init__()
-        # get elec table
-        if max_orb is None:
-            max_idx = get_max_nl_index_byz(max_z)
-        else:
-            max_idx = get_max_nl_index_byorb(max_orb)
-        self.register_buffer("elec", get_elec_table(max_z, max_idx))
-        self.n_orb = max_idx + 1
-
         self.embed_dim = embed_dim
+        self.n_orb = atom_info.n_orb
         self.extend_orb = extend_orb
+
+        self.register_buffer("elec", atom_info.get_elec_table)
         self.e_embeds = nn.ModuleList(
-            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in get_max_elec_idx(max_idx)]
+            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in atom_info.get_max_elec_idx]
         )
 
         self.reset_parameters()
@@ -335,21 +197,15 @@ class ValenceMask(nn.Module):
     are set to 0.
     """
 
-    def __init__(self, embed_dim: int, max_z: int = 36, max_orb: str | None = None):
+    def __init__(self, embed_dim: int, atom_info: BaseAtomisticInformation):
         """
         Args:
             embed_dim (int): the dimension of embedding.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+            atom_info (lcaonet.atomistic.info.BaseAtomisticInformation): the atomistic information.
         """
         super().__init__()
-        # get valence table
-        if max_orb is None:
-            max_idx = get_max_nl_index_byz(max_z)
-        else:
-            max_idx = get_max_nl_index_byorb(max_orb)
-        self.register_buffer("valence", get_valence_table(max_z, max_idx))
-        self.n_orb = max_idx + 1
+        self.register_buffer("valence", atom_info.get_valence_table)
+        self.n_orb = atom_info.n_orb
 
         self.embed_dim = embed_dim
 
@@ -484,8 +340,8 @@ class LCAOConv(nn.Module):
         cji: Tensor,
         valence_mask: Tensor | None,
         cutoff_w: Tensor | None,
-        robs: Tensor,
-        shbs: Tensor,
+        rbfs: Tensor,
+        sbfs: Tensor,
         idx_i: Tensor,
         idx_j: Tensor,
         tri_idx_k: Tensor,
@@ -499,8 +355,8 @@ class LCAOConv(nn.Module):
             cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
             valence_mask (torch.Tensor | None): valence orbital mask with (n_node, n_orb, conv_dim) shape.
             cutoff_w (torch.Tensor | None): cutoff weight with (n_edge) shape.
-            robs (torch.Tensor): the radial orbital basis with (n_edge, n_orb) shape.
-            shbs (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
+            rbfs (torch.Tensor): the radial basis functions with (n_edge, n_orb) shape.
+            sbfs (torch.Tensor): the spherical harmonics basis functions with (n_triplets, n_orb) shape.
             idx_i (torch.Tensor): the indices of the first node of each edge with (n_edge) shape.
             idx_j (torch.Tensor): the indices of the second node of each edge with (n_edge) shape.
             tri_idx_k (torch.Tensor): the indices of the third node of each triplet with (n_triplets) shape.
@@ -524,18 +380,18 @@ class LCAOConv(nn.Module):
 
         # cutoff
         if cutoff_w is not None:
-            robs = robs * cutoff_w.unsqueeze(-1)
+            rbfs = rbfs * cutoff_w.unsqueeze(-1)
 
         # triple conv
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], ckj)
+        three_body_orbs = torch.einsum("ed,edh->eh", sbfs * rbfs[edge_idx_kj], ckj)
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_orbs * xk
-        three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=robs.size(0)))
+        three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rbfs.size(0)))
         # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
@@ -543,13 +399,13 @@ class LCAOConv(nn.Module):
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        lcao_w = torch.einsum("ed,edh->eh", robs, cji)
+        lcao_w = torch.einsum("ed,edh->eh", rbfs, cji)
 
         if self.add_valence:
             # valence contribution
             if valence_mask is None:
                 raise ValueError("valence_mask must be provided when add_valence=True")
-            valence_w = torch.einsum("ed,edh->eh", robs, cji_valence * valence_mask)
+            valence_w = torch.einsum("ed,edh->eh", rbfs, cji_valence * valence_mask)
             lcao_w = lcao_w + valence_w
 
         lcao_w = F.normalize(lcao_w, dim=-1)
@@ -682,7 +538,7 @@ class PostProcess(nn.Module):
         return out + aref
 
 
-class LCAONet(BaseGNN):
+class LCAONet(BaseGCNN):
     """
     LCAONet - GCNN including orbital interaction, physically motivatied by the LCAO method.
     """
@@ -694,12 +550,12 @@ class LCAONet(BaseGNN):
         conv_dim: int = 128,
         out_dim: int = 1,
         n_interaction: int = 3,
-        rbf_form: str = "hydrogen",
+        rbf_form: str = "hydrogenradialwavefunctionbasis",
+        rbf_kwargs: dict[str, Any] = {},
         cutoff: float | None = None,
         cutoff_net: type[BaseCutoff] | None = None,
         max_z: int = 36,
         max_orb: str | None = None,
-        bohr_radius: float = 0.529,
         elec_to_node: bool = True,
         add_valence: bool = False,
         extend_orb: bool = False,
@@ -716,17 +572,18 @@ class LCAONet(BaseGNN):
             conv_dim (int): the dimension of embedding vectors at convolution. Defaults to `64`.
             out_dim (int): the dimension of output property. Defaults to `1`.
             n_interaction (int): the number of interaction layers. Defaults to `3`.
+            rbf_form (str): the form of radial basis functions. Defaults to `"hydrogenradialwavefunctionbasis"`.
+            rbf_kwargs (dict[str, Any]): the keyword arguments of radial basis functions. Defaults to `{}`.
             cutoff (float | None): the cutoff radius. Defaults to `None`.
                 If specified, the basis functions are normalized within the cutoff radius.
                 If `cutoff_net` is specified, the `cutoff` radius must be specified.
             cutoff_net (type[lcaonet.nn.cutoff.BaseCutoff] | None): the cutoff network. Defaults to `None`.
-            bohr_radius (float): the bohr radius. Defaults to `0.529`.
             max_z (int): the maximum atomic number. Defaults to `36`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
             elec_to_node (bool): whether to use electrons information to nodes embedding. Defaults to `True`.
             add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
             extend_orb (bool): whether to extend the basis set. Defaults to `False`.
-                If `True`, convolution is performed including unoccupied orbitals of the ground state.
+                If `True`, message-passing is performed including unoccupied orbitals of the ground state.
             is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
@@ -749,11 +606,15 @@ class LCAONet(BaseGNN):
         self.add_valence = add_valence
         self.postprocess = postprocess
 
-        # calc basis layers
-        self.rob = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
-        self.shb = SphericalHarmonicsBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
+        # basis layers
+        rbf_kwargs["cutoff"] = cutoff
+        self.rbf = rbf_resolver(rbf_form, **rbf_kwargs)
+        self.sbf = SphericalHarmonicsBasis(rbf_form, **rbf_kwargs)
         if cutoff_net:
             self.cn = cutoff_net(cutoff)  # type: ignore
+
+        # atomistic information
+        atom_info = ThreeBodyAtomisticInformation(max_z, max_orb, limit_n_orb=self.rbf.limit_n_orb)
 
         # node and coefficient embedding layers
         self.node_z_embed_dim = 64  # fix
@@ -761,10 +622,10 @@ class LCAONet(BaseGNN):
         self.e_embed_dim = self.coeffs_dim + self.node_e_embed_dim
         self.z_embed_dim = self.e_embed_dim + self.node_z_embed_dim
         self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
-        self.e_embed = EmbedElec(self.e_embed_dim, max_z, max_orb, extend_orb)
+        self.e_embed = EmbedElec(self.e_embed_dim, atom_info, extend_orb)
         self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, elec_to_node, self.node_e_embed_dim, act, wi)
         if add_valence:
-            self.valence_mask = ValenceMask(conv_dim, max_z)
+            self.valence_mask = ValenceMask(conv_dim, atom_info)
 
         # interaction layers
         self.int_layers = nn.ModuleList(
@@ -814,8 +675,8 @@ class LCAONet(BaseGNN):
         angle = torch.atan2(outter, inner)
 
         # calc basis
-        robs = self.rob(distances)
-        shbs = self.shb(distances, angle, edge_idx_kj)
+        rbfs = self.rbf(distances)
+        sbfs = self.sbf(distances, angle, edge_idx_kj)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
@@ -833,7 +694,7 @@ class LCAONet(BaseGNN):
 
         # calc interaction
         for inte in self.int_layers:
-            x = inte(x, cji, valence_mask, cutoff_w, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(x, cji, valence_mask, cutoff_w, rbfs, sbfs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # output
         out = self.out_layer(x, batch_idx)

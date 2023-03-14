@@ -13,7 +13,7 @@ class BaseAtomisticInformation:
         self.max_z = max_z
         self.max_orb = max_orb
         self.limit_n_orb = limit_n_orb
-        self.n_orb = 18 if limit_n_orb is None else limit_n_orb
+        self.n_orb = ELEC_TABLE.size(1) if limit_n_orb is None else limit_n_orb
 
         # original values
         self._elec_table = ELEC_TABLE
