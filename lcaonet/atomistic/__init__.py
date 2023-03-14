@@ -1,4 +1,4 @@
-from .threebody import (
+from .three_body_elec import (
     get_elec_table,
     get_max_elec_idx,
     get_max_nl_index_byorb,

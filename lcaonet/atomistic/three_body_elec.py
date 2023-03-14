@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from .table import ELEC_TABLE, MAX_ELEC_IDX, VALENCE_TABLE
+from .elec import ELEC_TABLE, MAX_ELEC_IDX, VALENCE_TABLE
 
 # 1s,
 # 2s,
