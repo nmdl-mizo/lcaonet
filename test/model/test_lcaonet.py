@@ -8,9 +8,9 @@ from torch_geometric.data import Data
 from torch_geometric.nn.inits import glorot_orthogonal
 from torch_scatter import scatter
 
-from lcaonet.atomistic import ThreeBodyAtomisticInformation
+from lcaonet.atomistic import CustomNOrbAtomisticInformation
 from lcaonet.data import DataKeys
-from lcaonet.model.lcaonet import EmbedElec, EmbedNode, EmbedZ, LCAONet, PostProcess
+from lcaonet.model.lcaonet import EmbedElec, EmbedNode, LCAONet, PostProcess
 from lcaonet.nn.cutoff import BaseCutoff, CosineCutoff, PolynomialCutoff
 
 
@@ -20,34 +20,37 @@ def set_seed():
 
 
 param_EmbedElec = [
-    (2, 96, None, False),
-    (2, 96, None, True),
-    (2, 96, "3s", False),
-    (2, 96, "3s", True),
-    (2, 5, "3s", False),
-    (2, 5, "3s", True),
-    (2, 5, "5p", False),
-    (2, 5, "5p", True),
-    (32, 96, None, False),
-    (32, 96, None, True),
-    (32, 5, "3s", False),
-    (32, 5, "3s", True),
+    (2, 96, None, False, 1),
+    (2, 96, None, True, 1),
+    (2, 96, "3s", False, 1),
+    (2, 96, "3s", True, 1),
+    (2, 5, "3s", False, 1),
+    (2, 5, "3s", True, 1),
+    (2, 5, "5p", False, 1),
+    (2, 5, "5p", True, 1),
+    (2, 96, None, False, 2),
+    (2, 96, None, True, 2),
+    (2, 96, "3s", False, 2),
+    (2, 96, "3s", True, 2),
+    (32, 96, None, False, 1),
+    (32, 96, None, True, 1),
+    (32, 5, "3s", False, 1),
+    (32, 5, "3s", True, 1),
 ]
 
 
-@pytest.mark.parametrize("embed_dim, max_z, max_orb, extend_orb", param_EmbedElec)
+@pytest.mark.parametrize("embed_dim, max_z, max_orb, extend_orb, n_per_orb", param_EmbedElec)
 def test_EmbedElec(
     embed_dim: int,
     max_z: int,
     max_orb: str | None,
     extend_orb: bool,
+    n_per_orb: int,
 ):
-    atom_info = ThreeBodyAtomisticInformation(max_z, max_orb)
+    atom_info = CustomNOrbAtomisticInformation(max_z, max_orb, n_per_orb=n_per_orb)
     zs = torch.tensor([i for i in range(max_z + 1)])
-    ez = EmbedZ(embed_dim, max_z)
-    z_embed = ez(zs)
     ec = EmbedElec(embed_dim, atom_info, extend_orb)
-    coeffs = ec(zs, z_embed)
+    coeffs = ec(zs)
     # check embeding shape
     assert coeffs.size() == (zs.size(0), ec.n_orb, embed_dim)
     for i, z in enumerate(zs):
