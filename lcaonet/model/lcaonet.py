@@ -15,7 +15,7 @@ from torch_scatter import scatter
 
 from lcaonet.atomistic.info import (
     BaseAtomisticInformation,
-    ThreeBodyAtomisticInformation,
+    CustomNOrbAtomisticInformation,
 )
 from lcaonet.data import DataKeys
 from lcaonet.model.base import BaseGCNN
@@ -33,12 +33,14 @@ class SphericalHarmonicsBasis(nn.Module):
     """The layer that expand interatomic distance and angles with radial baisis
     functions and spherical harmonics functions."""
 
-    def __init__(self, rbf: str = "hydrogenradialwavefunctionbasis", **kwargs):
+    def __init__(self, maxl: int = 7, rbf: str = "hydrogenradialwavefunctionbasis", **kwargs):
         """
         Args:
-            rbf (str): the name of radial basis functions. Defaults to `hydrogenradialwavefunctionbasis`.
+            maxl (int): max order (exclude l). Defaults to `7`.
+            rbf (str): the name of radial basis functions. Defaults to `"hydrogenradialwavefunctionbasis"`.
         """
         super().__init__()
+        self.maxl = maxl
         self.radial_basis = rbf_resolver(rbf, **kwargs)
 
         # make spherical basis functions
@@ -70,17 +72,16 @@ class SphericalHarmonicsBasis(nn.Module):
         funcs = []
         theta, phi = sym.symbols("theta phi")
         modules = {"sin": torch.sin, "cos": torch.cos, "conjugate": torch.conj, "sqrt": torch.sqrt, "exp": torch.exp}
-        for nl in self.radial_basis.n_l_list:
+        for lq in range(self.maxl):
             # !! only m=zero is used
             m_list = [0]
             for m in m_list:
-                if nl[1] == 0:
+                if lq == 0:
                     funcs.append(SphericalHarmonicsBasis._y00)
                 else:
-                    func = sym.functions.special.spherical_harmonics.Znm(nl[1], m, theta, phi).expand(func=True)
+                    func = sym.functions.special.spherical_harmonics.Znm(lq, m, theta, phi).expand(func=True)
                     func = sym.simplify(func).evalf()
                     funcs.append(sym.lambdify([theta, phi], func, modules))
-        self.orig_funcs = funcs
 
         return funcs
 
@@ -93,15 +94,15 @@ class SphericalHarmonicsBasis(nn.Module):
             edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
 
         Returns:
-            torch.Tensor: the expanded distance and angles of (n_triplets, n_orb) shape.
+            torch.Tensor: the expanded distance and angles of (n_triplets, n_orb, maxl) shape.
         """
         # (n_edge, n_orb)
         rbf = self.radial_basis(d)
-        # (n_triplets, n_orb)
+        # (n_triplets, maxl)
         sbf = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
 
-        # (n_triplets, n_orb)
-        return rbf[edge_idx_kj] * sbf
+        # (n_triplets, n_orb*maxl)
+        return rbf[edge_idx_kj][:, :, None] * sbf[:, None, :]
 
 
 class EmbedZ(nn.Module):
@@ -167,12 +168,11 @@ class EmbedElec(nn.Module):
             if not self.extend_orb:
                 ee._fill_padding_idx_with_zero()
 
-    def forward(self, z: Tensor, z_embed: Tensor) -> Tensor:
+    def forward(self, z: Tensor) -> Tensor:
         """Forward calculation of EmbedElec.
 
         Args:
             z (torch.Tensor): the atomic numbers with (n_node) shape.
-            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, embed_dim) shape.
 
         Returns:
             e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, embed_dim) shape.
@@ -185,11 +185,6 @@ class EmbedElec(nn.Module):
         e_embed = torch.stack([ce(elec[i]) for i, ce in enumerate(self.e_embeds)], dim=0)
         # (n_node, n_orb, embed_dim)
         e_embed = torch.transpose(e_embed, 0, 1)
-
-        # (n_node) -> (n_node, 1, embed_dim)
-        z_embed = z_embed.unsqueeze(1)
-        # inject atomic information to e_embed vectors
-        e_embed = e_embed + e_embed * z_embed
 
         return e_embed
 
@@ -246,9 +241,8 @@ class EmbedNode(nn.Module):
             z_dim (int): the dimension of atomic number embedding.
             use_elec (bool): whether to use electron number embedding.
             e_dim (int | None): the dimension of electron number embedding.
-            activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
-                Defaults to `None`.
+            activation (nn.Module): the activation function. Defaults to `torch.nn.SiLU()`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None): weight initialization func. Defaults to `None`.
         """
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -261,10 +255,8 @@ class EmbedNode(nn.Module):
             self.e_dim = 0
 
         self.z_e_lin = nn.Sequential(
-            activation,
             Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim, False, weight_init),
         )
 
     def forward(self, z_embed: Tensor, e_embed: Tensor | None = None) -> Tensor:
@@ -275,7 +267,7 @@ class EmbedNode(nn.Module):
             e_embed (torch.Tensor | None): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
 
         Returns:
-            torch.Tensor: node embedding vectors with (n_node, hidden_dim) shape.
+            node_embed (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
         """
         if self.use_elec:
             if e_embed is None:
@@ -283,7 +275,50 @@ class EmbedNode(nn.Module):
             z_e_embed = torch.cat([z_embed, e_embed.sum(1)], dim=-1)
         else:
             z_e_embed = z_embed
+
         return self.z_e_lin(z_e_embed)
+
+
+class EmbedCoeffs(nn.Module):
+    """The layer that embeds atomic numbers and electron numbers into
+    coefficient embedding vectors."""
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        z_dim: int,
+        e_dim: int,
+        weight_init: Callable[[Tensor], Tensor] | None = None,
+    ):
+        """
+        Args:
+            hidden_dim (int): the dimension of coefficient vector.
+            z_dim (int): the dimension of atomic number embedding.
+            e_dim (int): the dimension of electron number embedding.
+            weight_init (Callable[[Tensor], Tensor] | None): weight initialization func. Defaults to `None`.
+        """
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.z_dim = z_dim
+        self.e_dim = e_dim
+        self.z_lin = Dense(2 * z_dim, hidden_dim, False, weight_init)
+        self.e_lin = Dense(e_dim, hidden_dim, False, weight_init)
+
+    def forward(self, z_embed: Tensor, e_embed: Tensor, idx_i: Tensor, idx_j: Tensor) -> Tensor:
+        """Forward calculation of EmbedCoeffs.
+
+        Args:
+            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
+            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
+            idx_i (torch.Tensor):
+            idx_j (torch.Tensor):
+
+        Returns:
+            coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
+        """
+        z_embed = self.z_lin(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
+        e_embed = self.e_lin(e_embed)
+        return e_embed[idx_j] + e_embed[idx_j] * z_embed.unsqueeze(1)
 
 
 class LCAOConv(nn.Module):
@@ -303,10 +338,9 @@ class LCAOConv(nn.Module):
             hidden_dim (int): the dimension of node vector.
             coeffs_dim (int): the dimension of coefficient vectors.
             conv_dim (int): the dimension of embedding vectors at convolution.
-            add_valence (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
-            activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
-                Defaults to `None`.
+            add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
+            activation (nn.Module): the activation function. Defaults to `torch.nn.SiLU()`.
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None): weight initialization func. Defaults to `None`.
         """
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -319,23 +353,23 @@ class LCAOConv(nn.Module):
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 3 * conv_dim if add_valence else 2 * conv_dim
         self.coeffs_before_lin = nn.Sequential(
-            activation,
             Dense(coeffs_dim, conv_dim, False, weight_init),
             activation,
             Dense(conv_dim, out_dim, False, weight_init),
+            activation,
         )
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.three_lin = nn.Sequential(
-            activation,
             Dense(conv_dim, three_out_dim, True, weight_init),
+            activation,
         )
 
         self.node_lin = nn.Sequential(
-            activation,
             Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
+            activation,
         )
         self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
 
@@ -391,14 +425,14 @@ class LCAOConv(nn.Module):
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = torch.einsum("ed,edh->eh", sbfs * rbfs[edge_idx_kj], ckj)
-        three_body_orbs = F.normalize(three_body_orbs, dim=-1)
+        threeb_orbs = torch.einsum("edl,edh->eh", sbfs, ckj)
+        threeb_orbs = F.normalize(threeb_orbs, dim=-1)
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
-        three_body_w = three_body_orbs * xk
-        three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rbfs.size(0)))
+        threeb_w = threeb_orbs * xk
+        threeb_w = self.three_lin(scatter(threeb_w, edge_idx_ji, dim=0, dim_size=rbfs.size(0)))
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + cji * three_body_w.unsqueeze(1)
+        cji = cji + cji * threeb_w.unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
@@ -557,6 +591,8 @@ class LCAONet(BaseGCNN):
         n_interaction: int = 3,
         rbf_form: str = "hydrogenradialwavefunctionbasis",
         rbf_kwargs: dict[str, Any] = {},
+        n_per_orb: int = 2,
+        n_spherical: int = 7,
         cutoff: float | None = None,
         cutoff_net: type[BaseCutoff] | None = None,
         max_z: int = 36,
@@ -579,6 +615,7 @@ class LCAONet(BaseGCNN):
             n_interaction (int): the number of interaction layers. Defaults to `3`.
             rbf_form (str): the form of radial basis functions. Defaults to `"hydrogenradialwavefunctionbasis"`.
             rbf_kwargs (dict[str, Any]): the keyword arguments of radial basis functions. Defaults to `{}`.
+            n_per_orb (int): the number of each orbital. Defaults to `1`.
             cutoff (float | None): the cutoff radius. Defaults to `None`.
                 If specified, the basis functions are normalized within the cutoff radius.
                 If `cutoff_net` is specified, the `cutoff` radius must be specified.
@@ -603,6 +640,8 @@ class LCAONet(BaseGCNN):
         self.conv_dim = conv_dim
         self.out_dim = out_dim
         self.n_interaction = n_interaction
+        self.n_per_orb = n_per_orb
+        self.n_spherical = n_spherical
         self.cutoff = cutoff
         if cutoff_net is not None and cutoff is None:
             raise ValueError("cutoff must be specified when cutoff_net is used")
@@ -613,27 +652,27 @@ class LCAONet(BaseGCNN):
 
         # atomistic information
         limit_n_orb = rbf_limit_n_orb_resolver(rbf_form, **rbf_kwargs)
-        atom_info = ThreeBodyAtomisticInformation(max_z, max_orb, limit_n_orb=limit_n_orb)
+        atom_info = CustomNOrbAtomisticInformation(max_z, max_orb, limit_n_orb=limit_n_orb)
 
         # basis layers
         rbf_kwargs["cutoff"] = cutoff
         rbf_kwargs["atom_info"] = atom_info
         self.rbf = rbf_resolver(rbf_form, **rbf_kwargs)
-        self.sbf = SphericalHarmonicsBasis(rbf_form, **rbf_kwargs)
+        self.sbf = SphericalHarmonicsBasis(n_spherical, rbf_form, **rbf_kwargs)
         if cutoff_net:
             self.cn = cutoff_net(cutoff)  # type: ignore
 
         # atomistic information
-        atom_info = ThreeBodyAtomisticInformation(max_z, max_orb, limit_n_orb=self.rbf.limit_n_orb)
+        atom_info = CustomNOrbAtomisticInformation(max_z, max_orb, limit_n_orb=self.rbf.limit_n_orb)
 
         # node and coefficient embedding layers
-        self.node_z_embed_dim = 64  # fix
-        self.node_e_embed_dim = 64 if elec_to_node else 0  # fix
-        self.e_embed_dim = self.coeffs_dim + self.node_e_embed_dim
-        self.z_embed_dim = self.e_embed_dim + self.node_z_embed_dim
-        self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
-        self.e_embed = EmbedElec(self.e_embed_dim, atom_info, extend_orb)
-        self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, elec_to_node, self.node_e_embed_dim, act, wi)
+        z_embed_dim = self.hidden_dim + self.coeffs_dim
+        self.node_e_embed_dim = hidden_dim if elec_to_node else 0
+        e_embed_dim = self.node_e_embed_dim + self.coeffs_dim
+        self.z_embed = EmbedZ(embed_dim=z_embed_dim, max_z=max_z)
+        self.e_embed = EmbedElec(e_embed_dim, atom_info, extend_orb)
+        self.node_embed = EmbedNode(hidden_dim, hidden_dim, elec_to_node, self.node_e_embed_dim, act, wi)
+        self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, wi)
         if add_valence:
             self.valence_mask = ValenceMask(conv_dim, atom_info)
 
@@ -691,13 +730,15 @@ class LCAONet(BaseGCNN):
 
         # calc node and coefficient embedding vectors
         z_embed = self.z_embed(z)
-        z_embed1, z_embed2 = torch.split(z_embed, [self.e_embed_dim, self.node_z_embed_dim], dim=-1)
-
-        e_embed = self.e_embed(z, z_embed1)
-        e_embed1, e_embed2 = torch.split(e_embed, [self.coeffs_dim, self.node_e_embed_dim], dim=-1)
-
-        cji = e_embed1[idx_j] + e_embed1[idx_i] * e_embed1[idx_j]
-        x = self.node_embed(z_embed2, e_embed2)
+        node_z, coeffs_z = torch.split(z_embed, [self.hidden_dim, self.coeffs_dim], dim=-1)
+        e_embed = self.e_embed(z)
+        if self.elec_to_node:
+            node_e, coeffs_e = torch.split(e_embed, [self.node_e_embed_dim, self.coeffs_dim], dim=-1)
+            x = self.node_embed(node_z, node_e)
+        else:
+            coeffs_e = e_embed
+            x = self.node_embed(node_z)
+        cji = self.coeff_embed(coeffs_z, coeffs_e, idx_i, idx_j)
 
         # valence mask coefficients
         valence_mask: Tensor | None = self.valence_mask(z)[idx_j] if self.add_valence else None

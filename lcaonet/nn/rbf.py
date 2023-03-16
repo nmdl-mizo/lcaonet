@@ -95,14 +95,13 @@ class HydrogenRadialWaveFunctionBasis(BaseRadialBasis):
         computed by numerical integration.
 
         Args:
-            func (Callable[[Tensor | float], Tensor | float]): hydrogen radial wave function.
+            func (Callable[[Tensor | float], Tensor | float]): the hydrogen radial wave function.
 
         Raises:
             ValueError: Occurs when cutoff radius is not specified.
 
         Returns:
-            torch.Tensor: Normalize coefficient such that the probability of existence
-                within the cutoff sphere is 1.
+            torch.Tensor: Normalize coefficient.
         """
         if self.cutoff is None:
             raise ValueError("cutoff is None")
@@ -140,6 +139,39 @@ class SlaterOrbitalBasis(BaseRadialBasis):
 
     def __init__(self, cutoff: float | None, atom_info: BaseAtomisticInformation):
         super().__init__(cutoff, atom_info)
+
+    #     self.basis_func = []
+    #     self.normalize_coeff = []
+    #     for n, l in self.n_l_list:
+    #         r_nl = self._get_r_nl(n, l, self.bohr_radius)
+    #         self.basis_func.append(r_nl)
+    #         if self.cutoff is not None:
+    #             self.normalize_coeff.append(self._get_normalize_coeff(r_nl).requires_grad_(True))
+
+    # def _get_normalize_coeff(self, func: Callable[[Tensor | float, Tensor | float], Tensor | float]) -> Tensor:
+    #     """If a cutoff radius is specified, the normalization coefficient is
+    #     computed by numerical integration.
+
+    #     Args:
+    #         func (Callable[[Tensor | float, Tensor | float], Tensor | float]): the slater radial basis.
+
+    #     Raises:
+    #         ValueError: Occurs when cutoff radius is not specified.
+
+    #     Returns:
+    #         torch.Tensor: Normalize coefficient.
+    #     """
+    #     if self.cutoff is None:
+    #         raise ValueError("cutoff is None")
+    #     cutoff = self.cutoff
+
+    #     with torch.no_grad():
+
+    #         def interad_func(r):
+    #             return (r * func(r)) ** 2
+
+    #         inte = quad(interad_func, 0.0, cutoff)
+    #         return 1 / (torch.sqrt(torch.tensor([inte[0]])) + 1e-12)
 
 
 class GaussianOrbitalBasis(BaseRadialBasis):

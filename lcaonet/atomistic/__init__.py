@@ -1,5 +1,5 @@
-from .info import ThreeBodyAtomisticInformation
+from .info import CustomNOrbAtomisticInformation
 
 __all__ = [
-    "ThreeBodyAtomisticInformation",
+    "CustomNOrbAtomisticInformation",
 ]
