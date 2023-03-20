@@ -390,7 +390,7 @@ class LCAOConv(nn.Module):
             Dense(conv_dim, conv_dim, True, weight_init),
         )
 
-        self.coeffs_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
+        self.coeffs_after_lin = Dense(conv_dim, coeffs_dim, False, weight_init)
 
         self.node_after_lin = Dense(conv_dim, hidden_dim, True, weight_init)
 
@@ -540,36 +540,33 @@ class LCAOOut(nn.Module):
 
 
 class PostProcess(nn.Module):
+    """postprocess the output property values.
+
+    Add atom reference property and mean value to the network output
+    values.
+    """
+
     def __init__(
         self,
         out_dim: int,
-        atomref: Tensor | None = None,
-        add_mean: bool = False,
-        mean: Tensor | None = None,
         is_extensive: bool = True,
+        atomref: Tensor | None = None,
+        mean: Tensor | None = None,
     ):
-        """postprocess the output property values.
-
-        Add atom reference property and mean value to the output property values.
-
+        """
         Args:
             out_dim (int): output property dimension.
-            atomref (torch.Tensor | None, optional): atom reference property values with (n_node, out_dim) shape.
-                Defaults to `None`.
-            add_mean (bool, optional): Whether to add mean value to the output property values.
-                Defaults to `False`.
-            mean (torch.Tensor | None, optional): mean value of the output property values with (out_dim) shape.
-                Defaults to `None`.
-            is_extensive (bool, optional): whether the output property is extensive or not. Defaults to `True`.
+            is_extensive (bool): whether the output property is extensive or not. Defaults to `True`.
+            atomref (torch.Tensor | None): atom reference values with (max_z, out_dim) shape. Defaults to `None`.
+            mean (torch.Tensor | None): mean value of the output property with (out_dim) shape. Defaults to `None`.
         """
         super().__init__()
         self.out_dim = out_dim
-        if atomref is None:
-            atomref = torch.zeros((100, out_dim))
-        self.register_buffer("atomref", atomref)
-        self.add_mean = add_mean
-        self.register_buffer("mean", mean if mean else torch.zeros(out_dim))
         self.is_extensive = is_extensive
+        # atom ref
+        self.register_buffer("atomref", atomref)
+        # mean and std
+        self.register_buffer("mean", mean)
 
     def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
         """Forward calculation of PostProcess.
@@ -582,7 +579,23 @@ class PostProcess(nn.Module):
         Returns:
             torch.Tensor: Offset output property values with (n_batch, out_dim) shape.
         """
-        if self.add_mean:
+        if self.atomref is not None:
+            aref = self.atomref[z]  # type: ignore
+            if self.is_extensive:
+                aref = (
+                    aref.sum(dim=0, keepdim=True)
+                    if batch_idx is None
+                    else scatter(aref, batch_idx, dim=0, reduce="sum")
+                )
+            else:
+                aref = (
+                    aref.mean(dim=0, keepdim=True)
+                    if batch_idx is None
+                    else scatter(aref, batch_idx, dim=0, reduce="mean")
+                )
+            out = out + aref
+
+        if self.mean is not None:
             mean = self.mean  # type: ignore
             if self.is_extensive:
                 mean = mean.unsqueeze(0).expand(z.size(0), -1)  # type: ignore
@@ -593,14 +606,7 @@ class PostProcess(nn.Module):
                 )
             out = out + mean
 
-        aref = self.atomref[z]  # type: ignore
-        if self.is_extensive:
-            aref = aref.sum(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="sum")
-        else:
-            aref = (
-                aref.mean(dim=0, keepdim=True) if batch_idx is None else scatter(aref, batch_idx, dim=0, reduce="mean")
-            )
-        return out + aref
+        return out
 
 
 class LCAONet(BaseGCNN):
@@ -629,8 +635,8 @@ class LCAONet(BaseGCNN):
         is_extensive: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
-        postprocess: bool = False,
-        **kwargs,
+        atomref: Tensor | None = None,
+        mean: Tensor | None = None,
     ):
         """
         Args:
@@ -655,7 +661,9 @@ class LCAONet(BaseGCNN):
             is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
-            postprocess (bool): whether to use postprocess. Defaults to `False`.
+            atomref (torch.Tensor | None): the reference value of the output property with (max_z, out_dim) shape.
+                Defaults to `None`.
+            mean (torch.Tensor | None): the mean value of the output property with (out_dim) shape. Defaults to `None`.
         """
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
@@ -674,7 +682,6 @@ class LCAONet(BaseGCNN):
         self.cutoff_net = cutoff_net
         self.elec_to_node = elec_to_node
         self.add_valence = add_valence
-        self.postprocess = postprocess
 
         # atomistic information
         limit_n_orb = rbf_limit_n_orb_resolver(rbf_form, **rbf_kwargs)
@@ -710,8 +717,7 @@ class LCAONet(BaseGCNN):
         # output layer
         self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
 
-        if postprocess:
-            self.pp_layer = PostProcess(out_dim=out_dim, is_extensive=is_extensive, **kwargs)
+        self.pp_layer = PostProcess(out_dim=out_dim, is_extensive=is_extensive, atomref=atomref, mean=mean)
 
     def forward(self, batch: Batch) -> Tensor:
         """Forward calculation of LCAONet.
@@ -776,8 +782,6 @@ class LCAONet(BaseGCNN):
 
         # output
         out = self.out_layer(x, batch_idx)
-
-        if self.postprocess:
-            out = self.pp_layer(out, z, batch_idx)
+        out = self.pp_layer(out, z, batch_idx)
 
         return out
