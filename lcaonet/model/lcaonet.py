@@ -85,11 +85,12 @@ class SphericalHarmonicsBasis(nn.Module):
 
         return funcs
 
-    def forward(self, d: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
+    def forward(self, d: Tensor, z_j: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
         """Forward calculation of SphericalHarmonicsBasis.
 
         Args:
             d (torch.Tensor): the interatomic distance with (n_edge) shape.
+            z_j (torch.Tensor) : the atomic numbers of j with (n_edge) shape.
             angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
             edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
 
@@ -97,7 +98,7 @@ class SphericalHarmonicsBasis(nn.Module):
             torch.Tensor: the expanded distance and angles of (n_triplets, n_orb, maxl) shape.
         """
         # (n_edge, n_orb)
-        rbf = self.radial_basis(d)
+        rbf = self.radial_basis(d, z_j)
         # (n_triplets, maxl)
         sbf = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
 
@@ -255,8 +256,10 @@ class EmbedNode(nn.Module):
             self.e_dim = 0
 
         self.z_e_lin = nn.Sequential(
+            activation,
             Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
             activation,
+            Dense(hidden_dim, hidden_dim, False, weight_init),
         )
 
     def forward(self, z_embed: Tensor, e_embed: Tensor | None = None) -> Tensor:
@@ -288,6 +291,7 @@ class EmbedCoeffs(nn.Module):
         hidden_dim: int,
         z_dim: int,
         e_dim: int,
+        activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         """
@@ -295,14 +299,26 @@ class EmbedCoeffs(nn.Module):
             hidden_dim (int): the dimension of coefficient vector.
             z_dim (int): the dimension of atomic number embedding.
             e_dim (int): the dimension of electron number embedding.
+            activation (nn.Module): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[Tensor], Tensor] | None): weight initialization func. Defaults to `None`.
         """
         super().__init__()
         self.hidden_dim = hidden_dim
         self.z_dim = z_dim
         self.e_dim = e_dim
-        self.z_lin = Dense(2 * z_dim, hidden_dim, False, weight_init)
-        self.e_lin = Dense(e_dim, hidden_dim, False, weight_init)
+
+        self.z_lin = nn.Sequential(
+            activation,
+            Dense(2 * z_dim, hidden_dim, True, weight_init),
+            activation,
+            Dense(hidden_dim, hidden_dim, True, weight_init),
+        )
+        self.e_lin = nn.Sequential(
+            activation,
+            Dense(e_dim, hidden_dim, False, weight_init),
+            activation,
+            Dense(hidden_dim, hidden_dim, False, weight_init),
+        )
 
     def forward(self, z_embed: Tensor, e_embed: Tensor, idx_i: Tensor, idx_j: Tensor) -> Tensor:
         """Forward calculation of EmbedCoeffs.
@@ -317,8 +333,8 @@ class EmbedCoeffs(nn.Module):
             coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
         """
         z_embed = self.z_lin(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
-        e_embed = self.e_lin(e_embed)
-        return e_embed[idx_j] + e_embed[idx_j] * z_embed.unsqueeze(1)
+        e_embed = self.e_lin(e_embed)[idx_j]
+        return e_embed + e_embed * z_embed.unsqueeze(1)
 
 
 class LCAOConv(nn.Module):
@@ -348,30 +364,35 @@ class LCAOConv(nn.Module):
         self.conv_dim = conv_dim
         self.add_valence = add_valence
 
-        self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
+        self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, False, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 3 * conv_dim if add_valence else 2 * conv_dim
-        self.coeffs_before_lin = nn.Sequential(
-            Dense(coeffs_dim, conv_dim, False, weight_init),
-            activation,
-            Dense(conv_dim, out_dim, False, weight_init),
-            activation,
-        )
+        self.coeffs_before_lin = Dense(coeffs_dim, out_dim, False, weight_init)
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.three_lin = nn.Sequential(
-            Dense(conv_dim, three_out_dim, True, weight_init),
             activation,
+            Dense(conv_dim, three_out_dim, True, weight_init),
+        )
+
+        self.coeffs_lin = nn.Sequential(
+            activation,
+            Dense(2 * conv_dim, conv_dim, True, weight_init),
+            activation,
+            Dense(conv_dim, conv_dim, True, weight_init),
         )
 
         self.node_lin = nn.Sequential(
-            Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
+            activation,
+            Dense(2 * conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
-            activation,
         )
-        self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
+
+        self.coeffs_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
+
+        self.node_after_lin = Dense(conv_dim, hidden_dim, True, weight_init)
 
     def forward(
         self,
@@ -386,7 +407,7 @@ class LCAOConv(nn.Module):
         tri_idx_k: Tensor,
         edge_idx_kj: torch.LongTensor,
         edge_idx_ji: torch.LongTensor,
-    ) -> Tensor:
+    ) -> tuple[Tensor, Tensor]:
         """Forward calculation of LCAOConv.
 
         Args:
@@ -403,10 +424,13 @@ class LCAOConv(nn.Module):
             edge_idx_ji (torch.LongTensor): the edge index from atom j to i with (n_triplets) shape.
 
         Returns:
-            torch.Tensor: updated node embedding vectors with (n_node, hidden_dim) shape.
+            x (torch.Tensor): updated node embedding vectors with (n_node, hidden_dim) shape.
+            cji (torch.Tensor): updated coefficient vectors with (n_edge, coeffs_dim) shape.
         """
-        # Transformation of the node
         x_before = x
+        cji_before = cji
+
+        # Transformation of the node
         x = self.node_before_lin(x)
         x, xk = torch.chunk(x, 2, dim=-1)
 
@@ -417,43 +441,45 @@ class LCAOConv(nn.Module):
         else:
             cji, ckj = torch.chunk(cji, 2, dim=-1)
 
-        # cutoff
-        if cutoff_w is not None:
-            rbfs = rbfs * cutoff_w.unsqueeze(-1)
-
         # triple conv
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        threeb_orbs = torch.einsum("edl,edh->eh", sbfs, ckj)
-        threeb_orbs = F.normalize(threeb_orbs, dim=-1)
+        lcao_threeb = torch.einsum("edl,edh->eh", sbfs, ckj)
+        lcao_threeb = F.normalize(lcao_threeb, dim=-1)
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
-        threeb_w = threeb_orbs * xk
-        threeb_w = self.three_lin(scatter(threeb_w, edge_idx_ji, dim=0, dim_size=rbfs.size(0)))
+        threeb_w = scatter(lcao_threeb * xk, edge_idx_ji, dim=0, dim_size=rbfs.size(0))
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + cji * threeb_w.unsqueeze(1)
+        cji = cji + cji * self.three_lin(threeb_w).unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
+        # cutoff
+        if cutoff_w is not None:
+            rbfs = rbfs * cutoff_w.unsqueeze(-1)
+
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
         lcao_w = torch.einsum("ed,edh->eh", rbfs, cji)
-
         if self.add_valence:
             # valence contribution
             if valence_mask is None:
                 raise ValueError("valence_mask must be provided when add_valence=True")
             valence_w = torch.einsum("ed,edh->eh", rbfs, cji_valence * valence_mask)
             lcao_w = lcao_w + valence_w
-
         lcao_w = F.normalize(lcao_w, dim=-1)
 
-        x = x_before + self.node_after_lin(
-            scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
-        )
+        xi, xj = x[idx_i], x[idx_j]
+        # coefficient update
+        cji = cji_before + cji_before * self.coeffs_after_lin(
+            lcao_w * self.coeffs_lin(torch.cat([xi, xj], dim=-1))
+        ).unsqueeze(1)
 
-        return x
+        # node update
+        x = x_before + self.node_after_lin(scatter(lcao_w * self.node_lin(torch.cat([xi, xj], dim=-1)), idx_i, dim=0))
+
+        return x, cji
 
 
 class LCAOOut(nn.Module):
@@ -672,12 +698,12 @@ class LCAONet(BaseGCNN):
         self.z_embed = EmbedZ(embed_dim=z_embed_dim, max_z=max_z)
         self.e_embed = EmbedElec(e_embed_dim, atom_info, extend_orb)
         self.node_embed = EmbedNode(hidden_dim, hidden_dim, elec_to_node, self.node_e_embed_dim, act, wi)
-        self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, wi)
+        self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, act, wi)
         if add_valence:
             self.valence_mask = ValenceMask(conv_dim, atom_info)
 
-        # interaction layers
-        self.int_layers = nn.ModuleList(
+        # convolutional layers
+        self.conv_layers = nn.ModuleList(
             [LCAOConv(hidden_dim, coeffs_dim, conv_dim, add_valence, act, wi) for _ in range(n_interaction)]
         )
 
@@ -715,7 +741,7 @@ class LCAONet(BaseGCNN):
         # calc atomic distances
         distances = self.calc_atomic_distances(batch)
 
-        # calc angles each triplets
+        # calc angles of each triplets
         pos_i = pos[tri_idx_i]
         vec_ji, vec_ki = pos[tri_idx_j] - pos_i, pos[tri_idx_k] - pos_i
         inner = (vec_ji * vec_ki).sum(dim=-1)
@@ -724,8 +750,9 @@ class LCAONet(BaseGCNN):
         angle = torch.atan2(outter, inner)
 
         # calc basis
-        rbfs = self.rbf(distances)
-        sbfs = self.sbf(distances, angle, edge_idx_kj)
+        z_j = z[idx_j]
+        rbfs = self.rbf(distances, z_j)
+        sbfs = self.sbf(distances, z_j, angle, edge_idx_kj)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
@@ -744,8 +771,8 @@ class LCAONet(BaseGCNN):
         valence_mask: Tensor | None = self.valence_mask(z)[idx_j] if self.add_valence else None
 
         # calc interaction
-        for inte in self.int_layers:
-            x = inte(x, cji, valence_mask, cutoff_w, rbfs, sbfs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+        for conv in self.conv_layers:
+            x, cji = conv(x, cji, valence_mask, cutoff_w, rbfs, sbfs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # output
         out = self.out_layer(x, batch_idx)
