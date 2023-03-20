@@ -87,26 +87,25 @@ def test_EmbedNode(
 
 
 param_PostProcess = [
-    (1, None, False, None, True),  # default
-    (1, None, False, None, False),  # no extensive
-    (1, None, True, None, True),  # add mean
-    (1, None, True, torch.ones(1), True),  # add mean (1)
-    (1, None, True, torch.ones(1), False),  # add mean (1) and no extensive
-    (1, torch.ones((100, 1)), False, None, True),  # add atomref
-    (1, torch.ones((100, 1)), False, None, False),  # add atomref and no extensive
-    (1, torch.ones((100, 1)), True, None, True),  # add atomref and mean
-    (1, torch.ones((100, 1)), True, torch.ones(1), True),  # add atomref and mean (1)
-    (1, torch.ones((100, 1)), True, torch.ones(1), False),  # add atomref and mean (1) and no extensive
-    (10, torch.ones((100, 1)), True, torch.ones(1), True),  # add atomref and mean (1)
-    (10, torch.ones((100, 1)), True, torch.ones(1), False),  # add atomref and mean (1) and no extensive
+    (1, None, None, True),  # default
+    (1, None, None, False),  # no extensive
+    (1, None, None, True),  # add mean
+    (1, None, torch.ones(1), True),  # add mean (1)
+    (1, None, torch.ones(1), False),  # add mean (1) and no extensive
+    (1, torch.ones((100, 1)), None, True),  # add atomref
+    (1, torch.ones((100, 1)), None, False),  # add atomref and no extensive
+    (1, torch.ones((100, 1)), None, True),  # add atomref and mean
+    (1, torch.ones((100, 1)), torch.ones(1), True),  # add atomref and mean (1)
+    (1, torch.ones((100, 1)), torch.ones(1), False),  # add atomref and mean (1) and no extensive
+    (10, torch.ones((100, 1)), torch.ones(1), True),  # add atomref and mean (1)
+    (10, torch.ones((100, 1)), torch.ones(1), False),  # add atomref and mean (1) and no extensive
 ]
 
 
-@pytest.mark.parametrize("out_dim, atomref, add_mean, mean, is_extensive", param_PostProcess)
+@pytest.mark.parametrize("out_dim, atomref, mean, is_extensive", param_PostProcess)
 def test_PostProcess(
     out_dim: int,
     atomref: torch.Tensor | None,
-    add_mean: bool,
     mean: torch.Tensor | None,
     is_extensive: bool,
 ):
@@ -114,7 +113,7 @@ def test_PostProcess(
     out = torch.rand((n_batch, out_dim))
     zs = torch.randint(0, 100, (n_node,))
     batch_idx = torch.randint(0, n_batch, (n_node,))
-    pp_layer = PostProcess(out_dim, atomref, add_mean, mean, is_extensive)
+    pp_layer = PostProcess(out_dim, is_extensive, atomref, mean)
 
     out_pp = pp_layer(out, zs, batch_idx)
 
@@ -124,61 +123,72 @@ def test_PostProcess(
     reduce = "sum" if is_extensive else "mean"
     if atomref is not None:
         expected += scatter(atomref[zs], batch_idx, dim=0, dim_size=n_batch, reduce=reduce)
-    if add_mean:
-        if mean is None:
-            mean = torch.zeros(out_dim)
-        else:
-            mean = mean.unsqueeze(0).expand(n_node, -1)
-            mean = scatter(mean, batch_idx, dim=0, dim_size=n_batch, reduce=reduce)
-        expected += mean
+    if mean is None:
+        mean = torch.zeros(out_dim)
+    else:
+        mean = mean.unsqueeze(0).expand(n_node, -1)
+        mean = scatter(mean, batch_idx, dim=0, dim_size=n_batch, reduce=reduce)
+    expected += mean
     assert torch.allclose(out_pp, expected)
 
 
 param_LCAONet = [
-    (16, 16, 10, 1, 2.0, True, False, False, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, False, False, False, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, True, False, True, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, False, False, True, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, True, True, False, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, False, True, False, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, True, True, True, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, False, True, True, PolynomialCutoff, False),
-    (16, 16, 10, 1, 2.0, True, True, True, CosineCutoff, False),
-    (16, 16, 10, 1, 2.0, False, True, True, CosineCutoff, False),
-    (16, 16, 10, 1, 2.0, True, True, True, None, False),
-    (16, 16, 10, 1, 2.0, False, True, True, None, False),
-    (16, 16, 10, 1, 2.0, True, True, True, CosineCutoff, True),
-    (16, 16, 10, 1, 2.0, False, True, True, CosineCutoff, True),
-    (16, 16, 10, 1, 2.0, True, True, True, None, True),
-    (16, 16, 10, 1, 2.0, False, True, True, None, True),
-    (16, 16, 10, 2, 2.0, True, False, False, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, False, False, False, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, True, False, True, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, False, False, True, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, True, True, False, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, False, True, False, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, True, True, True, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, False, True, True, PolynomialCutoff, False),
-    (16, 16, 10, 2, 2.0, True, True, True, CosineCutoff, False),
-    (16, 16, 10, 2, 2.0, False, True, True, CosineCutoff, False),
-    (16, 16, 10, 2, 2.0, True, True, True, None, False),
-    (16, 16, 10, 2, 2.0, False, True, True, None, False),
-    (16, 16, 10, 1, None, True, False, False, None, False),
-    (16, 16, 10, 1, None, False, False, False, None, False),
-    (16, 16, 10, 1, None, True, False, True, None, False),
-    (16, 16, 10, 1, None, False, False, True, None, False),
-    (16, 16, 10, 1, None, True, True, False, None, False),
-    (16, 16, 10, 1, None, False, True, False, None, False),
-    (16, 16, 10, 1, None, True, True, True, None, False),
-    (16, 16, 10, 1, None, False, True, True, None, False),
-    (16, 16, 10, 1, None, True, True, True, PolynomialCutoff, False),
-    (16, 16, 10, 1, None, True, True, True, CosineCutoff, False),
-    (16, 16, 10, 1, None, True, True, True, PolynomialCutoff, True),
+    # cutoff check
+    (16, 16, 10, 1, 2.0, True, True, True, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, True, True, False, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, True, False, True, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, True, False, False, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, False, True, True, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, False, True, False, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, False, False, True, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, False, False, False, None, None, 2, 7),
+    (16, 16, 10, 1, 2.0, True, True, True, None, torch.tensor([1.0]), 2, 7),
+    (16, 16, 10, 1, 2.0, True, True, True, PolynomialCutoff, None, 2, 7),
+    (16, 16, 10, 1, 2.0, True, True, True, PolynomialCutoff, torch.tensor([1.0]), 2, 7),
+    (16, 16, 10, 1, 2.0, True, True, True, CosineCutoff, None, 2, 7),
+    (16, 16, 10, 1, 2.0, True, True, True, CosineCutoff, torch.tensor([1.0]), 2, 7),
+    # none cutoff check
+    (16, 16, 10, 1, None, True, True, True, None, None, 2, 7),
+    (16, 16, 10, 1, None, True, True, False, None, None, 2, 7),
+    (16, 16, 10, 1, None, True, False, True, None, None, 2, 7),
+    (16, 16, 10, 1, None, True, False, False, None, None, 2, 7),
+    (16, 16, 10, 1, None, False, True, True, None, None, 2, 7),
+    (16, 16, 10, 1, None, False, True, False, None, None, 2, 7),
+    (16, 16, 10, 1, None, False, False, True, None, None, 2, 7),
+    (16, 16, 10, 1, None, False, False, False, None, None, 2, 7),
+    (16, 16, 10, 1, None, True, True, True, None, torch.tensor([1.0]), 2, 7),
+    (16, 16, 10, 1, None, True, True, True, PolynomialCutoff, None, 2, 7),
+    (16, 16, 10, 1, None, True, True, True, PolynomialCutoff, torch.tensor([1.0]), 2, 7),
+    (16, 16, 10, 1, None, True, True, True, CosineCutoff, None, 2, 7),
+    (16, 16, 10, 1, None, True, True, True, CosineCutoff, torch.tensor([1.0]), 2, 7),
+    # out_dim and mean check
+    (16, 16, 10, 2, None, True, True, True, None, None, 2, 7),
+    (16, 16, 10, 2, None, True, True, True, None, torch.tensor([1.0, 1.0]), 2, 7),
+    (16, 16, 10, 5, None, True, True, True, None, torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0]), 2, 7),
+    # dim check
+    (16, 16, 10, 1, 2.0, True, True, True, None, None, 2, 7),
+    (16, 8, 10, 1, 2.0, True, True, True, None, None, 2, 7),
+    (20, 8, 10, 1, 2.0, True, True, True, None, None, 2, 7),
+    (20, 8, 12, 1, 2.0, True, True, True, None, None, 2, 7),
+    (20, 8, 12, 10, 2.0, True, True, True, None, None, 2, 7),
+    (1, 1, 1, 1, 2.0, True, True, True, None, None, 2, 7),
+    # basis check
+    (16, 16, 10, 1, 2.0, True, True, True, None, None, 5, 7),
+    (16, 16, 10, 1, 2.0, True, True, False, None, None, 5, 5),
+    (16, 16, 10, 1, 2.0, True, False, True, None, None, 5, 1),
+    (16, 16, 10, 1, 2.0, True, False, False, None, None, 2, 1),
+    (16, 16, 10, 1, 2.0, False, True, True, None, None, 1, 7),
+    (16, 16, 10, 1, 2.0, False, True, False, None, None, 1, 5),
+    (16, 16, 10, 1, 2.0, False, False, True, None, None, 5, 7),
+    (16, 16, 10, 1, 2.0, False, False, False, None, None, 2, 7),
 ]
 
 
 @pytest.mark.parametrize(
-    "hidden_dim, coeffs_dim, conv_dim, out_dim, cutoff, elec_to_node, extend_orb, add_valence, cutoff_net, postprocess",
+    """
+    hidden_dim, coeffs_dim, conv_dim, out_dim, cutoff, elec_to_node, extend_orb,
+    add_valence, cutoff_net, mean, n_per_orb, n_spherical
+    """,
     param_LCAONet,
 )
 def test_LCAONet(
@@ -192,7 +202,9 @@ def test_LCAONet(
     extend_orb: bool,
     add_valence: bool,
     cutoff_net: type[BaseCutoff] | None,
-    postprocess: bool,
+    mean: torch.Tensor | None,
+    n_per_orb: int,
+    n_spherical: int,
 ):
     max_z = one_graph_data[DataKeys.Atom_numbers].max().item()
     if cutoff_net is not None and cutoff is None:
@@ -203,15 +215,20 @@ def test_LCAONet(
                 conv_dim=conv_dim,
                 out_dim=out_dim,
                 n_interaction=2,
+                rbf_form="hydrogenradialwavefunctionbasis",
+                n_per_orb=n_per_orb,
+                n_spherical=n_spherical,
                 cutoff=cutoff,
                 cutoff_net=cutoff_net,
+                max_z=max_z,
+                max_orb=None,
                 elec_to_node=elec_to_node,
                 activation="Silu",
                 add_valence=add_valence,
                 extend_orb=extend_orb,
                 weight_init="glorot_orthogonal",
-                max_z=max_z,
-                postprocess=postprocess,
+                atomref=None,
+                mean=mean,
             )
             assert str(e.value) == "cutoff_net must be specified when cutoff is not None"
     else:
@@ -221,15 +238,20 @@ def test_LCAONet(
             conv_dim=conv_dim,
             out_dim=out_dim,
             n_interaction=2,
+            rbf_form="hydrogenradialwavefunctionbasis",
+            n_per_orb=n_per_orb,
+            n_spherical=n_spherical,
             cutoff=cutoff,
             cutoff_net=cutoff_net,
+            max_z=max_z,
+            max_orb=None,
             elec_to_node=elec_to_node,
             activation="Silu",
             add_valence=add_valence,
             extend_orb=extend_orb,
             weight_init="glorot_orthogonal",
-            max_z=max_z,
-            postprocess=postprocess,
+            atomref=None,
+            mean=mean,
         )
 
         with torch.no_grad():
