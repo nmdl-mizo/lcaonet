@@ -95,7 +95,7 @@ class HydrogenRadialWaveFunctionBasis(BaseRadialBasis):
                     norm_z = norm_nl[z_j]
                     normal_coeff *= norm_z.item()
                 else:
-                    norm_z = norm_nl[z_j].to(r.device)
+                    norm_z = norm_nl.to(r.device)[z_j]
                     normal_coeff = normal_coeff * norm_z  # type: ignore
             else:
                 # normalize in all space
