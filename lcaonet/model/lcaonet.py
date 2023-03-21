@@ -85,12 +85,11 @@ class SphericalHarmonicsBasis(nn.Module):
 
         return funcs
 
-    def forward(self, d: Tensor, z_j: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
+    def forward(self, d: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
         """Forward calculation of SphericalHarmonicsBasis.
 
         Args:
             d (torch.Tensor): the interatomic distance with (n_edge) shape.
-            z_j (torch.Tensor) : the atomic numbers of j with (n_edge) shape.
             angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
             edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
 
@@ -98,7 +97,7 @@ class SphericalHarmonicsBasis(nn.Module):
             torch.Tensor: the expanded distance and angles of (n_triplets, n_orb, maxl) shape.
         """
         # (n_edge, n_orb)
-        rbf = self.radial_basis(d, z_j)
+        rbf = self.radial_basis(d)
         # (n_triplets, maxl)
         sbf = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
 
@@ -756,9 +755,8 @@ class LCAONet(BaseGCNN):
         angle = torch.atan2(outter, inner)
 
         # calc basis
-        z_j = z[idx_j]
-        rbfs = self.rbf(distances, z_j)
-        sbfs = self.sbf(distances, z_j, angle, edge_idx_kj)
+        rbfs = self.rbf(distances)
+        sbfs = self.sbf(distances, angle, edge_idx_kj)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
