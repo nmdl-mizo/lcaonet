@@ -9,18 +9,9 @@ requirements:
   host:
     - python
     - pip
-
   build:
     - python
     - pip
-    - numpy
-    - scipy
-    - sympy
-    - ase
-    - pymatgen
-    - pytorch
-    - pyg
-
   run:
     - python
     - numpy
@@ -43,5 +34,7 @@ test:
 
 about:
   home: https://github.com/nmdl-mizo/lcaonet
+  readme: README.md
   license: MIT
+  license_file: LICENSE
   summary: GCNN including orbital interaction, physically motivatied by the LCAO method.
