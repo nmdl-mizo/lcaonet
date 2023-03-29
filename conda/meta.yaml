@@ -12,6 +12,13 @@ requirements:
 
   run:
     - python
+    - numpy
+    - scipy
+    - sympy
+    - ase
+    - pymatgen
+    - torch
+    - torch_geometric
 
 test:
   imports:
