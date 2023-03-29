@@ -10,6 +10,17 @@ requirements:
     - python
     - pip
 
+  build:
+    - python
+    - pip
+    - numpy
+    - scipy
+    - sympy
+    - ase
+    - pymatgen
+    - torch
+    - torch_geometric
+
   run:
     - python
     - numpy
