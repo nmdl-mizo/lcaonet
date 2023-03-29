@@ -13,9 +13,6 @@ requirements:
   run:
     - python
 
-build:
-  script: pip install .
-
 test:
   imports:
     - lcaonet
