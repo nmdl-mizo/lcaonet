@@ -85,12 +85,11 @@ class SphericalHarmonicsBasis(nn.Module):
 
         return funcs
 
-    def forward(self, d: Tensor, z_j: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
+    def forward(self, d: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
         """Forward calculation of SphericalHarmonicsBasis.
 
         Args:
             d (torch.Tensor): the interatomic distance with (n_edge) shape.
-            z_j (torch.Tensor) : the atomic numbers of j with (n_edge) shape.
             angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
             edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
 
@@ -98,7 +97,7 @@ class SphericalHarmonicsBasis(nn.Module):
             torch.Tensor: the expanded distance and angles of (n_triplets, n_orb, maxl) shape.
         """
         # (n_edge, n_orb)
-        rbf = self.radial_basis(d, z_j)
+        rbf = self.radial_basis(d)
         # (n_triplets, maxl)
         sbf = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
 
@@ -368,19 +367,17 @@ class LCAOConv(nn.Module):
 
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 3 * conv_dim if add_valence else 2 * conv_dim
-        self.coeffs_before_lin = Dense(coeffs_dim, out_dim, False, weight_init)
+        self.coeffs_before_lin = nn.Sequential(
+            activation,
+            Dense(coeffs_dim, conv_dim, False, weight_init),
+            activation,
+            Dense(conv_dim, out_dim, False, weight_init),
+        )
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.three_lin = nn.Sequential(
             activation,
             Dense(conv_dim, three_out_dim, True, weight_init),
-        )
-
-        self.coeffs_lin = nn.Sequential(
-            activation,
-            Dense(2 * conv_dim, conv_dim, True, weight_init),
-            activation,
-            Dense(conv_dim, conv_dim, True, weight_init),
         )
 
         self.node_lin = nn.Sequential(
@@ -389,8 +386,6 @@ class LCAOConv(nn.Module):
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
         )
-
-        self.coeffs_after_lin = Dense(conv_dim, coeffs_dim, False, weight_init)
 
         self.node_after_lin = Dense(conv_dim, hidden_dim, True, weight_init)
 
@@ -407,7 +402,7 @@ class LCAOConv(nn.Module):
         tri_idx_k: Tensor,
         edge_idx_kj: torch.LongTensor,
         edge_idx_ji: torch.LongTensor,
-    ) -> tuple[Tensor, Tensor]:
+    ) -> Tensor:
         """Forward calculation of LCAOConv.
 
         Args:
@@ -428,7 +423,6 @@ class LCAOConv(nn.Module):
             cji (torch.Tensor): updated coefficient vectors with (n_edge, coeffs_dim) shape.
         """
         x_before = x
-        cji_before = cji
 
         # Transformation of the node
         x = self.node_before_lin(x)
@@ -470,16 +464,12 @@ class LCAOConv(nn.Module):
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
 
-        xi, xj = x[idx_i], x[idx_j]
-        # coefficient update
-        cji = cji_before + cji_before * self.coeffs_after_lin(
-            lcao_w * self.coeffs_lin(torch.cat([xi, xj], dim=-1))
-        ).unsqueeze(1)
-
         # node update
-        x = x_before + self.node_after_lin(scatter(lcao_w * self.node_lin(torch.cat([xi, xj], dim=-1)), idx_i, dim=0))
+        x = x_before + self.node_after_lin(
+            scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+        )
 
-        return x, cji
+        return x
 
 
 class LCAOOut(nn.Module):
@@ -756,9 +746,8 @@ class LCAONet(BaseGCNN):
         angle = torch.atan2(outter, inner)
 
         # calc basis
-        z_j = z[idx_j]
-        rbfs = self.rbf(distances, z_j)
-        sbfs = self.sbf(distances, z_j, angle, edge_idx_kj)
+        rbfs = self.rbf(distances)
+        sbfs = self.sbf(distances, angle, edge_idx_kj)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
@@ -778,7 +767,7 @@ class LCAONet(BaseGCNN):
 
         # calc interaction
         for conv in self.conv_layers:
-            x, cji = conv(x, cji, valence_mask, cutoff_w, rbfs, sbfs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = conv(x, cji, valence_mask, cutoff_w, rbfs, sbfs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # output
         out = self.out_layer(x, batch_idx)
