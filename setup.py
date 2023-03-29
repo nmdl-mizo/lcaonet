@@ -15,8 +15,6 @@ install_requires = [
     "pyg_lib",
     "torch_scatter",
     "torch_sparse",
-    "torch_cluster",
-    "torch_spline_conv",
 ]
 
 test_requires = [
