@@ -32,7 +32,7 @@ dev_requires = test_requires + [
 setup(
     name="lcaonet",
     version=__version__,
-    description="LCAONet - GNN including orbital interaction, physically motivatied by the LCAO method.",
+    description="LCAONet - GCNN including orbital interaction, physically motivatied by the LCAO method.",
     author="Kento Nishio",
     author_email="knishio@iis.u-tokyo.ac.jp",
     url=URL,
