@@ -18,8 +18,8 @@ requirements:
     - sympy
     - ase
     - pymatgen
-    - torch
-    - torch_geometric
+    - pytorch
+    - pyg
 
   run:
     - python
@@ -28,8 +28,8 @@ requirements:
     - sympy
     - ase
     - pymatgen
-    - torch
-    - torch_geometric
+    - pytorch
+    - pyg
 
 test:
   imports:
