@@ -15,20 +15,8 @@ requirements:
 
   run:
     - python
-    - numpy
-    - scipy
-    - sympy
-    - ase
-    - pymatgen
-    - torch
-    - torch_geometric
-    - torch_scatter
-    - torch_sparse
-    - torch_cluster
-    - torch_spline_conv
 
 build:
-  string: py{{ environ.get('PYTHON_VERSION').replace('.', '') }}_torch_{{ environ['TORCH_VERSION'] }}_{{ environ['CUDA_VERSION'] }}
   script: pip install .
 
 test:
