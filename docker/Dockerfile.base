@@ -6,7 +6,7 @@ RUN conda install -c conda-forge \
     sympy=1.11.1 \
     ase=3.22.1 \
     pymatgen=2022.4.19 \
-    pytorch-lightning=2.0.0 \
+    lightning=2.0.0 \
     && \
     conda install -c pyg \
     pyg \
