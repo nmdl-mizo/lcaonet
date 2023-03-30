@@ -80,13 +80,3 @@ class Dense(nn.Linear):
         """
         # compute linear layer y = xW^T + b
         return super().forward(x)
-
-    def extra_repr(self) -> str:
-        return "in_features={}, out_features={}, bias={}, weight_init={}({}), bias_init={}".format(
-            self.in_features,
-            self.out_features,
-            self.bias is not None,
-            self.weight_init.__name__ if self.weight_init is not None else None,
-            self.kwargs,
-            self.bias_init.__name__ if self.bias_init is not None else None,
-        )
