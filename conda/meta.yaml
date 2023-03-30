@@ -6,12 +6,10 @@ source:
   path: ../
 
 requirements:
-  numpy:
-    - 1.24.2
-
   host:
     - python >=3.7
     - pip >=18.0
+    - numpy ==1.24.2
 
   run:
     - python >=3.7
