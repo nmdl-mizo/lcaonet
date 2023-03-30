@@ -1,2 +1,0 @@
-rmse:
-  _target_: pyggnns.train.loss.RMSELoss

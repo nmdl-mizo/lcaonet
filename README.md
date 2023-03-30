@@ -11,42 +11,78 @@
 ### Requirements
 
 - 3.7 <= [Python](https://www.python.org/) <= 3.10
-- [NumPy](https://numpy.org/)
+- [NumPy](https://numpy.org/) == 1.24.2
 - [SciPy](https://scipy.org/) == 1.10.1
 - [SymPy](https://www.sympy.org/en/index.html) == 1.11.1
 - [ASE](https://wiki.fysik.dtu.dk/ase/index.html) == 3.22.1
 - [pymatgen](https://pymatgen.org/) == 2022.4.19
 - [PyTorch](https://pytorch.org/) == **2.0.0**
 - [PyG](https://pytorch-geometric.readthedocs.io/en/latest)
+- [PyTorch Scatter](https://pytorch-scatter.readthedocs.io/en/latest/)
+- [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse)
 
 ***Note: Using a GPU is recommended.***
 
-### Prepare environment
+### Install from source
 
-You can create a new environment with [conda](https://docs.conda.io/en/latest/) by running below commands:
+First, clone this repository.
+
+```bash
+git clone https://github.com/nmdl-mizo/lcaonet.git
+```
+
+It is possible to build a virtual environment using [conda](https://docs.conda.io/en/latest), [venv](https://docs.python.org/3/library/venv.html), or docker.
+
+#### Using conda
+
+Create a new virtual environment by running below commands:
 
 ```bash
 conda create -n lcaonet python=3.10
 conda activate lcaonet
 ```
 
-Install dependencies:
+Install dependencies in your environment:
 
 ```bash
-conda install -c conda-forge numpy scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19
+conda install numpy==1.24.2 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
 conda install pytorch=2.0.0 pytorch-cuda=11.7 -c pytorch -c nvidia
-conda install pyg -c pyg
+conda install pyg pytorch-scatter pytorch-sparse -c pyg
 ```
 
-### Install from source
-
-You can install the package from source by cloning the repository and running below commands:
+Install LCAONet:
 
 ```bash
-git clone https://github.com/nmdl-mizo/lcaonet.git
+cd lcaonet/conda
+chmod +x build_conda.sh
+./build_conda.sh
+```
+
+#### Using venv
+
+You can create a new virtual environments with by running below commands:
+
+```bash
+python3 -m venv lcaonet-venv
+source lcaonet-venv/bin/activate
+```
+
+Install dependencies in your environment:
+
+```bash
 cd lcaonet
+pip install -r requirements.txt
+```
+
+Install LCAONet:
+
+```bash
 pip install .
 ```
+
+#### Using docker
+
+You can use the docker image of base environment from [here](https://hub.docker.com/r/ken2403/lcaonet-base).
 
 ## Usage
 
