@@ -42,6 +42,9 @@ class BaseCutoff(nn.Module):
         super().__init__()
         self.cutoff = cutoff
 
+    def extra_repr(self) -> str:
+        return f"cutoff={self.cutoff}"
+
     def forward(self, r: Tensor) -> Tensor:
         raise NotImplementedError
 
