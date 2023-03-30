@@ -5,7 +5,7 @@ URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
 install_requires = [
-    "numpy==1.24.2",
+    "numpy==1.23.5",
     "scipy==1.10.1",
     "sympy==1.11.1",
     "ase==3.22.1",

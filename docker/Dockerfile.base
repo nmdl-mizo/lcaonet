@@ -1,7 +1,7 @@
 FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
 
 RUN conda install -c conda-forge \
-    numpy=1.24.2 \
+    numpy=1.23.5 \
     scipy=1.10.1 \
     sympy=1.11.1 \
     ase=3.22.1 \

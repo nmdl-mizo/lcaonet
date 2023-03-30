@@ -11,7 +11,7 @@
 ### Requirements
 
 - 3.7 <= [Python](https://www.python.org/) <= 3.10
-- [NumPy](https://numpy.org/) == 1.24.2
+- [NumPy](https://numpy.org/) == 1.23.5
 - [SciPy](https://scipy.org/) == 1.10.1
 - [SymPy](https://www.sympy.org/en/index.html) == 1.11.1
 - [ASE](https://wiki.fysik.dtu.dk/ase/index.html) == 3.22.1
