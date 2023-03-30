@@ -25,6 +25,8 @@
 
 ### Prepare environment
 
+#### Prepare an environment using conda
+
 You can create a new environment with [conda](https://docs.conda.io/en/latest/) by running below commands:
 
 ```bash
@@ -32,7 +34,7 @@ conda create -n lcaonet python=3.10
 conda activate lcaonet
 ```
 
-Install dependencies:
+Install dependencies in your environment:
 
 ```bash
 conda install numpy scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
@@ -40,13 +42,45 @@ conda install pytorch=2.0.0 pytorch-cuda=11.7 -c pytorch -c nvidia
 conda install pyg pytorch-scatter pytorch-sparse -c pyg
 ```
 
-### Install from source
+#### Prepare an environment using venv
 
-You can install the package from source by cloning the repository and running below commands:
+You can create a new virtual environments with [venv](https://docs.python.org/3/library/venv.html) by running below commands:
+
+```bash
+python3 -m venv lcaonet
+source lcaonet/bin/activate
+```
+
+Install dependencies in your environment:
+
+```bash
+pip install -r requirements.txt
+```
+
+#### Prepare an environment using docker
+
+Use the docker image of base environment from [here](https://hub.docker.com/r/ken2403/lcaonet-base).
+
+### Install LCAONet from source
+
+You can install the package from source by cloning the repository.
 
 ```bash
 git clone https://github.com/nmdl-mizo/lcaonet.git
 cd lcaonet
+```
+
+Install the package in your environment with conda:
+
+```bash
+cd conda
+chmod +x build_conda.sh
+./build_conda.sh
+```
+
+Install the package in your environment with pip:
+
+```bash
 pip install .
 ```
 
