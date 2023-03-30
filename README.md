@@ -23,11 +23,19 @@
 
 ***Note: Using a GPU is recommended.***
 
-### Prepare environment
+### Install from source
 
-#### Prepare an environment using conda
+First, clone this repository.
 
-You can create a new environment with [conda](https://docs.conda.io/en/latest/) by running below commands:
+```bash
+git clone https://github.com/nmdl-mizo/lcaonet.git
+```
+
+It is possible to build a virtual environment using [conda](https://docs.conda.io/en/latest), [venv](https://docs.python.org/3/library/venv.html), or docker.
+
+#### Using conda
+
+Create a new virtual environment by running below commands:
 
 ```bash
 conda create -n lcaonet python=3.10
@@ -37,52 +45,44 @@ conda activate lcaonet
 Install dependencies in your environment:
 
 ```bash
-conda install numpy scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
+conda install numpy==1.24.2 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
 conda install pytorch=2.0.0 pytorch-cuda=11.7 -c pytorch -c nvidia
 conda install pyg pytorch-scatter pytorch-sparse -c pyg
 ```
 
-#### Prepare an environment using venv
-
-You can create a new virtual environments with [venv](https://docs.python.org/3/library/venv.html) by running below commands:
+Install LCAONet:
 
 ```bash
-python3 -m venv lcaonet
-source lcaonet/bin/activate
+cd lcaonet/conda
+chmod +x build_conda.sh
+./build_conda.sh
+```
+
+#### Using venv
+
+You can create a new virtual environments with by running below commands:
+
+```bash
+python3 -m venv lcaonet-venv
+source lcaonet-venv/bin/activate
 ```
 
 Install dependencies in your environment:
 
 ```bash
+cd lcaonet
 pip install -r requirements.txt
 ```
 
-#### Prepare an environment using docker
-
-Use the docker image of base environment from [here](https://hub.docker.com/r/ken2403/lcaonet-base).
-
-### Install LCAONet from source
-
-You can install the package from source by cloning the repository.
-
-```bash
-git clone https://github.com/nmdl-mizo/lcaonet.git
-cd lcaonet
-```
-
-Install the package in your environment with conda:
-
-```bash
-cd conda
-chmod +x build_conda.sh
-./build_conda.sh
-```
-
-Install the package in your environment with pip:
+Install LCAONet:
 
 ```bash
 pip install .
 ```
+
+#### Using docker
+
+You can use the docker image of base environment from [here](https://hub.docker.com/r/ken2403/lcaonet-base).
 
 ## Usage
 
