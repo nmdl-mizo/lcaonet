@@ -18,6 +18,8 @@
 - [pymatgen](https://pymatgen.org/) == 2022.4.19
 - [PyTorch](https://pytorch.org/) == **2.0.0**
 - [PyG](https://pytorch-geometric.readthedocs.io/en/latest)
+- [PyTorch Scatter](https://pytorch-scatter.readthedocs.io/en/latest/)
+- [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse)
 
 ***Note: Using a GPU is recommended.***
 
@@ -33,9 +35,9 @@ conda activate lcaonet
 Install dependencies:
 
 ```bash
-conda install -c conda-forge numpy scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19
+conda install numpy scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
 conda install pytorch=2.0.0 pytorch-cuda=11.7 -c pytorch -c nvidia
-conda install pyg -c pyg
+conda install pyg pytorch-scatter pytorch-sparse -c pyg
 ```
 
 ### Install from source

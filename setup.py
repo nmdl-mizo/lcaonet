@@ -5,14 +5,13 @@ URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
 install_requires = [
-    "numpy==1.23.5",
+    "numpy==1.24.2",
     "scipy==1.10.1",
     "sympy==1.11.1",
     "ase==3.22.1",
     "pymatgen==2022.4.19",
     "torch==2.0.0",
     "torch_geometric",
-    # "pyg_lib @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",
     # "torch_scatter @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",
     # "torch_sparse @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",
 ]
