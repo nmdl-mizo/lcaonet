@@ -19,6 +19,8 @@ requirements:
     - pymatgen
     - pytorch
     - pyg
+    - pytorch-scatter
+    - pytorch-sparse
 
 build:
   script: pip install .
