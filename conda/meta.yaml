@@ -9,9 +9,7 @@ requirements:
   host:
     - python
     - pip
-  build:
-    - python
-    - pip
+
   run:
     - python
     - numpy
