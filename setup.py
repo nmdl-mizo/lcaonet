@@ -5,25 +5,15 @@ URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
 install_requires = [
-    "numpy",
-    "scipy",
-    "sympy",
+    "numpy==1.24.2",
+    "scipy==1.10.1",
+    "sympy==1.11.1",
     "ase==3.22.1",
     "pymatgen==2022.4.19",
-    "torch==1.13.0",
-    "pyg-lib",
-    "torch-scatter",
-    "torch-sparse",
-    "torch-cluster",
-    "torch-spline-conv",
-    "torch-geometric",
-    # "pyrootutils",
-    # "hydra-core==1.2.0",
-    # "hydra-colorlog==1.2.0",
-    # "hydra-optuna-sweeper==1.2.0",
-    # "pytorch-lightning",
-    # "rich",
-    # "wandb",
+    "torch==2.0.0",
+    "torch_geometric",
+    # "torch_scatter @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",
+    # "torch_sparse @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",
 ]
 
 test_requires = [
@@ -39,7 +29,7 @@ dev_requires = test_requires + [
 setup(
     name="lcaonet",
     version=__version__,
-    description="LCAONet - GNN including orbital interaction, physically motivatied by the LCAO method.",
+    description="LCAONet - GCNN including orbital interaction, physically motivatied by the LCAO method.",
     author="Kento Nishio",
     author_email="knishio@iis.u-tokyo.ac.jp",
     url=URL,

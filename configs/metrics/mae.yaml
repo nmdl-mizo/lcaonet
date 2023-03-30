@@ -1,2 +1,0 @@
-mae:
-  _target_: pyggnns.train.loss.MAELoss

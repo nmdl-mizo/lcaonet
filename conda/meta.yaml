@@ -1,0 +1,41 @@
+package:
+  name: lcaonet
+  version: 1.2.0
+
+source:
+  path: ../
+
+requirements:
+  host:
+    - python
+    - pip >=18.0
+
+  run:
+    - python
+    - numpy
+    - scipy
+    - sympy
+    - ase
+    - pymatgen
+    - pytorch
+    - pyg
+    - pytorch-scatter
+    - pytorch-sparse
+
+build:
+  script: pip install .
+
+test:
+  imports:
+    - lcaonet
+    # - lcaonet.atomistic
+    - lcaonet.data
+    - lcaonet.model
+    - lcaonet.nn
+    - lcaonet.train
+    - lcaonet.utils
+
+about:
+  home: https://github.com/nmdl-mizo/lcaonet
+  license: MIT
+  summary: GCNN including orbital interaction, physically motivatied by the LCAO method.
