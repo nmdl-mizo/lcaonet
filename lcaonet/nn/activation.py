@@ -39,6 +39,9 @@ class Swish(nn.Module):
         else:
             self.register_buffer("beta_coeff", torch.tensor(float(beta)))
 
+    def extra_repr(self) -> str:
+        return f"beta={self.beta_coeff.item():.2f}"
+
     def forward(self, x: Tensor) -> Tensor:
         return swish(x, self.beta_coeff)
 
