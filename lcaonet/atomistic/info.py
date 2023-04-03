@@ -30,7 +30,7 @@ class BaseAtomisticInformation:
         raise NotImplementedError
 
     @property
-    def get_exponent_table(self) -> Tensor:
+    def get_exponent_dict(self) -> dict[tuple[int, int], Tensor]:
         raise NotImplementedError
 
     @property
@@ -58,6 +58,8 @@ class CustomNOrbAtomisticInformation(BaseAtomisticInformation):
         self._exponent_table_customorb = self._mod_table_customorb(self._exponent_table)
         self._max_elec_idx_customorb = self._mod_max_idx_customorb(self._max_elec_idx)
         self._nl_list_customorb = self._mod_nl_list_customorb(self._nl_list)
+
+        self._exponent_dict = self._reshape_exp_table(self._exponent_table_customorb)
 
     def _mod_table_customorb(self, tbl: Tensor) -> Tensor:
         def mod_one(one_elec: Tensor) -> Tensor:
@@ -101,6 +103,12 @@ class CustomNOrbAtomisticInformation(BaseAtomisticInformation):
             for _ in range(self.n_per_orb):
                 out_nl_list.append(nl)
         return out_nl_list
+
+    def _reshape_exp_table(self, exp_table: Tensor) -> dict[tuple[int, int], Tensor]:
+        out_exp_table = {}
+        for i, nl in enumerate(self._nl_list_customorb[: self.max_orb_idx + 1]):
+            out_exp_table[nl] = exp_table[:, i][: self.max_z + 1]
+        return out_exp_table
 
     def _get_max_orb_idx_byz(self) -> int:
         max_z = self.max_z
@@ -197,8 +205,8 @@ class CustomNOrbAtomisticInformation(BaseAtomisticInformation):
         return self._valence_table_customorb[: self.max_z + 1, : self.max_orb_idx + 1]
 
     @property
-    def get_exponent_table(self) -> Tensor:
-        return self._exponent_table_customorb[: self.max_z + 1, : self.max_orb_idx + 1]
+    def get_exponent_dict(self) -> dict[tuple[int, int], Tensor]:
+        return self._exponent_dict
 
     @property
     def get_max_elec_idx(self) -> Tensor:
