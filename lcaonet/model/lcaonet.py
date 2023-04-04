@@ -21,6 +21,7 @@ from lcaonet.data import DataKeys
 from lcaonet.model.base import BaseGCNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
+from lcaonet.nn.post import PostProcess
 from lcaonet.utils import (
     activation_resolver,
     init_resolver,
@@ -325,8 +326,8 @@ class EmbedCoeffs(nn.Module):
         Args:
             z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
             e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
-            idx_i (torch.Tensor):
-            idx_j (torch.Tensor):
+            idx_i (torch.Tensor): the indices of center atoms.
+            idx_j (torch.Tensor): the indices of neighbor atoms.
 
         Returns:
             coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
@@ -529,76 +530,6 @@ class LCAOOut(nn.Module):
             return out.mean(dim=0, keepdim=True)
 
 
-class PostProcess(nn.Module):
-    """postprocess the output property values.
-
-    Add atom reference property and mean value to the network output
-    values.
-    """
-
-    def __init__(
-        self,
-        out_dim: int,
-        is_extensive: bool = True,
-        atomref: Tensor | None = None,
-        mean: Tensor | None = None,
-    ):
-        """
-        Args:
-            out_dim (int): output property dimension.
-            is_extensive (bool): whether the output property is extensive or not. Defaults to `True`.
-            atomref (torch.Tensor | None): atom reference values with (max_z, out_dim) shape. Defaults to `None`.
-            mean (torch.Tensor | None): mean value of the output property with (out_dim) shape. Defaults to `None`.
-        """
-        super().__init__()
-        self.out_dim = out_dim
-        self.is_extensive = is_extensive
-        # atom ref
-        self.register_buffer("atomref", atomref)
-        # mean and std
-        self.register_buffer("mean", mean)
-
-    def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
-        """Forward calculation of PostProcess.
-
-        Args:
-            out (torch.Tensor): Output property values with (n_batch, out_dim) shape.
-            z (torch.Tensor): Atomic numbers with (n_node) shape.
-            batch_idx (torch.Tensor | None): The batch indices of nodes with (n_node) shape.
-
-        Returns:
-            torch.Tensor: Offset output property values with (n_batch, out_dim) shape.
-        """
-        if self.atomref is not None:
-            aref = self.atomref[z]  # type: ignore
-            if self.is_extensive:
-                aref = (
-                    aref.sum(dim=0, keepdim=True)
-                    if batch_idx is None
-                    else scatter(aref, batch_idx, dim=0, reduce="sum")
-                )
-            else:
-                aref = (
-                    aref.mean(dim=0, keepdim=True)
-                    if batch_idx is None
-                    else scatter(aref, batch_idx, dim=0, reduce="mean")
-                )
-            out = out + aref
-
-        if self.mean is not None:
-            mean = self.mean  # type: ignore
-            if self.is_extensive:
-                mean = mean.unsqueeze(0).expand(z.size(0), -1)  # type: ignore
-                mean = (
-                    mean.sum(dim=0, keepdim=True)
-                    if batch_idx is None
-                    else scatter(mean, batch_idx, dim=0, reduce="sum")
-                )
-            out = out + mean
-
-        return out
-
-
 class LCAONet(BaseGCNN):
     """
     LCAONet - GCNN including orbital interaction, physically motivatied by the LCAO method.
@@ -611,6 +542,7 @@ class LCAONet(BaseGCNN):
         conv_dim: int = 128,
         out_dim: int = 1,
         n_interaction: int = 3,
+        use_state: bool = True,
         rbf_form: str = "hydrogenradialwavefunctionbasis",
         rbf_kwargs: dict[str, Any] = {},
         n_per_orb: int = 2,
