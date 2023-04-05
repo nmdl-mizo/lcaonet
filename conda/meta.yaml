@@ -38,4 +38,4 @@ test:
 about:
   home: https://github.com/nmdl-mizo/lcaonet
   license: MIT
-  summary: GCNN including orbital interaction, physically motivatied by the LCAO method.
+  summary: LCAONet - MPNN including orbital interaction, physically motivatied by the LCAO method.
