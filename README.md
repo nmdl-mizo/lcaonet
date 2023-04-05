@@ -35,7 +35,7 @@ It is possible to build a virtual environment using [conda](https://docs.conda.i
 
 #### Using conda
 
-Create a new virtual environment by running below commands:
+You can create a new virtual environment with conda by running below commands:
 
 ```bash
 conda create -n lcaonet python=3.10
@@ -60,7 +60,7 @@ chmod +x build_conda.sh
 
 #### Using venv
 
-You can create a new virtual environments with by running below commands:
+You can create a new virtual environments with venv by running below commands:
 
 ```bash
 python3 -m venv lcaonet-venv
