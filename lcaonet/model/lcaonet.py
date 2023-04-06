@@ -1,4 +1,4 @@
-from __future__ import annotations  # type: ignore
+from __future__ import annotations
 
 import math
 from collections.abc import Callable
