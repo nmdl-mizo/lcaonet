@@ -612,12 +612,11 @@ class EmbedElec(nn.Module):
             if not self.extend_orb:
                 ee._fill_padding_idx_with_zero()
 
-    def forward(self, z: Tensor, z_embed: Tensor) -> Tensor:
+    def forward(self, z: Tensor) -> Tensor:
         """Forward calculation of EmbedElec.
 
         Args:
             z (torch.Tensor): the atomic numbers with (n_node) shape.
-            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, embed_dim) shape.
 
         Returns:
             e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, embed_dim) shape.
@@ -630,11 +629,6 @@ class EmbedElec(nn.Module):
         e_embed = torch.stack([ce(elec[i]) for i, ce in enumerate(self.e_embeds)], dim=0)
         # (n_node, n_orb, embed_dim)
         e_embed = torch.transpose(e_embed, 0, 1)
-
-        # (n_node) -> (n_node, 1, embed_dim)
-        z_embed = z_embed.unsqueeze(1)
-        # inject atomic information to e_embed vectors
-        e_embed = e_embed + e_embed * z_embed
 
         return e_embed
 
@@ -735,6 +729,60 @@ class EmbedNode(nn.Module):
         else:
             z_e_embed = z_embed
         return self.z_e_lin(z_e_embed)
+
+
+class EmbedCoeffs(nn.Module):
+    """The layer that embeds atomic numbers and electron numbers into
+    coefficient embedding vectors."""
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        z_dim: int,
+        e_dim: int,
+        activation: nn.Module = nn.SiLU(),
+        weight_init: Callable[[Tensor], Tensor] | None = None,
+    ):
+        """
+        Args:
+            hidden_dim (int): the dimension of coefficient vector.
+            z_dim (int): the dimension of atomic number embedding.
+            e_dim (int): the dimension of electron number embedding.
+            activation (nn.Module): the activation function. Defaults to `torch.nn.SiLU()`.
+            weight_init (Callable[[Tensor], Tensor] | None): weight initialization func. Defaults to `None`.
+        """
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.z_dim = z_dim
+        self.e_dim = e_dim
+
+        self.z_lin = nn.Sequential(
+            activation,
+            Dense(2 * z_dim, hidden_dim, True, weight_init),
+            activation,
+            Dense(hidden_dim, hidden_dim, True, weight_init),
+        )
+        self.e_lin = nn.Sequential(
+            activation,
+            Dense(e_dim, hidden_dim, False, weight_init),
+            activation,
+            Dense(hidden_dim, hidden_dim, False, weight_init),
+        )
+
+    def forward(self, z_embed: Tensor, e_embed: Tensor, idx_i: Tensor, idx_j: Tensor) -> Tensor:
+        """Forward calculation of EmbedCoeffs.
+
+        Args:
+            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
+            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
+            idx_i (torch.Tensor): the indices of center atoms.
+            idx_j (torch.Tensor): the indices of neighbor atoms.
+        Returns:
+            coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
+        """
+        z_embed = self.z_lin(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
+        e_embed = self.e_lin(e_embed)[idx_j]
+        return e_embed + e_embed * z_embed.unsqueeze(1)
 
 
 class LCAOConv(nn.Module):
@@ -1067,13 +1115,13 @@ class LCAONet(BaseGNN):
             self.cn = cutoff_net(cutoff)  # type: ignore
 
         # node and coefficient embedding layers
-        self.node_z_embed_dim = 64  # fix
-        self.node_e_embed_dim = 64 if elec_to_node else 0  # fix
-        self.e_embed_dim = self.coeffs_dim + self.node_e_embed_dim
-        self.z_embed_dim = self.e_embed_dim + self.node_z_embed_dim
-        self.z_embed = EmbedZ(embed_dim=self.z_embed_dim, max_z=max_z)
-        self.e_embed = EmbedElec(self.e_embed_dim, max_z, max_orb, extend_orb)
-        self.node_embed = EmbedNode(hidden_dim, self.node_z_embed_dim, elec_to_node, self.node_e_embed_dim, act, wi)
+        z_embed_dim = self.hidden_dim + self.coeffs_dim
+        self.node_e_embed_dim = hidden_dim if elec_to_node else 0
+        e_embed_dim = self.node_e_embed_dim + self.coeffs_dim
+        self.z_embed = EmbedZ(embed_dim=z_embed_dim, max_z=max_z)
+        self.e_embed = EmbedElec(e_embed_dim, max_z, max_orb, extend_orb)
+        self.node_embed = EmbedNode(hidden_dim, hidden_dim, elec_to_node, self.node_e_embed_dim, act, wi)
+        self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, act, wi)
         if add_valence:
             self.valence_mask = ValenceMask(conv_dim, max_z)
 
@@ -1131,13 +1179,15 @@ class LCAONet(BaseGNN):
 
         # calc node and coefficient embedding vectors
         z_embed = self.z_embed(z)
-        z_embed1, z_embed2 = torch.split(z_embed, [self.e_embed_dim, self.node_z_embed_dim], dim=-1)
-
-        e_embed = self.e_embed(z, z_embed1)
-        e_embed1, e_embed2 = torch.split(e_embed, [self.coeffs_dim, self.node_e_embed_dim], dim=-1)
-
-        cji = e_embed1[idx_j] + e_embed1[idx_i] * e_embed1[idx_j]
-        x = self.node_embed(z_embed2, e_embed2)
+        node_z, coeffs_z = torch.split(z_embed, [self.hidden_dim, self.coeffs_dim], dim=-1)
+        e_embed = self.e_embed(z)
+        if self.elec_to_node:
+            node_e, coeffs_e = torch.split(e_embed, [self.node_e_embed_dim, self.coeffs_dim], dim=-1)
+            x = self.node_embed(node_z, node_e)
+        else:
+            coeffs_e = e_embed
+            x = self.node_embed(node_z)
+        cji = self.coeff_embed(coeffs_z, coeffs_e, idx_i, idx_j)
 
         # valence mask coefficients
         valence_mask: Tensor | None = self.valence_mask(z)[idx_j] if self.add_valence else None
