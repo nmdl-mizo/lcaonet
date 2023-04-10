@@ -1117,10 +1117,10 @@ class LCAONet(BaseGNN):
         distances = self.calc_atomic_distances(batch)
 
         # calc angles each triplets
-        pos_i = pos[tri_idx_i]
-        vec_ji, vec_ki = pos[tri_idx_j] - pos_i, pos[tri_idx_k] - pos_i
-        inner = (vec_ji * vec_ki).sum(dim=-1)
-        outter = torch.cross(vec_ji, vec_ki).norm(dim=-1)
+        pos_j = pos[tri_idx_j]
+        vec_ji, vec_jk = pos[tri_idx_i] - pos_j, pos[tri_idx_k] - pos_j
+        inner = (vec_ji * vec_jk).sum(dim=-1)
+        outter = torch.cross(vec_ji, vec_jk).norm(dim=-1)
         # arctan is more stable than arccos
         angle = torch.atan2(outter, inner)
 
