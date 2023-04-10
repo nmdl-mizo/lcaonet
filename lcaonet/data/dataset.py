@@ -183,7 +183,7 @@ class List2GraphDataset(BaseGraphDataset):
             pickle.dump(self, f)
 
     @classmethod
-    def load(cls, load_pth: str):
+    def load_from_pickle(cls, load_pth: str):
         import pickle
 
         with open(load_pth, "rb") as f:
