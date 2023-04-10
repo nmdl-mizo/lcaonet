@@ -890,7 +890,7 @@ class LCAOConv(nn.Module):
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = torch.einsum("ed,edh->eh", shbs * robs[edge_idx_kj], ckj)
+        three_body_orbs = torch.einsum("ed,edh->eh", shbs, ckj)
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
