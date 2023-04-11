@@ -775,8 +775,9 @@ class EmbedCoeffs(nn.Module):
         Args:
             z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
             e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
-            idx_i (torch.Tensor): the indices of center atoms.
-            idx_j (torch.Tensor): the indices of neighbor atoms.
+            idx_i (torch.Tensor): the indices of center atoms with (n_edge) shape.
+            idx_j (torch.Tensor): the indices of neighbor atoms with (n_edge) shape.
+
         Returns:
             coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
         """
