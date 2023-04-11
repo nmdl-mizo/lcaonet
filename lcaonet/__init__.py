@@ -1,5 +1,5 @@
-import lcaonet.data  # NOQA: F401
-import lcaonet.model  # NOQA: F401
-import lcaonet.nn  # NOQA: F401
-import lcaonet.train  # NOQA: F401
-import lcaonet.utils  # NOQA: F401
+from . import data  # NOQA: F401
+from . import model  # NOQA: F401
+from . import nn  # NOQA: F401
+from . import train  # NOQA: F401
+from . import utils  # NOQA: F401

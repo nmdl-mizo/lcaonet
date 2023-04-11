@@ -8,7 +8,7 @@ import torch
 from torch.nn.init import calculate_gain
 from torch_geometric.nn.inits import glorot, glorot_orthogonal
 
-from lcaonet.nn.activation import ShiftedSoftplus, Swish
+import lcaonet
 
 
 def _normalize_string(s: str) -> str:
@@ -70,7 +70,7 @@ def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> torc
         act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
     ]
     # add Swish and ShiftedSoftplus
-    acts += [Swish, ShiftedSoftplus]
+    acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus]
     return _resolver(query, acts, base_cls, **kwargs)  # type: ignore
     # Since mypy cannot identify that _resolver returns a Module
 
@@ -84,7 +84,7 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
         act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
     ]
     # add Swish and ShiftedSoftplus
-    acts += [Swish, ShiftedSoftplus]
+    acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus]
     gain_dict = {
         "sigmoid": "sigmoid",
         "tanh": "tanh",
