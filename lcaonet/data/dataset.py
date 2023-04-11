@@ -36,6 +36,19 @@ class BaseGraphDataset(Dataset):
     def get(self, idx: int) -> Data:
         raise NotImplementedError
 
+    @classmethod
+    def load_from_pickle(cls, load_pth: str):
+        import pickle
+
+        with open(load_pth, "rb") as f:
+            return pickle.load(f)
+
+    def save(self, save_pth: str):
+        import pickle
+
+        with open(save_pth, "wb") as f:
+            pickle.dump(self, f)
+
     def _structure2atoms(self, s: Structure) -> ase.Atoms:
         """Helper function to convert one `Structure` object to `ase.Atoms`.
 
@@ -52,9 +65,9 @@ class BaseGraphDataset(Dataset):
 
         return atoms
 
-    def _atoms2geometricdata(self, atoms: ase.Atoms) -> Data:
+    def _atoms2graphdata(self, atoms: ase.Atoms) -> Data:
         """Helper function to convert one `Atoms` object to
-        `torch_geometric.data.Data`.
+        `torch_geometric.data.Data` with edge index information include pbc.
 
         Args:
             atoms (ase.Atoms): one atoms object.
@@ -99,13 +112,12 @@ class BaseGraphDataset(Dataset):
         data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
 
-    def _geometricdata2structure(self, data: Data) -> Structure:
+    def _graphdata2structure(self, data: Data) -> Structure:
         """Helper function to convert one `torch_geometric.data.Data` object to
         `pymatgen.core.Structure`.
 
         Args:
-            data (torch_geometric.data.Data): one Data object with edge information include pbc.
-
+            data (torch_geometric.data.Data): one graph data object with edge information include pbc.
         Returns:
             s (pymatgen.core.Structure): one structure object.
         """
@@ -114,6 +126,21 @@ class BaseGraphDataset(Dataset):
         ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
         s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
         return s
+
+    def _graphdata2atoms(self, data: Data) -> ase.Atoms:
+        """Helper function to convert one `torch_geometric.data.Data` object to
+        `ase.Atoms`.
+
+        Args:
+            data (torch_geometric.data.Data): one graph data object with edge information include pbc.
+        Returns:
+            atoms (ase.Atoms): one Atoms object.
+        """
+        pos = data[DataKeys.Position].numpy()
+        atom_num = data[DataKeys.Atom_numbers].numpy()
+        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
+        atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=self.pbc, cell=ce)
+        return atoms
 
     def _set_data(
         self,
@@ -158,6 +185,13 @@ class BaseGraphDataset(Dataset):
 
 
 class List2GraphDataset(BaseGraphDataset):
+    """Convert a list of structures or atoms into a graph dataset.
+
+    During the conversion, the following information is computed:
+    - Index of neighboring atoms within the cutoff radius considering PBC.
+    - Lattice shift values taking into account PBC (necessary to calculate inter atomic distances with atom in different cell images)
+    """  # NOQA: E501
+
     def __init__(
         self,
         structures: list[Structure | ase.Atoms],
@@ -169,25 +203,23 @@ class List2GraphDataset(BaseGraphDataset):
         subtract_center_of_mass: bool = False,
         remove_batch_key: list[str] | None = None,
     ):
+        """
+        Args:
+           structures (list[Structure  |  ase.Atoms]): list of structures or atoms.
+           y_values (dict[str, list[int  |  float  |  str  |  ndarray  |  Tensor]  |  ndarray  |  Tensor]): dict of physical properties. The key is the name of the property, and the value is the corresponding value of the property.
+           cutoff (float): The cutoff radius for computing the neighbor list.
+           max_neighbors (int, optional): Threshold of neighboring atoms to be considered. Defaults to `32`.
+           self_interaction (bool, optional): Whether to consider self interaction as edge index. Defaults to `False`.
+           pbc (bool | tuple[bool, ...], optional): Whether to consider PBC. Defaults to `True`.
+           subtract_center_of_mass (bool, optional): Whether to subtract the center of mass from the cartesian coordinates. Defaults to `False`.
+           remove_batch_key (list[str] | None, optional): List of property names that do not add dimension for batch. Defaults to `None`.
+        """  # NOQA: E501
         super().__init__(cutoff, max_neighbors, self_interaction, pbc, subtract_center_of_mass)
         self.graph_data_list: list[Data] = []
         self.remove_batch_key = remove_batch_key
         self._preprocess(structures, y_values)
         del structures
         del y_values
-
-    def save(self, save_pth: str):
-        import pickle
-
-        with open(save_pth, "wb") as f:
-            pickle.dump(self, f)
-
-    @classmethod
-    def load(cls, load_pth: str):
-        import pickle
-
-        with open(load_pth, "rb") as f:
-            return pickle.load(f)
 
     def _preprocess(
         self,
@@ -197,16 +229,13 @@ class List2GraphDataset(BaseGraphDataset):
         for i, s in enumerate(structures):
             if isinstance(s, Structure):
                 s = self._structure2atoms(s)
-            data = self._atoms2geometricdata(s)
+            data = self._atoms2graphdata(s)
             for k, v in y_values.items():
                 add_batch = True
                 if self.remove_batch_key is not None and k in self.remove_batch_key:
                     add_batch = False
                 self._set_properties(data, k, v[i], add_batch)
             self.graph_data_list.append(data)
-
-    def to_structure(self, idx: int) -> Structure:
-        return self._geometricdata2structure(self.graph_data_list[idx])
 
     def len(self) -> int:
         if len(self.graph_data_list) == 0:
@@ -215,6 +244,12 @@ class List2GraphDataset(BaseGraphDataset):
 
     def get(self, idx: int) -> Data:
         return self.graph_data_list[idx]
+
+    def get_structure(self, idx: int) -> Structure:
+        return self._graphdata2structure(self.graph_data_list[idx])
+
+    def get_atoms(self, idx: int) -> ase.Atoms:
+        return self._graphdata2atoms(self.graph_data_list[idx])
 
 
 class List2ChgFiedlDataset(List2GraphDataset):
