@@ -28,7 +28,7 @@ build:
 test:
   imports:
     - lcaonet
-    # - lcaonet.atomistic
+    - lcaonet.atomistic
     - lcaonet.data
     - lcaonet.model
     - lcaonet.nn
