@@ -9,6 +9,8 @@ from torch.nn.init import calculate_gain
 from torch_geometric.nn.inits import glorot, glorot_orthogonal
 
 import lcaonet
+from lcaonet.nn.cutoff import BaseCutoff
+from lcaonet.nn.rbf import BaseRadialBasis
 
 
 def _normalize_string(s: str) -> str:
@@ -120,3 +122,29 @@ def init_resolver(query: Callable | str = "orthogonal") -> Callable[[torch.Tenso
 def init_param_resolver(query: Callable[[torch.Tensor], torch.Tensor]) -> tuple[str, ...]:
     params = query.__code__.co_varnames[: query.__code__.co_argcount]
     return params
+
+
+def cutoffnet_resolver(query: type[BaseCutoff] | str = "polynomialcutoff", **kwargs) -> BaseCutoff:
+    if isinstance(query, str):
+        query = _normalize_string(query)
+        if query[-6:] != "cutoff":
+            query += "cutoff"
+    base_cls: type = BaseCutoff
+    # cutoff netowork classes
+    cns = [cn for cn in vars(lcaonet.nn.cutoff).values() if isinstance(cn, type) and issubclass(cn, base_cls)]
+
+    # Since mypy cannot identify that _resolver returns BaseRadialBasis
+    return _resolver(query, cns, base_cls, True, **kwargs)  # type: ignore
+
+
+def rbf_resolver(query: type[BaseRadialBasis] | str = "hydrogenradialbasis", **kwargs) -> BaseRadialBasis:
+    if isinstance(query, str):
+        query = _normalize_string(query)
+        if query[-11:] != "radialbasis":
+            query += "radialbasis"
+    base_cls: type = BaseRadialBasis
+    # rbf classes
+    rbfs = [rbf for rbf in vars(lcaonet.nn.rbf).values() if isinstance(rbf, type) and issubclass(rbf, base_cls)]
+
+    # Since mypy cannot identify that _resolver returns BaseRadialBasis
+    return _resolver(query, rbfs, base_cls, True, **kwargs)  # type: ignore
