@@ -15,7 +15,7 @@ from torch_geometric.data import Batch
 from torch_scatter import scatter
 
 from lcaonet.data import DataKeys
-from lcaonet.model.base import BaseGNN
+from lcaonet.model.base import BaseMPNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
 from lcaonet.utils import activation_resolver, init_resolver
@@ -1081,7 +1081,7 @@ class PostProcess(nn.Module):
         return out + aref
 
 
-class LCAONet(BaseGNN):
+class LCAONet(BaseMPNN):
     """
     LCAONet - GNN including orbital interaction, physically motivatied by the LCAO method.
     """

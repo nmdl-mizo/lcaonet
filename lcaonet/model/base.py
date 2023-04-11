@@ -9,7 +9,7 @@ from torch_sparse import SparseTensor
 from lcaonet.data.datakeys import DataKeys
 
 
-class BaseGNN(nn.Module):
+class BaseMPNN(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
@@ -84,5 +84,6 @@ class BaseGNN(nn.Module):
 
         return (idx_i, idx_j, tri_idx_i, tri_idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
-    def num_params(self) -> int:
+    @property
+    def n_param(self) -> int:
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
