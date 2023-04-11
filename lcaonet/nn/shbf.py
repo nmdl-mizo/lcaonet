@@ -65,8 +65,7 @@ class SphericalHarmonicsBasis(nn.Module):
         return funcs
 
     def extra_repr(self) -> str:
-        return "cutoff={}, elec_info={}(max_z={}, n_orb={}, n_per_orb={})".format(
-            self.cutoff,
+        return "elec_info={}(max_z={}, n_orb={}, n_per_orb={})".format(
             self.elec_info.__class__.__name__,
             self.elec_info.max_z,
             self.n_orb,
