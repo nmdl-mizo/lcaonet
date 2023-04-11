@@ -7,22 +7,20 @@ from torch_scatter import scatter
 from lcaonet.nn.post import PostProcess
 
 param_PostProcess = [
-    (1, None, False, None, True),  # default
-    (1, None, False, None, False),  # no extensive
-    (1, None, True, None, True),  # add mean
-    (1, None, True, torch.ones(1), True),  # add mean (1)
-    (1, None, True, torch.ones(1), False),  # add mean (1) and no extensive
-    (1, torch.ones((100, 1)), False, None, True),  # add atomref
-    (1, torch.ones((100, 1)), False, None, False),  # add atomref and no extensive
-    (1, torch.ones((100, 1)), True, None, True),  # add atomref and mean
-    (1, torch.ones((100, 1)), True, torch.ones(1), True),  # add atomref and mean (1)
-    (1, torch.ones((100, 1)), True, torch.ones(1), False),  # add atomref and mean (1) and no extensive
-    (10, torch.ones((100, 1)), True, torch.ones(1), True),  # add atomref and mean (1)
-    (10, torch.ones((100, 1)), True, torch.ones(1), False),  # add atomref and mean (1) and no extensive
+    (1, True, None, None),  # default
+    (1, False, None, None),  # no extensive
+    (1, True, None, torch.ones(1)),  # add mean
+    (1, False, None, torch.ones(1)),  # add mean and no extensive
+    (1, True, torch.ones((100, 1)), None),  # add atomref
+    (1, False, torch.ones((100, 1)), None),  # add atomref and no extensive
+    (1, True, torch.ones((100, 1)), torch.ones(1)),  # add atomref and mean
+    (1, False, torch.ones((100, 1)), torch.ones(1)),  # add atomref and mean and no extensive
+    (10, True, torch.ones((100, 1)), torch.ones(1)),  # add atomref and mean
+    (10, False, torch.ones((100, 1)), torch.ones(1)),  # add atomref and mean and no extensive
 ]
 
 
-@pytest.mark.parametrize("out_dim, atomref, mean, is_extensive", param_PostProcess)
+@pytest.mark.parametrize("out_dim, is_extensive, atomref, mean", param_PostProcess)
 def test_PostProcess(
     out_dim: int,
     is_extensive: bool,
