@@ -51,8 +51,8 @@ class HydrogenRadialBasis(BaseRadialBasis):
 
         self.basis_func = []
         self.stand_coeff = []
-        for n, l in elec_info.nl_list:
-            r_nl = self._get_r_nl(n, l, self.bohr_radius)
+        for nl in elec_info.nl_list:
+            r_nl = self._get_r_nl(nl[0].item(), nl[1].item(), self.bohr_radius)
             self.basis_func.append(r_nl)
             if self.cutoff is not None:
                 self.stand_coeff.append(self._get_standardized_coeff(r_nl).requires_grad_(True))
