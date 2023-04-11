@@ -2,546 +2,28 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from math import pi
 
-import sympy as sym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from scipy.integrate import quad
 from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
 
+from lcaonet.atomistic.info import ElecInfo
 from lcaonet.data.datakeys import DataKeys
 from lcaonet.model.base import BaseMPNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
 from lcaonet.nn.post import PostProcess
-from lcaonet.utils.resolve import activation_resolver, init_resolver
-
-# 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
-ELEC_TABLE = torch.tensor(
-    [
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # dummy
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # H
-        [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # He
-        [2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Li
-        [2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Be
-        [2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # B
-        [2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # C
-        [2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # N
-        [2, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # O
-        [2, 2, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # F
-        [2, 2, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ne
-        [2, 2, 6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Na
-        [2, 2, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Mg
-        [2, 2, 6, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Al
-        [2, 2, 6, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Si
-        [2, 2, 6, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # P
-        [2, 2, 6, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # S
-        [2, 2, 6, 2, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Cl
-        [2, 2, 6, 2, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ar (18)
-        [2, 2, 6, 2, 6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # K
-        [2, 2, 6, 2, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ca
-        [2, 2, 6, 2, 6, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Sc
-        [2, 2, 6, 2, 6, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ti
-        [2, 2, 6, 2, 6, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # V
-        [2, 2, 6, 2, 6, 1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Cr
-        [2, 2, 6, 2, 6, 2, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Mn
-        [2, 2, 6, 2, 6, 2, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Fe
-        [2, 2, 6, 2, 6, 2, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Co
-        [2, 2, 6, 2, 6, 2, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ni
-        [2, 2, 6, 2, 6, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Cu
-        [2, 2, 6, 2, 6, 2, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Zn
-        [2, 2, 6, 2, 6, 2, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ga
-        [2, 2, 6, 2, 6, 2, 10, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ge
-        [2, 2, 6, 2, 6, 2, 10, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # As
-        [2, 2, 6, 2, 6, 2, 10, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Se
-        [2, 2, 6, 2, 6, 2, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Br
-        [2, 2, 6, 2, 6, 2, 10, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Kr (36)
-        [2, 2, 6, 2, 6, 2, 10, 6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Rb
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Sr
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Y
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0],  # Zr
-        [2, 2, 6, 2, 6, 2, 10, 6, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0],  # Nb
-        [2, 2, 6, 2, 6, 2, 10, 6, 1, 5, 0, 0, 0, 0, 0, 0, 0, 0],  # Mo
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 5, 0, 0, 0, 0, 0, 0, 0, 0],  # Tc
-        [2, 2, 6, 2, 6, 2, 10, 6, 1, 7, 0, 0, 0, 0, 0, 0, 0, 0],  # Ru
-        [2, 2, 6, 2, 6, 2, 10, 6, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0],  # Rh
-        [2, 2, 6, 2, 6, 2, 10, 6, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0],  # Pd
-        [2, 2, 6, 2, 6, 2, 10, 6, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0],  # Ag
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 0, 0, 0, 0, 0, 0, 0, 0],  # Cd
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 1, 0, 0, 0, 0, 0, 0, 0],  # In
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 2, 0, 0, 0, 0, 0, 0, 0],  # Sn
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 3, 0, 0, 0, 0, 0, 0, 0],  # Sb
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 4, 0, 0, 0, 0, 0, 0, 0],  # Te
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 5, 0, 0, 0, 0, 0, 0, 0],  # I
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 0, 0, 0, 0, 0, 0, 0],  # Xe (54)
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 1, 0, 0, 0, 0, 0, 0],  # Cs
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 0, 0, 0, 0, 0, 0],  # Ba
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 0, 1, 0, 0, 0, 0],  # La
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 1, 1, 0, 0, 0, 0],  # Ce
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 3, 0, 0, 0, 0, 0],  # Pr
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 4, 0, 0, 0, 0, 0],  # Nd
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 5, 0, 0, 0, 0, 0],  # Pm
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 6, 0, 0, 0, 0, 0],  # Sm
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 7, 0, 0, 0, 0, 0],  # Eu
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 7, 1, 0, 0, 0, 0],  # Gd
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 9, 0, 0, 0, 0, 0],  # Tb
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 10, 0, 0, 0, 0, 0],  # Dy
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 11, 0, 0, 0, 0, 0],  # Ho
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 12, 0, 0, 0, 0, 0],  # Er
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 13, 0, 0, 0, 0, 0],  # Tm
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 0, 0, 0, 0, 0],  # Yb
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 1, 0, 0, 0, 0],  # Lu (71)
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 2, 0, 0, 0, 0],  # Hf
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 3, 0, 0, 0, 0],  # Ta
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 4, 0, 0, 0, 0],  # W
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 5, 0, 0, 0, 0],  # Re
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 6, 0, 0, 0, 0],  # Os
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 7, 0, 0, 0, 0],  # Ir
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 1, 14, 9, 0, 0, 0, 0],  # Pt
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 1, 14, 10, 0, 0, 0, 0],  # Au
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 0, 0, 0, 0],  # Hg
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 1, 0, 0, 0],  # Tl
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 2, 0, 0, 0],  # Pb
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 3, 0, 0, 0],  # Bi
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 4, 0, 0, 0],  # Po
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 5, 0, 0, 0],  # At
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 0, 0, 0],  # Rn (86)
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 1, 0, 0],  # Fr
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 0, 0],  # Ra
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 0, 1],  # Ac
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 0, 2],  # Th
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 2, 1],  # Pa
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 3, 1],  # U
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 4, 1],  # Np
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 6, 0],  # Pu
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 7, 0],  # Am
-        [2, 2, 6, 2, 6, 2, 10, 6, 2, 10, 6, 2, 14, 10, 6, 2, 7, 1],  # Cm (96)
-    ]
+from lcaonet.nn.rbf import BaseRadialBasis
+from lcaonet.nn.shbf import SphericalHarmonicsBasis
+from lcaonet.utils.resolve import (
+    activation_resolver,
+    cutoffnet_resolver,
+    init_resolver,
+    rbf_resolver,
 )
-MAX_IDX = torch.tensor([3, 3, 7, 3, 7, 3, 11, 7, 3, 11, 7, 3, 15, 11, 7, 3, 15, 11])
-
-# 1s, 2s, 2p, 3s, 3p, 4s, 3d, 4p, 5s, 4d, 5p, 6s, 4f, 5d, 6p, 7s, 5f, 6d
-VALENCE_TABLE = torch.tensor(
-    [
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # dummy
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # H
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # He
-        [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Li
-        [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Be
-        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # B
-        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # C
-        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # N
-        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # O
-        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # F
-        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ne
-        [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Na
-        [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Mg
-        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Al
-        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Si
-        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # P
-        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # S
-        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Cl
-        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ar (18)
-        [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # K
-        [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ca
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Sc
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ti
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # V
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Cr
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Mn
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Fe
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Co
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ni
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Cu
-        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Zn
-        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ga
-        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Ge
-        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # As
-        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Se
-        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Br
-        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Kr (36)
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Rb
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Sr
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Y
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Zr
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Nb
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Mo
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Tc
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Ru
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Rh
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Pd
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Ag
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],  # Cd
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],  # In
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],  # Sn
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],  # Sb
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],  # Te
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],  # I
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],  # Xe (54)
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],  # Cs
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],  # Ba
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],  # La
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],  # Ce
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Pr
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Nd
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Pm
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Sm
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Eu
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],  # Gd
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Tb
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Dy
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Ho
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Er
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Tm
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],  # Yb
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Lu (71)
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Hf
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Ta
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # W
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Re
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Os
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Ir
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],  # Pt
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],  # Au
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],  # Hg
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],  # Tl
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],  # Pb
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],  # Bi
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],  # Po
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],  # At
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],  # Rn (86)
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],  # Fr
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],  # Ra
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],  # Ac
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],  # Th
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],  # Pa
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],  # U
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],  # Np
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0],  # Pu
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0],  # Am
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],  # Cm (96)
-    ]
-)
-
-NL_LIST: list[tuple[int, int]] = [
-    (1, 0),  # 1s
-    (2, 0),  # 2s
-    (2, 1),  # 2p
-    (3, 0),  # 3s
-    (3, 1),  # 3p
-    (4, 0),  # 4s
-    (3, 2),  # 3d
-    (4, 1),  # 4p
-    (5, 0),  # 5s
-    (4, 2),  # 4d
-    (5, 1),  # 5p
-    (6, 0),  # 6s
-    (4, 3),  # 4f
-    (5, 2),  # 5d
-    (6, 1),  # 6p
-    (7, 0),  # 7s
-    (5, 3),  # 5f
-    (6, 2),  # 6d
-]
-
-
-def get_max_nl_index_byz(max_z: int) -> int:
-    if max_z <= 2:
-        return 0
-    if max_z <= 4:
-        return 1
-    if max_z <= 10:
-        return 2
-    if max_z <= 12:
-        return 3
-    if max_z <= 18:
-        return 4
-    if max_z <= 20:
-        return 5
-    if max_z <= 30:
-        return 6
-    if max_z <= 36:
-        return 7
-    if max_z <= 38:
-        return 8
-    if max_z <= 48:
-        return 9
-    if max_z <= 54:
-        return 10
-    if max_z <= 56:
-        return 11
-    if max_z <= 80:
-        return 13
-    if max_z <= 86:
-        return 14
-    if max_z <= 88:
-        return 15
-    if max_z <= 96:
-        return 17
-    raise ValueError(f"max_z={max_z} is too large")
-
-
-def get_max_nl_index_byorb(max_orb: str) -> int:
-    if max_orb == "1s":
-        return 0
-    if max_orb == "2s":
-        return 1
-    if max_orb == "2p":
-        return 2
-    if max_orb == "3s":
-        return 3
-    if max_orb == "3p":
-        return 4
-    if max_orb == "4s":
-        return 5
-    if max_orb == "3d":
-        return 6
-    if max_orb == "4p":
-        return 7
-    if max_orb == "5s":
-        return 8
-    if max_orb == "4d":
-        return 9
-    if max_orb == "5p":
-        return 10
-    if max_orb == "6s":
-        return 11
-    if max_orb == "4f":
-        return 12
-    if max_orb == "5d":
-        return 13
-    if max_orb == "6p":
-        return 14
-    if max_orb == "7s":
-        return 15
-    if max_orb == "5f":
-        return 16
-    if max_orb == "6d":
-        return 17
-    raise ValueError(f"max_orb={max_orb} is not supported")
-
-
-def get_elec_table(max_z: int, max_idx: int) -> Tensor:
-    return ELEC_TABLE[: max_z + 1, : max_idx + 1]
-
-
-def get_valence_table(max_z: int, max_idx: int) -> Tensor:
-    return VALENCE_TABLE[: max_z + 1, : max_idx + 1]
-
-
-def get_max_idx(max_z: int) -> Tensor:
-    return MAX_IDX[: max_z + 1]
-
-
-def get_nl_list(max_idx: int) -> list[tuple[int, int]]:
-    return NL_LIST[: max_idx + 1]
-
-
-class RadialOrbitalBasis(nn.Module):
-    """The layer that expand the interatomic distance with the radial
-    wavefunctions of hydrogen."""
-
-    def __init__(
-        self,
-        cutoff: float | None = None,
-        bohr_radius: float = 0.529,
-        max_z: int = 36,
-        max_orb: str | None = None,
-    ):
-        """
-        Args:
-            cutoff (float | None, optional): the cutoff radius. Defaults to `None`.
-            bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
-        """
-        super().__init__()
-        # get elec table
-        if max_orb is None:
-            max_idx = get_max_nl_index_byz(max_z)
-        else:
-            max_idx = get_max_nl_index_byorb(max_orb)
-        self.n_orb = max_idx + 1
-        self.n_l_list = get_nl_list(max_idx)
-        self.cutoff = cutoff
-        self.bohr_radius = bohr_radius
-
-        self.basis_func = []
-        self.stand_coeff = []
-        for n, l in self.n_l_list:
-            r_nl = self._get_r_nl(n, l, self.bohr_radius)
-            self.basis_func.append(r_nl)
-            if self.cutoff is not None:
-                self.stand_coeff.append(self._get_standardized_coeff(r_nl).requires_grad_(True))
-
-    def _get_r_nl(self, nq: int, lq: int, r0: float = 0.529) -> Callable[[Tensor | float], Tensor | float]:
-        """Get RadialOrbitalBasis functions with the associated Laguerre
-        polynomial.
-
-        Args:
-            nq (int): principal quantum number.
-            lq (int): azimuthal quantum number.
-            r0 (float): bohr radius. Defaults to `0.529`.
-
-        Returns:
-            r_nl (Callable[[Tensor | float], Tensor | float]): Orbital Basis function.
-        """
-        x = sym.Symbol("x", real=True)
-        # modify for n, l parameter
-        # ref: https://zenn.dev/shittoku_xxx/articles/13afd6fdfac44e
-        assoc_lag_coeff = sym.lambdify(
-            [x],
-            sym.simplify(
-                sym.assoc_laguerre(nq - lq - 1, 2 * lq + 1, x) * sym.factorial(nq + lq) * (-1) ** (2 * lq + 1)
-            ),
-        )
-        if self.cutoff is not None:
-            stand_coeff = -2.0 / nq / r0
-        else:
-            # standardize in all space
-            stand_coeff = -math.sqrt(
-                (2.0 / nq / r0) ** 3 * math.factorial(nq - lq - 1) / 2.0 / nq / math.factorial(nq + lq) ** 3
-            )
-
-        def r_nl(r: Tensor | float) -> Tensor | float:
-            zeta = 2.0 / nq / r0 * r
-
-            if isinstance(r, float):
-                return stand_coeff * assoc_lag_coeff(zeta) * zeta**lq * math.exp(-zeta / 2.0)
-
-            return stand_coeff * assoc_lag_coeff(zeta) * torch.pow(zeta, lq) * torch.exp(-zeta / 2.0)  # type: ignore
-
-        return r_nl
-
-    def _get_standardized_coeff(self, func: Callable[[Tensor | float], Tensor | float]) -> Tensor:
-        """If a cutoff radius is specified, the standardization coefficient is
-        computed by numerical integration.
-
-        Args:
-            func (Callable[[Tensor | float], Tensor | float]): radial wave function.
-
-        Raises:
-            ValueError: Occurs when cutoff radius is not specified.
-
-        Returns:
-            torch.Tensor: Standardization coefficient such that the probability of existence
-                within the cutoff sphere is 1.
-        """
-        if self.cutoff is None:
-            raise ValueError("cutoff is None")
-        cutoff = self.cutoff
-
-        with torch.no_grad():
-
-            def interad_func(r):
-                return (r * func(r)) ** 2
-
-            inte = quad(interad_func, 0.0, cutoff)
-            return 1 / (torch.sqrt(torch.tensor([inte[0]])) + 1e-12)
-
-    def forward(self, dist: Tensor) -> Tensor:
-        """Forward calculation of RadialOrbitalBasis.
-
-        Args:
-            dist (torch.Tensor): the interatomic distance with (n_edge) shape.
-
-        Returns:
-            rbf (torch.Tensor): the expanded distance with (n_edge, n_orb) shape.
-        """
-        if self.cutoff is not None:
-            device = dist.device
-            rbf = torch.stack([f(dist) * sc.to(device) for f, sc in zip(self.basis_func, self.stand_coeff)], dim=1)
-        else:
-            rbf = torch.stack([f(dist) for f in self.basis_func], dim=1)  # type: ignore
-        return rbf
-
-
-class SphericalHarmonicsBasis(nn.Module):
-    """The layer that expand interatomic distance and angles with radial
-    wavefunctions of hydrogen and spherical harmonics functions."""
-
-    def __init__(
-        self,
-        cutoff: float | None = None,
-        bohr_radius: float = 0.529,
-        max_z: int = 36,
-        max_orb: str | None = None,
-    ):
-        """
-        Args:
-            cutoff (float | None, optional): the cutoff radius. Defaults to `None`.
-            bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
-        """
-        super().__init__()
-        self.radial_basis = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
-
-        # make spherical basis functions
-        self.sph_funcs = self._calculate_symbolic_sh_funcs()
-
-    @staticmethod
-    def _y00(theta: Tensor, phi: Tensor) -> Tensor:
-        r"""
-        Spherical Harmonics with `l=m=0`.
-        ..math::
-            Y_0^0 = \frac{1}{2} \sqrt{\frac{1}{\pi}}
-
-        Args:
-            theta: the azimuthal angle.
-            phi: the polar angle.
-
-        Returns:
-            `Y_0^0`: the spherical harmonics with `l=m=0`.
-        """
-        dtype = theta.dtype
-        return (0.5 * torch.ones_like(theta) * math.sqrt(1.0 / pi)).to(dtype)
-
-    def _calculate_symbolic_sh_funcs(self) -> list:
-        """Calculate symbolic spherical harmonics functions.
-
-        Returns:
-            funcs (list[Callable]): the list of spherical harmonics functions.
-        """
-        funcs = []
-        theta, phi = sym.symbols("theta phi")
-        modules = {"sin": torch.sin, "cos": torch.cos, "conjugate": torch.conj, "sqrt": torch.sqrt, "exp": torch.exp}
-        for nl in self.radial_basis.n_l_list:
-            # !! only m=zero is used
-            m_list = [0]
-            for m in m_list:
-                if nl[1] == 0:
-                    funcs.append(SphericalHarmonicsBasis._y00)
-                else:
-                    func = sym.functions.special.spherical_harmonics.Znm(nl[1], m, theta, phi).expand(func=True)
-                    func = sym.simplify(func).evalf()
-                    funcs.append(sym.lambdify([theta, phi], func, modules))
-        self.orig_funcs = funcs
-
-        return funcs
-
-    def forward(self, dist: Tensor, angle: Tensor, edge_idx_kj: torch.LongTensor) -> Tensor:
-        """Forward calculation of SphericalHarmonicsBasis.
-
-        Args:
-            dist (torch.Tensor): the interatomic distance with (n_edge) shape.
-            angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
-            edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
-
-        Returns:
-            torch.Tensor: the expanded distance and angles of (n_triplets, n_orb) shape.
-        """
-        # (n_edge, n_orb)
-        rob = self.radial_basis(dist)
-        # (n_triplets, n_orb)
-        shb = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
-
-        # (n_triplets, n_orb)
-        return rob[edge_idx_kj] * shb
 
 
 class EmbedZ(nn.Module):
@@ -581,27 +63,21 @@ class EmbedElec(nn.Module):
     state is zero, the orbital is a zero vector embedding.
     """
 
-    def __init__(self, embed_dim: int, max_z: int = 36, max_orb: str | None = None, extend_orb: bool = False):
+    def __init__(self, embed_dim: int, elec_info: ElecInfo, extend_orb: bool = False):
         """
         Args:
             embed_dim (int): the dimension of embedding.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
+            elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
             extend_orb (bool, optional): Whether to use an extended basis. Defaults to `False`.
-        """
+        """  # NOQA: E501
         super().__init__()
-        # get elec table
-        if max_orb is None:
-            max_idx = get_max_nl_index_byz(max_z)
-        else:
-            max_idx = get_max_nl_index_byorb(max_orb)
-        self.register_buffer("elec", get_elec_table(max_z, max_idx))
-        self.n_orb = max_idx + 1
-
+        self.register_buffer("elec", elec_info.elec_table)
+        self.n_orb = ElecInfo.n_orb
         self.embed_dim = embed_dim
         self.extend_orb = extend_orb
+
         self.e_embeds = nn.ModuleList(
-            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in MAX_IDX[: self.n_orb]]
+            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in elec_info.max_elec_idx]
         )
 
         self.reset_parameters()
@@ -642,39 +118,34 @@ class ValenceMask(nn.Module):
     are set to 0.
     """
 
-    def __init__(self, embed_dim: int, max_z: int = 36, max_orb: str | None = None):
+    def __init__(self, embed_dim: int, elec_info: ElecInfo):
         """
         Args:
             embed_dim (int): the dimension of embedding.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-            max_orb (str | None, optional): the maximum orbital name like "2p". Defaults to `None`.
-        """
+            elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
+        """  # NOQA: E501
         super().__init__()
-        # get valence table
-        if max_orb is None:
-            max_idx = get_max_nl_index_byz(max_z)
-        else:
-            max_idx = get_max_nl_index_byorb(max_orb)
-        self.register_buffer("valence", get_valence_table(max_z, max_idx))
-        self.n_orb = max_idx + 1
+        self.register_buffer("valence", elec_info.valence_table)
+        self.n_orb = ElecInfo.n_orb
 
         self.embed_dim = embed_dim
 
-    def forward(self, z: Tensor) -> Tensor:
+    def forward(self, z: Tensor, idx_j: Tensor) -> Tensor:
         """Forward calculation of ValenceMask.
 
         Args:
             z (torch.Tensor): the atomic numbers with (n_node) shape.
+            idx_j (torch.Tensor): the indices of the second node of each edge with (n_edge) shape.
 
         Returns:
-            valence_mask (torch.Tensor): valence orbital mask with (n_node, n_orb, embed_dim) shape.
+            valence_mask (torch.Tensor): valence orbital mask with (n_edge, n_orb, embed_dim) shape.
         """
         valence_mask = self.valence[z]  # type: ignore
-        return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)
+        return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)[idx_j]
 
 
 class EmbedNode(nn.Module):
-    """The layer that embeds atomic numbers and electron numbers into node
+    """The layer that embedds atomic numbers and electron numbers into node
     embedding vectors."""
 
     def __init__(
@@ -733,7 +204,7 @@ class EmbedNode(nn.Module):
 
 
 class EmbedCoeffs(nn.Module):
-    """The layer that embeds atomic numbers and electron numbers into
+    """The layer that embedds atomic numbers and electron numbers into
     coefficient embedding vectors."""
 
     def __init__(
@@ -787,8 +258,8 @@ class EmbedCoeffs(nn.Module):
         return e_embed + e_embed * z_embed.unsqueeze(1)
 
 
-class LCAOConv(nn.Module):
-    """The layer that performs LCAO convolution."""
+class LCAOInteraction(nn.Module):
+    """The layer that performs message-passing of LCAONet."""
 
     def __init__(
         self,
@@ -846,8 +317,8 @@ class LCAOConv(nn.Module):
         cji: Tensor,
         valence_mask: Tensor | None,
         cutoff_w: Tensor | None,
-        robs: Tensor,
-        shbs: Tensor,
+        rb: Tensor,
+        shb: Tensor,
         idx_i: Tensor,
         idx_j: Tensor,
         tri_idx_k: Tensor,
@@ -861,8 +332,8 @@ class LCAOConv(nn.Module):
             cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
             valence_mask (torch.Tensor | None): valence orbital mask with (n_node, n_orb, conv_dim) shape.
             cutoff_w (torch.Tensor | None): cutoff weight with (n_edge) shape.
-            robs (torch.Tensor): the radial orbital basis with (n_edge, n_orb) shape.
-            shbs (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
+            rb (torch.Tensor): the radial basis with (n_edge, n_orb) shape.
+            shb (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
             idx_i (torch.Tensor): the indices of the first node of each edge with (n_edge) shape.
             idx_j (torch.Tensor): the indices of the second node of each edge with (n_edge) shape.
             tri_idx_k (torch.Tensor): the indices of the third node of each triplet with (n_triplets) shape.
@@ -886,18 +357,18 @@ class LCAOConv(nn.Module):
 
         # cutoff
         if cutoff_w is not None:
-            robs = robs * cutoff_w.unsqueeze(-1)
+            rb = rb * cutoff_w.unsqueeze(-1)
 
         # triple conv
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = torch.einsum("ed,edh->eh", shbs, ckj)
+        three_body_orbs = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj)
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_orbs * xk
-        three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=robs.size(0)))
+        three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
         # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
         cji = F.normalize(cji, dim=-1)
@@ -905,13 +376,13 @@ class LCAOConv(nn.Module):
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
         # LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        lcao_w = torch.einsum("ed,edh->eh", robs, cji)
+        lcao_w = torch.einsum("ed,edh->eh", rb, cji)
 
         if self.add_valence:
             # valence contribution
             if valence_mask is None:
                 raise ValueError("valence_mask must be provided when add_valence=True")
-            valence_w = torch.einsum("ed,edh->eh", robs, cji_valence * valence_mask)
+            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask)
             lcao_w = lcao_w + valence_w
 
         lcao_w = F.normalize(lcao_w, dim=-1)
@@ -982,7 +453,7 @@ class LCAOOut(nn.Module):
 
 class LCAONet(BaseMPNN):
     """
-    LCAONet - GNN including orbital interaction, physically motivatied by the LCAO method.
+    LCAONet - MPNN including orbital interaction, physically motivatied by the LCAO method.
     """
 
     def __init__(
@@ -992,9 +463,10 @@ class LCAONet(BaseMPNN):
         conv_dim: int = 128,
         out_dim: int = 1,
         n_interaction: int = 3,
+        n_per_orb: int = 1,
         cutoff: float | None = None,
-        cutoff_net: type[BaseCutoff] | None = None,
-        bohr_radius: float = 0.529,
+        rbf_type: str | type[BaseRadialBasis] = "hydrogen",
+        cutoff_net: str | type[BaseCutoff] | None = None,
         max_z: int = 36,
         max_orb: str | None = None,
         elec_to_node: bool = True,
@@ -1003,8 +475,8 @@ class LCAONet(BaseMPNN):
         is_extensive: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
-        postprocess: bool = False,
-        **kwargs,
+        atomref: Tensor | None = None,
+        mean: Tensor | None = None,
     ):
         """
         Args:
@@ -1016,19 +488,19 @@ class LCAONet(BaseMPNN):
             cutoff (float | None): the cutoff radius. Defaults to `None`.
                 If specified, the basis functions are normalized within the cutoff radius.
                 If `cutoff_net` is specified, the `cutoff` radius must be specified.
-            cutoff_net (type[lcaonet.nn.cutoff.BaseCutoff] | None): the cutoff network. Defaults to `None`.
-            bohr_radius (float): the bohr radius. Defaults to `0.529`.
+            rbf_type (str | type[lcaonet.nn.rbf.BaseRadialBasis]): the radial basis function or the name. Defaults to `hydrogen`.
+            cutoff_net (str | type[lcaonet.nn.cutoff.BaseCutoff] | None): the cutoff network or the name Defaults to `None`.
             max_z (int): the maximum atomic number. Defaults to `36`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
             elec_to_node (bool): whether to use electrons information to nodes embedding. Defaults to `True`.
             add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
-            extend_orb (bool): whether to extend the basis set. Defaults to `False`.
-                If `True`, convolution is performed including unoccupied orbitals of the ground state.
+            extend_orb (bool): whether to extend the basis set. Defaults to `False`. If `True`, MP is performed including unoccupied orbitals of the ground state.
             is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
-            postprocess (bool): whether to use postprocess. Defaults to `False`.
-        """
+            atomref (torch.Tensor | None): the reference value of the output property with (max_z, out_dim) shape. Defaults to `None`.
+            mean (torch.Tensor | None): the mean value of the output property with (out_dim) shape. Defaults to `None`.
+        """  # NOQA: E501
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
         act: nn.Module = activation_resolver(activation)
@@ -1044,35 +516,35 @@ class LCAONet(BaseMPNN):
         self.cutoff_net = cutoff_net
         self.elec_to_node = elec_to_node
         self.add_valence = add_valence
-        self.postprocess = postprocess
+
+        # electron information
+        elec_info = ElecInfo(max_z, max_orb, n_per_orb)
 
         # calc basis layers
-        self.rob = RadialOrbitalBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
-        self.shb = SphericalHarmonicsBasis(cutoff, bohr_radius, max_z=max_z, max_orb=max_orb)
+        self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info)
+        self.shbf = SphericalHarmonicsBasis(elec_info)
         if cutoff_net:
-            self.cn = cutoff_net(cutoff)  # type: ignore
+            self.cn = cutoffnet_resolver(cutoff_net, cutoff=cutoff)
 
         # node and coefficient embedding layers
         z_embed_dim = self.hidden_dim + self.coeffs_dim
         self.node_e_embed_dim = hidden_dim if elec_to_node else 0
         e_embed_dim = self.node_e_embed_dim + self.coeffs_dim
         self.z_embed = EmbedZ(embed_dim=z_embed_dim, max_z=max_z)
-        self.e_embed = EmbedElec(e_embed_dim, max_z, max_orb, extend_orb)
+        self.e_embed = EmbedElec(e_embed_dim, elec_info, extend_orb)
         self.node_embed = EmbedNode(hidden_dim, hidden_dim, elec_to_node, self.node_e_embed_dim, act, wi)
         self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, act, wi)
         if add_valence:
-            self.valence_mask = ValenceMask(conv_dim, max_z)
+            self.valence_mask = ValenceMask(conv_dim, elec_info)
 
         # interaction layers
         self.int_layers = nn.ModuleList(
-            [LCAOConv(hidden_dim, coeffs_dim, conv_dim, add_valence, act, wi) for _ in range(n_interaction)]
+            [LCAOInteraction(hidden_dim, coeffs_dim, conv_dim, add_valence, act, wi) for _ in range(n_interaction)]
         )
 
-        # output layer
+        # output layers
         self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
-
-        if postprocess:
-            self.pp_layer = PostProcess(out_dim=out_dim, is_extensive=is_extensive, **kwargs)
+        self.pp_layer = PostProcess(out_dim, is_extensive, atomref, mean)
 
     def forward(self, batch: Batch) -> Tensor:
         """Forward calculation of LCAONet.
@@ -1111,33 +583,31 @@ class LCAONet(BaseMPNN):
         angle = torch.atan2(outter, inner)
 
         # calc basis
-        robs = self.rob(distances)
-        shbs = self.shb(distances, angle, edge_idx_kj)
+        rb = self.rbf(distances)
+        shb = self.shbf(angle)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
         z_embed = self.z_embed(z)
-        node_z, coeffs_z = torch.split(z_embed, [self.hidden_dim, self.coeffs_dim], dim=-1)
+        node_z, coeff_z = torch.split(z_embed, [self.hidden_dim, self.coeffs_dim], dim=-1)
         e_embed = self.e_embed(z)
         if self.elec_to_node:
-            node_e, coeffs_e = torch.split(e_embed, [self.node_e_embed_dim, self.coeffs_dim], dim=-1)
+            node_e, coeff_e = torch.split(e_embed, [self.node_e_embed_dim, self.coeffs_dim], dim=-1)
             x = self.node_embed(node_z, node_e)
         else:
-            coeffs_e = e_embed
+            coeff_e = e_embed
             x = self.node_embed(node_z)
-        cji = self.coeff_embed(coeffs_z, coeffs_e, idx_i, idx_j)
+        cji = self.coeff_embed(coeff_z, coeff_e, idx_i, idx_j)
 
-        # valence mask coefficients
-        valence_mask: Tensor | None = self.valence_mask(z)[idx_j] if self.add_valence else None
+        # get valence mask coefficients
+        valence_mask: Tensor | None = self.valence_mask(z, idx_j) if self.add_valence else None
 
         # calc interaction
         for inte in self.int_layers:
-            x = inte(x, cji, valence_mask, cutoff_w, robs, shbs, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(x, cji, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # output
         out = self.out_layer(x, batch_idx)
-
-        if self.postprocess:
-            out = self.pp_layer(out, z, batch_idx)
+        out = self.pp_layer(out, z, batch_idx)
 
         return out
