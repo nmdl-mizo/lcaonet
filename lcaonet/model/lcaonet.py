@@ -14,7 +14,7 @@ from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
 
-from lcaonet.data import DataKeys
+from lcaonet.data.datakeys import DataKeys
 from lcaonet.model.base import BaseMPNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
