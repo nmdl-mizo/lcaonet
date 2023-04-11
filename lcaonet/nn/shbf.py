@@ -58,6 +58,7 @@ class SphericalHarmonicsBasis(nn.Module):
                     funcs.append(SphericalHarmonicsBasis._y00)
                 else:
                     func = sym.expand_func(sym.functions.special.spherical_harmonics.Znm(nl[1].item(), m, theta, phi))
+                    func = sym.simplify(func).evalf()
                     funcs.append(sym.lambdify([theta, phi], func, modules))
 
         return funcs
