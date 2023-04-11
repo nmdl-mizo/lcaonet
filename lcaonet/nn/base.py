@@ -10,15 +10,7 @@ from lcaonet.utils.resolve import init_param_resolver
 
 class Dense(nn.Linear):
     """Applies a linear transformation to the incoming data with using weight
-    initialize method.
-
-    Args:
-        in_dim (int): input dimension of tensor.
-        out_dim (int): output dimension of tensor.
-        bias (bool, optional): if `False`, the layer will not return an additive bias. Defaults to `True`.
-        weight_init (Callable, optional): weight initialize methods. Defaults to `None`.
-        bias_init (Callable, optional): bias initialize methods. Defaults to `nn.init.zeros_`.
-    """
+    initialize method."""
 
     def __init__(
         self,
@@ -29,8 +21,16 @@ class Dense(nn.Linear):
         bias_init: Callable[[Tensor], Tensor] | None = nn.init.zeros_,
         **kwargs,
     ):
-        if bias:
-            assert bias_init is not None, "bias_init must not be None if set bias"
+        """
+        Args:
+            in_dim (int): input dimension of tensor.
+            out_dim (int): output dimension of tensor.
+            bias (bool, optional): if `False`, the layer will not return an additive bias. Defaults to `True`.
+            weight_init (Callable, optional): weight initialize methods. Defaults to `None`.
+            bias_init (Callable, optional): bias initialize methods. Defaults to `nn.init.zeros_`.
+        """
+        if bias and bias_init is None:
+            raise ValueError("bias_init must not be None if set bias")
         self.bias_init = bias_init
         self.weight_init = weight_init
         # gain and scale paramer is set to default values
