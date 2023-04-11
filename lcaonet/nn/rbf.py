@@ -23,7 +23,7 @@ class BaseRadialBasis(nn.Module):
             self.cutoff,
             self.elec_info.__class__.__name__,
             self.elec_info.max_z,
-            self.n_orb,
+            self.elec_info.n_orb,
             self.elec_info.n_per_orb,
         )
 
