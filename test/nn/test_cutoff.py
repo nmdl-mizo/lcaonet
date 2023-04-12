@@ -21,6 +21,10 @@ def test_PolynomialCutoff(cutoff: float):
     assert cutoff_vals.size() == r.size()
     assert cutoff_vals[r > cutoff].sum() == 0.0
 
+    for i in range(cutoff_vals[r <= cutoff].size()[0] - 1):
+        assert cutoff_vals[r <= cutoff][i] >= 0.0
+        assert cutoff_vals[r <= cutoff][i] >= cutoff_vals[r <= cutoff][i + 1]
+
 
 param_CosineCutoff = [
     (1.0),
@@ -37,3 +41,7 @@ def test_CosineCutoff(cutoff: float):
 
     assert cutoff_vals.size() == r.size()
     assert cutoff_vals[r > cutoff].sum() == 0.0
+
+    for i in range(cutoff_vals[r <= cutoff].size()[0] - 1):
+        assert cutoff_vals[r <= cutoff][i] >= 0.0
+        assert cutoff_vals[r <= cutoff][i] >= cutoff_vals[r <= cutoff][i + 1]
