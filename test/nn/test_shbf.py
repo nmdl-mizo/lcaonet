@@ -30,9 +30,8 @@ def test_SphericalHarmonicsBasis(
     max_orb: str | None,
     n_per_orb: int,
 ):
-    n_triplet = 100
-    min_angle, max_angle = 0, 2 * math.pi
-    angle = (min_angle - max_angle) * torch.rand(n_triplet) + max_angle
+    n_triplet = 200
+    angle = torch.linspace(0, 2 * math.pi, n_triplet)
     ei = ElecInfo(max_z, max_orb, n_per_orb)
 
     shbf = SphericalHarmonicsBasis(ei)
@@ -45,4 +44,4 @@ def test_SphericalHarmonicsBasis(
     for i in range(ei.n_orb):
         lq = ei.nl_list[i][1].item()
         shb_scipy = scipy.special.sph_harm(0, lq, 0, angle_numpy).astype(np.float64)
-        assert torch.allclose(shb[:, i], torch.tensor(shb_scipy, dtype=torch.float32), rtol=1e-5, atol=1e-6)
+        assert torch.allclose(shb[:, i], torch.tensor(shb_scipy, dtype=torch.float32), rtol=1e-5, atol=1e-7)
