@@ -11,7 +11,7 @@
 ### Requirements
 
 - 3.7 <= [Python](https://www.python.org/) <= 3.10
-- [NumPy](https://numpy.org/) == 1.24.2
+- [NumPy](https://numpy.org/) == 1.23.5
 - [SciPy](https://scipy.org/) == 1.10.1
 - [SymPy](https://www.sympy.org/en/index.html) == 1.11.1
 - [ASE](https://wiki.fysik.dtu.dk/ase/index.html) == 3.22.1
@@ -45,7 +45,7 @@ conda activate lcaonet
 Install dependencies in your environment:
 
 ```bash
-conda install numpy==1.24.2 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
+conda install numpy=1.23.5 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
 conda install pytorch=1.13.1 -c pytorch
 conda install pyg pytorch-scatter pytorch-sparse -c pyg
 ```
@@ -124,9 +124,10 @@ You can train LCAONet with custom data in the following three steps.
         conv_dim: int = 128,
         out_dim: int = 1,
         n_interaction: int = 3,
+        n_per_orb: int = 1,
         cutoff: float | None = None,
-        cutoff_net: type[BaseCutoff] | None = None,
-        bohr_radius: float = 0.529,
+        rbf_type: str | type[BaseRadialBasis] = "hydrogen",
+        cutoff_net: str | type[BaseCutoff] | None = "polynomial",
         max_z: int = 36,
         max_orb: str | None = None,
         elec_to_node: bool = True,
@@ -146,15 +147,12 @@ You can train LCAONet with custom data in the following three steps.
     import torch
     from torch_geometric.loader import DataLoader
 
-    # Compile model
-    compiled_model = torch.compile(model)
-
     # Prepare DataLoader
     loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     for batch in loader:
         # Forward
-        y_pred = compiled_model(batch)
+        y_pred = model(batch)
         # Calculate loss
         loss = ...
         loss.backward()
