@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch import Tensor
 
 
-def polynomial_cutoff(r: Tensor, cutoff: float) -> Tensor:
+def _polynomial_cutoff(r: Tensor, cutoff: float) -> Tensor:
     """Polynomial cutoff function.
 
     Args:
@@ -22,7 +22,7 @@ def polynomial_cutoff(r: Tensor, cutoff: float) -> Tensor:
     return torch.where(r <= cutoff, 1 - 6 * ratio**5 + 15 * ratio**4 - 10 * ratio**3, 0.0)
 
 
-def cosine_cutoff(r: Tensor, cutoff: float) -> Tensor:
+def _cosine_cutoff(r: Tensor, cutoff: float) -> Tensor:
     """Cosine cutoff function.
 
     Args:
@@ -60,7 +60,7 @@ class PolynomialCutoff(BaseCutoff):
         super().__init__(cutoff)
 
     def forward(self, r: Tensor) -> Tensor:
-        return polynomial_cutoff(r, self.cutoff)
+        return _polynomial_cutoff(r, self.cutoff)
 
 
 class CosineCutoff(BaseCutoff):
@@ -68,4 +68,4 @@ class CosineCutoff(BaseCutoff):
         super().__init__(cutoff)
 
     def forward(self, r: Tensor) -> Tensor:
-        return cosine_cutoff(r, self.cutoff)
+        return _cosine_cutoff(r, self.cutoff)
