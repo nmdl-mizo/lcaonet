@@ -92,7 +92,7 @@ class HydrogenRadialBasis(BaseRadialBasis):
             if isinstance(r, float):
                 return stand_coeff * assoc_lag_coeff(zeta) * zeta**lq * math.exp(-zeta / 2.0)
 
-            return stand_coeff * assoc_lag_coeff(zeta) * torch.pow(zeta, lq) * torch.exp(-zeta / 2.0)  # type: ignore
+            return stand_coeff * assoc_lag_coeff(zeta) * torch.pow(zeta, lq) * torch.exp(-zeta / 2.0)  # type: ignore # Since mypy cannot determine that the type of zeta is tensor # NOQA: E501
 
         return r_nl
 
@@ -134,5 +134,5 @@ class HydrogenRadialBasis(BaseRadialBasis):
         if self.cutoff is not None:
             rb = torch.stack([f(d) * sc.to(d.device) for f, sc in zip(self.basis_func, self.stand_coeff)], dim=1)
         else:
-            rb = torch.stack([f(d) for f in self.basis_func], dim=1)  # type: ignore
+            rb = torch.stack([f(d) for f in self.basis_func], dim=1)  # type: ignore # Since mypy cannot determine that the return type of a function is tensor # NOQA: E501
         return rb

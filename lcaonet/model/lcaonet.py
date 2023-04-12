@@ -99,7 +99,7 @@ class EmbedElec(nn.Module):
             e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, embed_dim) shape.
         """
         # (n_node, n_orb)
-        elec = self.elec[z]  # type: ignore
+        elec = self.elec[z]  # type: ignore # Since mypy cannot determine that the elec is a tensor
         # (n_orb, n_node)
         elec = torch.transpose(elec, 0, 1)
         # (n_orb, n_node, embed_dim)
@@ -140,7 +140,7 @@ class ValenceMask(nn.Module):
         Returns:
             valence_mask (torch.Tensor): valence orbital mask with (n_edge, n_orb, embed_dim) shape.
         """
-        valence_mask = self.valence[z]  # type: ignore
+        valence_mask = self.valence[z]  # type: ignore # Since mypy cannot determine that the valence is a tensor
         return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)[idx_j]
 
 
@@ -164,9 +164,8 @@ class EmbedNode(nn.Module):
             use_elec (bool): whether to use electron number embedding.
             e_dim (int | None): the dimension of electron number embedding.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
-                Defaults to `None`.
-        """
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
+        """  # NOQA: E501
         super().__init__()
         self.hidden_dim = hidden_dim
         self.z_dim = z_dim
@@ -277,9 +276,8 @@ class LCAOInteraction(nn.Module):
             conv_dim (int): the dimension of embedding vectors at convolution.
             add_valence (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function.
-                Defaults to `None`.
-        """
+            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization func. Defaults to `None`.
+        """  # NOQA: E501
         super().__init__()
         self.hidden_dim = hidden_dim
         self.coeffs_dim = coeffs_dim
@@ -289,7 +287,7 @@ class LCAOInteraction(nn.Module):
         self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
-        out_dim = 3 * conv_dim if add_valence else 2 * conv_dim
+        out_dim = 4 * conv_dim if add_valence else 2 * conv_dim
         self.coeffs_before_lin = nn.Sequential(
             activation,
             Dense(coeffs_dim, conv_dim, False, weight_init),
@@ -330,7 +328,7 @@ class LCAOInteraction(nn.Module):
         Args:
             x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
             cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
-            valence_mask (torch.Tensor | None): valence orbital mask with (n_node, n_orb, conv_dim) shape.
+            valence_mask (torch.Tensor | None): valence orbital mask with (n_edge, n_orb, conv_dim) shape.
             cutoff_w (torch.Tensor | None): cutoff weight with (n_edge) shape.
             rb (torch.Tensor): the radial basis with (n_edge, n_orb) shape.
             shb (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
@@ -343,6 +341,9 @@ class LCAOInteraction(nn.Module):
         Returns:
             torch.Tensor: updated node embedding vectors with (n_node, hidden_dim) shape.
         """
+        if self.add_valence and valence_mask is None:
+            raise ValueError("valence_mask must be provided when add_valence=True")
+
         # Transformation of the node
         x_before = x
         x = self.node_before_lin(x)
@@ -350,43 +351,46 @@ class LCAOInteraction(nn.Module):
 
         # Transformation of the coefficient vectors
         cji = self.coeffs_before_lin(cji)
-        if self.add_valence:
-            cji, ckj = torch.split(cji, [2 * self.conv_dim, self.conv_dim], dim=-1)
-        else:
-            cji, ckj = torch.chunk(cji, 2, dim=-1)
+        cji, ckj = torch.chunk(cji, 2, dim=-1)
 
         # cutoff
         if cutoff_w is not None:
             rb = rb * cutoff_w.unsqueeze(-1)
 
-        # triple conv
+        # --- Threebody Message-passing ---
         ckj = ckj[edge_idx_kj]
         ckj = F.normalize(ckj, dim=-1)
-        # LCAO weight: summation of all orbitals multiplied by coefficient vectors
+        if self.add_valence:
+            ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
+
+        # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         three_body_orbs = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj)
+        if self.add_valence:
+            valence_w = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj_valence * valence_mask[edge_idx_kj])  # type: ignore # Since mypy cannot determine that the Valencemask is not None # NOQA: E501
+            three_body_orbs = three_body_orbs + valence_w
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
+
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_orbs * xk
         three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
+
         # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
+
+        # --- Twobody Message-passing ---
         cji = F.normalize(cji, dim=-1)
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
-        # LCAO weight: summation of all orbitals multiplied by coefficient vectors
+        # twobody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         lcao_w = torch.einsum("ed,edh->eh", rb, cji)
-
         if self.add_valence:
-            # valence contribution
-            if valence_mask is None:
-                raise ValueError("valence_mask must be provided when add_valence=True")
             valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask)
             lcao_w = lcao_w + valence_w
-
         lcao_w = F.normalize(lcao_w, dim=-1)
 
+        # Message-passing and update node embedding vector
         x = x_before + self.node_after_lin(
             scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
         )
