@@ -301,6 +301,8 @@ class LCAOInteraction(nn.Module):
             Dense(conv_dim, three_out_dim, True, weight_init),
         )
 
+        self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
+
         self.node_lin = nn.Sequential(
             activation,
             Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
@@ -389,6 +391,7 @@ class LCAOInteraction(nn.Module):
             valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask)
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
+        lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
         x = x_before + self.node_after_lin(
