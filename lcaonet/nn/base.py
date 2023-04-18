@@ -57,12 +57,13 @@ class Dense(nn.Linear):
             self.bias_init(self.bias)
 
     def extra_repr(self) -> str:
+        weight_init_key = ", ".join([f"{k}={v}" for k, v in self.kwargs.items()])
         return "in_features={}, out_features={}, bias={}, weight_init={}({}), bias_init={}".format(
             self.in_features,
             self.out_features,
             self.bias is not None,
             self.weight_init.__name__ if self.weight_init is not None else None,
-            self.kwargs,
+            weight_init_key,
             self.bias_init.__name__ if self.bias_init is not None else None,
         )
 
