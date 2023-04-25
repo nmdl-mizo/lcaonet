@@ -6,7 +6,7 @@
 [![isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=grey)](https://pycqa.github.io/isort/)
 [![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](https://github.com/nmdl-mizo/lcaonet/blob/main/LICENSE)
 
-![model](https://github.com/nmdl-mizo/lcaonet/blob/feat/image/image/model.svg)
+<img src="https://github.com/nmdl-mizo/lcaonet/blob/feat/image/image/model.png" width=100px alt="Model">
 
 ## Installation
 
