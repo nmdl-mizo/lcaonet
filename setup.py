@@ -9,7 +9,6 @@ install_requires = [
     "scipy==1.10.1",
     "sympy==1.11.1",
     "ase==3.22.1",
-    "pymatgen==2022.4.19",
     "torch==1.13.1",
     "torch_geometric",
     # "torch_scatter @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",

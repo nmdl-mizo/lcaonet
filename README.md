@@ -17,7 +17,6 @@
 - [SciPy](https://scipy.org/) == 1.10.1
 - [SymPy](https://www.sympy.org/en/index.html) == 1.11.1
 - [ASE](https://wiki.fysik.dtu.dk/ase/index.html) == 3.22.1
-- [pymatgen](https://pymatgen.org/) == 2022.4.19
 - [PyTorch](https://pytorch.org/) == **1.13.1**
 - [PyG](https://pytorch-geometric.readthedocs.io/en/latest)
 - [PyTorch Scatter](https://pytorch-scatter.readthedocs.io/en/latest/)
@@ -47,7 +46,7 @@ conda activate lcaonet
 Install dependencies in your environment:
 
 ```bash
-conda install numpy=1.23.5 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 pymatgen=2022.4.19 -c conda-forge
+conda install numpy=1.23.5 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 -c anaconda -c conda-forge
 conda install pytorch=1.13.1 -c pytorch
 conda install pyg pytorch-scatter pytorch-sparse -c pyg
 ```
@@ -92,18 +91,17 @@ You can train LCAONet with custom data in the following three steps.
 
 1. **Prepare data**
 
-    First, prepare a list of `pymatgen.core.Structure` or `ase.Atoms` objects and a dict of physical property values to be labels. Then, convert them to `lcaonet.data.List2GraphDataset` object which inherits the `torch_geoemtric.data.Dataset` class.
+    First, prepare a list of `ase.Atoms` objects and a dict of physical property values to be labels. Then, convert them to `lcaonet.data.List2GraphDataset` object which inherits the `torch_geoemtric.data.Dataset` class.
 
     ```python
     from numpy import ndarray
     from torch import Tensor
     from ase import Atoms
-    from pymatgen.core import Structure
 
     from lcaonet.data import List2GraphDataset
 
-    # Prepare a list of Structure or Atoms objects
-    data_list: list[Union[Structure, Atoms]] = ...
+    # Prepare a list of Atoms objects
+    data_list: list[Union[Atoms]] = ...
     # Prepare a dict of physical property values(Key: label name, Value: array of label values).
     label_list: dict[str, list[float] | ndarray | Tensor] = ...
 

@@ -16,7 +16,6 @@ requirements:
     - scipy
     - sympy
     - ase
-    - pymatgen
     - pytorch
     - pyg
     - pytorch-scatter
