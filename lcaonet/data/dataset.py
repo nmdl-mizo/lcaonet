@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from ase.data import atomic_masses
 from numpy import ndarray
-from pymatgen.core import Structure
 from scipy.interpolate import RegularGridInterpolator
 from torch import Tensor
 from torch_geometric.data import Data, Dataset
@@ -48,22 +47,6 @@ class BaseGraphDataset(Dataset):
 
         with open(save_pth, "wb") as f:
             pickle.dump(self, f)
-
-    def _structure2atoms(self, s: Structure) -> ase.Atoms:
-        """Helper function to convert one `Structure` object to `ase.Atoms`.
-
-        Args:
-            s (pymatgen.core.Structure): one structure object.
-
-        Returns:
-            atoms (ase.Atoms): one atoms object.
-        """
-        atom_num = np.array(s.atomic_numbers, dtype=int)
-        ce = s.lattice.matrix
-        pos = s.cart_coords
-        atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=self.pbc, cell=ce)
-
-        return atoms
 
     def _atoms2graphdata(self, atoms: ase.Atoms) -> Data:
         """Helper function to convert one `Atoms` object to
@@ -111,21 +94,6 @@ class BaseGraphDataset(Dataset):
         data[DataKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
         data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
-
-    def _graphdata2structure(self, data: Data) -> Structure:
-        """Helper function to convert one `torch_geometric.data.Data` object to
-        `pymatgen.core.Structure`.
-
-        Args:
-            data (torch_geometric.data.Data): one graph data object with edge information include pbc.
-        Returns:
-            s (pymatgen.core.Structure): one structure object.
-        """
-        pos = data[DataKeys.Position].numpy()
-        atom_num = data[DataKeys.Atom_numbers].numpy()
-        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
-        s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
-        return s
 
     def _graphdata2atoms(self, data: Data) -> ase.Atoms:
         """Helper function to convert one `torch_geometric.data.Data` object to
@@ -194,7 +162,7 @@ class List2GraphDataset(BaseGraphDataset):
 
     def __init__(
         self,
-        structures: list[Structure | ase.Atoms],
+        structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
         cutoff: float,
         max_neighbors: int = 32,
@@ -205,7 +173,7 @@ class List2GraphDataset(BaseGraphDataset):
     ):
         """
         Args:
-           structures (list[Structure  |  ase.Atoms]): list of structures or atoms.
+           structures (list[ase.Atoms]): list of atoms.
            y_values (dict[str, list[int  |  float  |  str  |  ndarray  |  Tensor]  |  ndarray  |  Tensor]): dict of physical properties. The key is the name of the property, and the value is the corresponding value of the property.
            cutoff (float): The cutoff radius for computing the neighbor list.
            max_neighbors (int, optional): Threshold of neighboring atoms to be considered. Defaults to `32`.
@@ -223,12 +191,10 @@ class List2GraphDataset(BaseGraphDataset):
 
     def _preprocess(
         self,
-        structures: list[Structure | ase.Atoms],
+        structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
     ):
         for i, s in enumerate(structures):
-            if isinstance(s, Structure):
-                s = self._structure2atoms(s)
             data = self._atoms2graphdata(s)
             for k, v in y_values.items():
                 add_batch = True
@@ -245,9 +211,6 @@ class List2GraphDataset(BaseGraphDataset):
     def get(self, idx: int) -> Data:
         return self.graph_data_list[idx]
 
-    def get_structure(self, idx: int) -> Structure:
-        return self._graphdata2structure(self.graph_data_list[idx])
-
     def get_atoms(self, idx: int) -> ase.Atoms:
         return self._graphdata2atoms(self.graph_data_list[idx])
 
@@ -255,7 +218,7 @@ class List2GraphDataset(BaseGraphDataset):
 class List2ChgFiedlDataset(List2GraphDataset):
     def __init__(
         self,
-        structures: list[Structure | ase.Atoms],
+        structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
         chgcar: list[np.ndarray],
         cutoff: float,

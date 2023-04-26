@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 URL = "https://github.com/nmdl-mizo/lcaonet"
 
 
@@ -9,7 +9,6 @@ install_requires = [
     "scipy==1.10.1",
     "sympy==1.11.1",
     "ase==3.22.1",
-    "pymatgen==2022.4.19",
     "torch==1.13.1",
     "torch_geometric",
     # "torch_scatter @ https://data.pyg.org/whl/torch-2.0.0+cu117.html",
