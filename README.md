@@ -13,12 +13,12 @@
 ### Requirements
 
 - 3.7 <= [Python](https://www.python.org/) <= 3.10
-- [NumPy](https://numpy.org/) == 1.23.5
-- [SciPy](https://scipy.org/) == 1.10.1
-- [SymPy](https://www.sympy.org/en/index.html) == 1.11.1
-- [ASE](https://wiki.fysik.dtu.dk/ase/index.html) == 3.22.1
-- [PyTorch](https://pytorch.org/) == **1.13.1**
-- [PyG](https://pytorch-geometric.readthedocs.io/en/latest)
+- [NumPy](https://numpy.org/) == 1.*
+- [SciPy](https://scipy.org/) == 1.*
+- [SymPy](https://www.sympy.org/en/index.html) == 1.*
+- [ASE](https://wiki.fysik.dtu.dk/ase/index.html) == 3.*
+- [PyTorch](https://pytorch.org/) == **2.0.0**
+- [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest)
 - [PyTorch Scatter](https://pytorch-scatter.readthedocs.io/en/latest/)
 - [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse)
 
@@ -46,9 +46,9 @@ conda activate lcaonet
 Install dependencies in your environment:
 
 ```bash
-conda install numpy=1.23.5 scipy=1.10.1 sympy=1.11.1 ase=3.22.1 -c anaconda -c conda-forge
-conda install pytorch=1.13.1 -c pytorch
+conda install pytorch=2.0.0 -c pytorch
 conda install pyg pytorch-scatter pytorch-sparse -c pyg
+conda install numpy=1.* scipy=1.* sympy=1.* ase=3.* -c anaconda -c conda-forge
 ```
 
 Install LCAONet:
