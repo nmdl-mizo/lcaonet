@@ -8,7 +8,7 @@ install_requires = [
     "numpy==1.*",
     "scipy==1.*",
     "sympy==1.*",
-    "ase>=3.*",
+    "ase==3.*",
     "torch==2.0.0",
     "torch_geometric",
     "torch_scatter",
