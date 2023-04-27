@@ -158,7 +158,7 @@ class List2GraphDataset(BaseGraphDataset):
     During the conversion, the following information is computed:
     - Index of neighboring atoms within the cutoff radius considering PBC.
     - Lattice shift values taking into account PBC (necessary to calculate inter atomic distances with atom in different cell images)
-    """  # NOQA: E501
+    """  # noqa: E501
 
     def __init__(
         self,
@@ -181,7 +181,7 @@ class List2GraphDataset(BaseGraphDataset):
            pbc (bool | tuple[bool, ...], optional): Whether to consider PBC. Defaults to `True`.
            subtract_center_of_mass (bool, optional): Whether to subtract the center of mass from the cartesian coordinates. Defaults to `False`.
            remove_batch_key (list[str] | None, optional): List of property names that do not add dimension for batch. Defaults to `None`.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__(cutoff, max_neighbors, self_interaction, pbc, subtract_center_of_mass)
         self.graph_data_list: list[Data] = []
         self.remove_batch_key = remove_batch_key

@@ -73,7 +73,7 @@ def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> torc
     ]
     # add Swish and ShiftedSoftplus
     acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus]
-    return _resolver(query, acts, base_cls, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns a Module # NOQA: E501
+    return _resolver(query, acts, base_cls, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns a Module # noqa: E501
 
 
 def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> float:
@@ -132,7 +132,7 @@ def cutoffnet_resolver(query: type[BaseCutoff] | str = "polynomialcutoff", **kwa
     # cutoff netowork classes
     cns = [cn for cn in vars(lcaonet.nn.cutoff).values() if isinstance(cn, type) and issubclass(cn, base_cls)]
 
-    return _resolver(query, cns, base_cls, True, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns BaseCutoff # NOQA: E501
+    return _resolver(query, cns, base_cls, True, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns BaseCutoff # noqa: E501
 
 
 def rbf_resolver(query: type[BaseRadialBasis] | str = "hydrogenradialbasis", **kwargs) -> BaseRadialBasis:
@@ -144,4 +144,4 @@ def rbf_resolver(query: type[BaseRadialBasis] | str = "hydrogenradialbasis", **k
     # rbf classes
     rbfs = [rbf for rbf in vars(lcaonet.nn.rbf).values() if isinstance(rbf, type) and issubclass(rbf, base_cls)]
 
-    return _resolver(query, rbfs, base_cls, True, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns BaseRadialBasis # NOQA: E501
+    return _resolver(query, rbfs, base_cls, True, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns BaseRadialBasis # noqa: E501
