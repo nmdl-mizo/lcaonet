@@ -366,9 +366,9 @@ class LCAOInteraction(nn.Module):
             ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
 
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj)
+        three_body_orbs = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj_valence * valence_mask[edge_idx_kj])  # type: ignore # Since mypy cannot determine that the Valencemask is not None # NOQA: E501
+            valence_w = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # NOQA: E501
             three_body_orbs = three_body_orbs + valence_w
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
 
@@ -386,9 +386,9 @@ class LCAOInteraction(nn.Module):
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
         # twobody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        lcao_w = torch.einsum("ed,edh->eh", rb, cji)
+        lcao_w = torch.einsum("ed,edh->eh", rb, cji).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask)
+            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
         lcao_w = self.basis_weight(lcao_w)

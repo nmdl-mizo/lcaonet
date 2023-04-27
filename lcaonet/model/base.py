@@ -36,8 +36,7 @@ class BaseMPNN(nn.Module):
         edge_vec = (
             batch[DataKeys.Position][edge_dst]
             - batch[DataKeys.Position][edge_src]
-            # TODO: einsum can use only Double, change float
-            + torch.einsum("ni,nij->nj", batch[DataKeys.Edge_shift], batch[DataKeys.Lattice][edge_batch])
+            + torch.einsum("ni,nij->nj", batch[DataKeys.Edge_shift], batch[DataKeys.Lattice][edge_batch]).contiguous()
         )
         if return_vec:
             return torch.norm(edge_vec, dim=1), edge_vec
