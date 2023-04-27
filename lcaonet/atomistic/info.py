@@ -16,7 +16,7 @@ class ElecInfo:
             max_orb (str | None): the maximum orbital name like `"3s"`. When using this parameter, use it when you want to include orbitals beyond the valence orbitals.
                 For example, when `max_z=6`, the largest orbital is `"2p"`, but by setting `max_orb="3s"`, the message passing can take into account the basis up to 3s orbitals.
             n_per_orb (int): Number of bases used per orbit. Default is `1`.
-        """  # NOQA: E501
+        """  # noqa: E501
         self.max_z = max_z
         self.max_orb = max_orb
         self.n_per_orb = n_per_orb

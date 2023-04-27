@@ -36,7 +36,7 @@ class WarmupCosineDecayAnnealingLR(_LRScheduler):
             decay_coef (float, optional): Decay coefficient. Defaults to `1.5`.
             last_epoch (int, optional): The index of last epoch. Defaults to `-1`.
             verbose (bool, optional): If `True`, prints a message to stdout for each updatde. Defaults to `False`.
-        """  # NOQA: E501
+        """  # noqa: E501
         if num_warmup >= num_epoch:
             raise ValueError("Please set 'num_warmup' lower than 'num_epoch'")
         if decay_coef <= 0:

@@ -89,9 +89,9 @@ def test_EmbedElec(
     for i, z in enumerate(zs):
         # check padding_idx
         if not extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
+            assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
         if extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
+            assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
 
 
 param_ValenceMask = [
@@ -125,8 +125,8 @@ def test_ValenceMask(
 
     for i, z in enumerate(zs[idx_j]):
         # check mask values
-        assert (mask[i, vm.valence[z] == 0, :] == torch.zeros_like(mask[i, vm.valence[z] == 0, :])).all()  # type: ignore # NOQA: E501
-        assert (mask[i, vm.valence[z] == 1, :] == torch.ones_like(mask[i, vm.valence[z] == 1, :])).all()  # type: ignore # NOQA: E501
+        assert (mask[i, vm.valence[z] == 0, :] == torch.zeros_like(mask[i, vm.valence[z] == 0, :])).all()  # type: ignore # noqa: E501
+        assert (mask[i, vm.valence[z] == 1, :] == torch.ones_like(mask[i, vm.valence[z] == 1, :])).all()  # type: ignore # noqa: E501
 
 
 param_EmbedNode = [

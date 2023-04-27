@@ -69,7 +69,7 @@ class EmbedElec(nn.Module):
             embed_dim (int): the dimension of embedding.
             elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
             extend_orb (bool, optional): Whether to use an extended basis. Defaults to `False`.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__()
         self.register_buffer("elec", elec_info.elec_table)
         self.n_orb = ElecInfo.n_orb
@@ -123,7 +123,7 @@ class ValenceMask(nn.Module):
         Args:
             embed_dim (int): the dimension of embedding.
             elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__()
         self.register_buffer("valence", elec_info.valence_table)
         self.n_orb = ElecInfo.n_orb
@@ -165,7 +165,7 @@ class EmbedNode(nn.Module):
             e_dim (int | None): the dimension of electron number embedding.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__()
         self.hidden_dim = hidden_dim
         self.z_dim = z_dim
@@ -277,7 +277,7 @@ class LCAOInteraction(nn.Module):
             add_valence (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization func. Defaults to `None`.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__()
         self.hidden_dim = hidden_dim
         self.coeffs_dim = coeffs_dim
@@ -368,7 +368,7 @@ class LCAOInteraction(nn.Module):
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         three_body_orbs = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # NOQA: E501
+            valence_w = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
             three_body_orbs = three_body_orbs + valence_w
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
 
@@ -507,7 +507,7 @@ class LCAONet(BaseMPNN):
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
             atomref (torch.Tensor | None): the reference value of the output property with (max_z, out_dim) shape. Defaults to `None`.
             mean (torch.Tensor | None): the mean value of the output property with (out_dim) shape. Defaults to `None`.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__()
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
         act: nn.Module = activation_resolver(activation)

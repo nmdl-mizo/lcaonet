@@ -71,7 +71,7 @@ class PostProcess(nn.Module):
         if self.mean is not None:
             mean = self.mean  # type: ignore # Since mypy cannot determine that the mean is a tensor
             if self.is_extensive:
-                mean = mean.unsqueeze(0).expand(z.size(0), -1)  # type: ignore # Since mypy cannot determine that the mean is a tensor # NOQA: E501
+                mean = mean.unsqueeze(0).expand(z.size(0), -1)  # type: ignore # Since mypy cannot determine that the mean is a tensor # noqa: E501
                 mean = (
                     mean.sum(dim=0, keepdim=True)
                     if batch_idx is None
