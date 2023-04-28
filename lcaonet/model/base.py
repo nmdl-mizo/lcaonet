@@ -28,7 +28,8 @@ class BaseMPNN(nn.Module):
         else:
             batch_ind = batch[DataKeys.Position].new_zeros(batch[DataKeys.Position].shape[0], dtype=torch.long)
 
-        edge_src, edge_dst = (
+        # order is "source_to_traget" i.e. [index_j, index_i]
+        edge_dst, edge_src = (
             batch[DataKeys.Edge_idx][0],
             batch[DataKeys.Edge_idx][1],
         )

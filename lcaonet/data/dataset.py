@@ -87,7 +87,8 @@ class BaseGraphDataset(Dataset):
             edge_dst = idx_j[idx_j > -100]
             edge_shift = s[1:]
 
-        data = Data(edge_index=torch.stack([torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0))
+        # order is "source_to_target" i.e. [index_j, index_i]
+        data = Data(edge_index=torch.stack([torch.LongTensor(edge_dst), torch.LongTensor(edge_src)], dim=0))
         data[DataKeys.Position] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
         data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers, dtype=torch.long)
         # add batch dimension
