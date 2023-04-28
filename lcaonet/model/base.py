@@ -6,7 +6,7 @@ from torch import Tensor
 from torch_geometric.data import Batch
 from torch_sparse import SparseTensor
 
-from lcaonet.data.datakeys import DataKeys
+from lcaonet.data.keys import GraphKeys
 
 
 class BaseMPNN(nn.Module):
@@ -23,21 +23,18 @@ class BaseMPNN(nn.Module):
         Returns:
             distance (torch.Tensor): inter atomic distances of (num_edge) shape.
         """
-        if batch.get(DataKeys.Batch_idx) is not None:
-            batch_ind = batch[DataKeys.Batch_idx]
+        if batch.get(GraphKeys.Batch_idx) is not None:
+            batch_ind = batch[GraphKeys.Batch_idx]
         else:
-            batch_ind = batch[DataKeys.Position].new_zeros(batch[DataKeys.Position].shape[0], dtype=torch.long)
+            batch_ind = batch[GraphKeys.Pos].new_zeros(batch[GraphKeys.Pos].shape[0], dtype=torch.long)
 
         # order is "source_to_traget" i.e. [index_j, index_i]
-        edge_dst, edge_src = (
-            batch[DataKeys.Edge_idx][0],
-            batch[DataKeys.Edge_idx][1],
-        )
+        edge_dst, edge_src = batch[GraphKeys.Edge_idx]
         edge_batch = batch_ind[edge_src]
         edge_vec = (
-            batch[DataKeys.Position][edge_dst]
-            - batch[DataKeys.Position][edge_src]
-            + torch.einsum("ni,nij->nj", batch[DataKeys.Edge_shift], batch[DataKeys.Lattice][edge_batch]).contiguous()
+            batch[GraphKeys.Pos][edge_dst]
+            - batch[GraphKeys.Pos][edge_src]
+            + torch.einsum("ni,nij->nj", batch[GraphKeys.Edge_shift], batch[GraphKeys.Lattice][edge_batch]).contiguous()
         )
         if return_vec:
             return torch.norm(edge_vec, dim=1), edge_vec
@@ -62,10 +59,11 @@ class BaseMPNN(nn.Module):
             ref:
                 https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
         """
-        idx_j, idx_i = batch[DataKeys.Edge_idx]  # j->i
+        # order is "source_to_traget" i.e. [index_j, index_i]
+        idx_j, idx_i = batch[GraphKeys.Edge_idx]
 
         value = torch.arange(idx_j.size(0), device=idx_j.device)
-        num_nodes = batch[DataKeys.Atom_numbers].size(0)
+        num_nodes = batch[GraphKeys.Z].size(0)
         adj_t = SparseTensor(row=idx_i, col=idx_j, value=value, sparse_sizes=(num_nodes, num_nodes))
         adj_t_row = adj_t[idx_j]
         num_triplets = adj_t_row.set_value(None).sum(dim=1).to(torch.long)

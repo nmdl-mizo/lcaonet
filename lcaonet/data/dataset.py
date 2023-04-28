@@ -10,7 +10,7 @@ from scipy.interpolate import RegularGridInterpolator
 from torch import Tensor
 from torch_geometric.data import Data, Dataset
 
-from lcaonet.data.datakeys import DataKeys
+from lcaonet.data.keys import GraphKeys
 
 
 class BaseGraphDataset(Dataset):
@@ -89,11 +89,11 @@ class BaseGraphDataset(Dataset):
 
         # order is "source_to_target" i.e. [index_j, index_i]
         data = Data(edge_index=torch.stack([torch.LongTensor(edge_dst), torch.LongTensor(edge_src)], dim=0))
-        data[DataKeys.Position] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
-        data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers, dtype=torch.long)
+        data[GraphKeys.Pos] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
+        data[GraphKeys.Z] = torch.tensor(atoms.numbers, dtype=torch.long)
         # add batch dimension
-        data[DataKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
-        data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
+        data[GraphKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
+        data[GraphKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
 
     def _graphdata2atoms(self, data: Data) -> ase.Atoms:
@@ -105,9 +105,9 @@ class BaseGraphDataset(Dataset):
         Returns:
             atoms (ase.Atoms): one Atoms object.
         """
-        pos = data[DataKeys.Position].numpy()
-        atom_num = data[DataKeys.Atom_numbers].numpy()
-        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
+        pos = data[GraphKeys.Pos].numpy()
+        atom_num = data[GraphKeys.Z].numpy()
+        ce = data[GraphKeys.Lattice].numpy()[0]  # remove batch dimension
         atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=self.pbc, cell=ce)
         return atoms
 
@@ -245,8 +245,8 @@ class List2ChgFiedlDataset(List2GraphDataset):
         node field information."""
         sphere = self._create_sphere(self.out_field_radi, self.in_field_radi, self.field_grid_interval)
         for i, g in enumerate(self.graph_data_list):
-            pos = np.array(g[DataKeys.Position])
-            ce = np.array(g[DataKeys.Lattice][0])
+            pos = np.array(g[GraphKeys.Pos])
+            ce = np.array(g[GraphKeys.Lattice][0])
             chg_data = self._preprocess_chgcar(chgcar[i], ce)
 
             # get field data

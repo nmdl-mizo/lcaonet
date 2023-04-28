@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 from torch_geometric.nn.inits import glorot_orthogonal
 
 from lcaonet.atomistic.info import ElecInfo
-from lcaonet.data.datakeys import DataKeys
+from lcaonet.data.keys import GraphKeys
 from lcaonet.model.lcaonet import (
     EmbedCoeffs,
     EmbedElec,
@@ -291,7 +291,7 @@ def test_LCAONet(
     extend_orb: bool,
     is_extensive: bool,
 ):
-    max_z = one_graph_data[DataKeys.Atom_numbers].max().item()
+    max_z = one_graph_data[GraphKeys.Z].max().item()
     if cutoff_net is not None and cutoff is None:
         with pytest.raises(ValueError) as e:
             _ = LCAONet(
