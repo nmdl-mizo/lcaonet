@@ -11,7 +11,7 @@ from torch_geometric.data import Batch
 from torch_scatter import scatter
 
 from lcaonet.atomistic.info import ElecInfo
-from lcaonet.data.datakeys import DataKeys
+from lcaonet.data.keys import GraphKeys
 from lcaonet.model.base import BaseMPNN
 from lcaonet.nn import Dense
 from lcaonet.nn.cutoff import BaseCutoff
@@ -562,10 +562,11 @@ class LCAONet(BaseMPNN):
         Returns:
             torch.Tensor: the output property with (n_batch, out_dim) shape.
         """
-        batch_idx: Tensor | None = batch.get(DataKeys.Batch_idx)
-        pos = batch[DataKeys.Position]
-        z = batch[DataKeys.Atom_numbers]
-        idx_i, idx_j = batch[DataKeys.Edge_idx]
+        batch_idx: Tensor | None = batch.get(GraphKeys.Batch_idx)
+        pos = batch[GraphKeys.Pos]
+        z = batch[GraphKeys.Z]
+        # order is "source_to_target" i.e. [index_j, index_i]
+        idx_j, idx_i = batch[GraphKeys.Edge_idx]
 
         # get triplets
         (
