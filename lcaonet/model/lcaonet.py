@@ -563,7 +563,7 @@ class LCAONet(BaseMPNN):
             torch.Tensor: the output property with (n_batch, out_dim) shape.
         """
         batch_idx: Tensor | None = batch.get(GraphKeys.Batch_idx)
-        pos = batch[GraphKeys.Pos]
+        # pos = batch[GraphKeys.Pos]
         z = batch[GraphKeys.Z]
         # order is "source_to_target" i.e. [index_j, index_i]
         idx_j, idx_i = batch[GraphKeys.Edge_idx]
@@ -580,13 +580,12 @@ class LCAONet(BaseMPNN):
         ) = self.get_triplets(batch)
 
         # calc atomic distances
-        distances = self.calc_atomic_distances(batch)
+        distances, pair_vec = self.calc_atomic_distances(batch, return_vec=True)
 
         # calc angles each triplets
-        pos_j = pos[tri_idx_j]
-        vec_ji, vec_jk = pos[tri_idx_i] - pos_j, pos[tri_idx_k] - pos_j
-        inner = (vec_ji * vec_jk).sum(dim=-1)
-        outter = torch.cross(vec_ji, vec_jk).norm(dim=-1)
+        vec_ji, vec_kj = pair_vec[edge_idx_ji], pair_vec[edge_idx_kj]
+        inner = (vec_ji * vec_kj).sum(dim=-1)
+        outter = torch.cross(vec_ji, vec_kj).norm(dim=-1)
         # arctan is more stable than arccos
         angle = torch.atan2(outter, inner)
 
