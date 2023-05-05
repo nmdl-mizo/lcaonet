@@ -48,10 +48,10 @@ class EmbedZ(nn.Module):
         """Forward calculation of EmbedZ.
 
         Args:
-            z (torch.Tensor): the atomic numbers with (n_node) shape.
+            z (torch.Tensor): the atomic numbers with (N) shape.
 
         Returns:
-            z_embed (torch.Tensor): the embedding vectors with (n_node, embed_dim) shape.
+            z_embed (torch.Tensor): the embedding vectors with (N, embed_dim) shape.
         """
         return self.z_embed(z)
 
@@ -93,10 +93,10 @@ class EmbedElec(nn.Module):
         """Forward calculation of EmbedElec.
 
         Args:
-            z (torch.Tensor): the atomic numbers with (n_node) shape.
+            z (torch.Tensor): the atomic numbers with (N) shape.
 
         Returns:
-            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, embed_dim) shape.
+            e_embed (torch.Tensor): the embedding of electron numbers with (N, n_orb, embed_dim) shape.
         """
         # (n_node, n_orb)
         elec = self.elec[z]  # type: ignore # Since mypy cannot determine that the elec is a tensor
@@ -135,10 +135,10 @@ class ValenceMask(nn.Module):
 
         Args:
             z (torch.Tensor): the atomic numbers with (n_node) shape.
-            idx_j (torch.Tensor): the indices of the second node of each edge with (n_edge) shape.
+            idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
 
         Returns:
-            valence_mask (torch.Tensor): valence orbital mask with (n_edge, n_orb, embed_dim) shape.
+            valence_mask (torch.Tensor): valence orbital mask with (E, n_orb, embed_dim) shape.
         """
         valence_mask = self.valence[z]  # type: ignore # Since mypy cannot determine that the valence is a tensor
         return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)[idx_j]
@@ -187,11 +187,11 @@ class EmbedNode(nn.Module):
         """Forward calculation of EmbedNode.
 
         Args:
-            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
-            e_embed (torch.Tensor | None): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
+            z_embed (torch.Tensor): the embedding of atomic numbers with (N, z_dim) shape.
+            e_embed (torch.Tensor | None): the embedding of electron numbers with (N, n_orb, e_dim) shape.
 
         Returns:
-            torch.Tensor: node embedding vectors with (n_node, hidden_dim) shape.
+            torch.Tensor: node embedding vectors with (N, hidden_dim) shape.
         """
         if self.use_elec:
             if e_embed is None:
@@ -244,10 +244,10 @@ class EmbedCoeffs(nn.Module):
         """Forward calculation of EmbedCoeffs.
 
         Args:
-            z_embed (torch.Tensor): the embedding of atomic numbers with (n_node, z_dim) shape.
-            e_embed (torch.Tensor): the embedding of electron numbers with (n_node, n_orb, e_dim) shape.
-            idx_i (torch.Tensor): the indices of center atoms with (n_edge) shape.
-            idx_j (torch.Tensor): the indices of neighbor atoms with (n_edge) shape.
+            z_embed (torch.Tensor): the embedding of atomic numbers with (N, z_dim) shape.
+            e_embed (torch.Tensor): the embedding of electron numbers with (N, n_orb, e_dim) shape.
+            idx_i (torch.Tensor): the indices of center atoms with (E) shape.
+            idx_j (torch.Tensor): the indices of neighbor atoms with (E) shape.
 
         Returns:
             coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
@@ -328,20 +328,20 @@ class LCAOInteraction(nn.Module):
         """Forward calculation of LCAOConv.
 
         Args:
-            x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
-            cji (torch.Tensor): coefficient vectors with (n_edge, n_orb, coeffs_dim) shape.
-            valence_mask (torch.Tensor | None): valence orbital mask with (n_edge, n_orb, conv_dim) shape.
-            cutoff_w (torch.Tensor | None): cutoff weight with (n_edge) shape.
-            rb (torch.Tensor): the radial basis with (n_edge, n_orb) shape.
+            x (torch.Tensor): node embedding vectors with (N, hidden_dim) shape.
+            cji (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
+            valence_mask (torch.Tensor | None): valence orbital mask with (E, n_orb, conv_dim) shape.
+            cutoff_w (torch.Tensor | None): cutoff weight with (E) shape.
+            rb (torch.Tensor): the radial basis with (E, n_orb) shape.
             shb (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
-            idx_i (torch.Tensor): the indices of the first node of each edge with (n_edge) shape.
-            idx_j (torch.Tensor): the indices of the second node of each edge with (n_edge) shape.
+            idx_i (torch.Tensor): the indices of the first node of each edge with (E) shape.
+            idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
             tri_idx_k (torch.Tensor): the indices of the third node of each triplet with (n_triplets) shape.
             edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
             edge_idx_ji (torch.LongTensor): the edge index from atom j to i with (n_triplets) shape.
 
         Returns:
-            torch.Tensor: updated node embedding vectors with (n_node, hidden_dim) shape.
+            torch.Tensor: updated node embedding vectors with (N, hidden_dim) shape.
         """
         if self.add_valence and valence_mask is None:
             raise ValueError("valence_mask must be provided when add_valence=True")
@@ -443,11 +443,11 @@ class LCAOOut(nn.Module):
         """Forward calculation of LCAOOut.
 
         Args:
-            x (torch.Tensor): node embedding vectors with (n_node, hidden_dim) shape.
-            batch_idx (torch.Tensor | None): the batch indices of nodes with (n_node) shape.
+            x (torch.Tensor): node embedding vectors with (N, hidden_dim) shape.
+            batch_idx (torch.Tensor | None): the batch indices of nodes with (N) shape.
 
         Returns:
-            torch.Tensor: the output property values with (n_batch, out_dim) shape.
+            torch.Tensor: the output property values with (B, out_dim) shape.
         """
         out = self.out_lin(x)
         if batch_idx is not None:
@@ -553,45 +553,37 @@ class LCAONet(BaseMPNN):
         self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
         self.pp_layer = PostProcess(out_dim, is_extensive, atomref, mean)
 
-    def forward(self, batch: Batch) -> Tensor:
+    def forward(self, graph: Batch) -> Tensor:
         """Forward calculation of LCAONet.
 
         Args:
-            batch (Batch): the input graph batch data.
+            graph (Batch): the input graph batch data.
 
         Returns:
             torch.Tensor: the output property with (n_batch, out_dim) shape.
         """
-        batch_idx: Tensor | None = batch.get(GraphKeys.Batch_idx)
-        # pos = batch[GraphKeys.Pos]
-        z = batch[GraphKeys.Z]
+        batch_idx: Tensor | None = graph.get(GraphKeys.Batch_idx)
+        z = graph[GraphKeys.Z]
         # order is "source_to_target" i.e. [index_j, index_i]
-        idx_j, idx_i = batch[GraphKeys.Edge_idx]
+        idx_j, idx_i = graph[GraphKeys.Edge_idx]
 
         # get triplets
-        (
-            _,
-            _,
-            tri_idx_i,
-            tri_idx_j,
-            tri_idx_k,
-            edge_idx_kj,
-            edge_idx_ji,
-        ) = self.get_triplets(batch)
+        graph = self.get_triplets(graph)
+        tri_idx_k = graph[GraphKeys.Idx_k_3b]
+        edge_idx_ji = graph[GraphKeys.Edge_idx_ji_3b]
+        edge_idx_kj = graph[GraphKeys.Edge_idx_kj_3b]
 
         # calc atomic distances
-        distances, pair_vec = self.calc_atomic_distances(batch, return_vec=True)
+        graph = self.calc_atomic_distances(graph, return_vec=True)
+        distances = graph[GraphKeys.Edge_dist]
 
-        # calc angles each triplets
-        vec_ji, vec_kj = pair_vec[edge_idx_ji], pair_vec[edge_idx_kj]
-        inner = (vec_ji * vec_kj).sum(dim=-1)
-        outter = torch.cross(vec_ji, vec_kj).norm(dim=-1)
-        # arctan is more stable than arccos
-        angle = torch.atan2(outter, inner)
+        # calc angles of each triplets
+        graph = self.calc_3body_angles(graph)
+        angles = graph[GraphKeys.Angles_3b]
 
         # calc basis
         rb = self.rbf(distances)
-        shb = self.shbf(angle)
+        shb = self.shbf(angles)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # calc node and coefficient embedding vectors
