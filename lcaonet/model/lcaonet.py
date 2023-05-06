@@ -373,9 +373,8 @@ class LCAOInteraction(nn.Module):
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
 
         # multiply node embedding
-        # xk = torch.sigmoid(xk[tri_idx_k])
-        # three_body_w = three_body_orbs * xk
-        three_body_w = three_body_orbs
+        xk = torch.sigmoid(xk[tri_idx_k])
+        three_body_w = three_body_orbs * xk
         three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
 
         # threebody orbital information is injected to the coefficient vectors
