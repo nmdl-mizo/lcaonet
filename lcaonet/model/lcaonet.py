@@ -177,10 +177,10 @@ class EmbedNode(nn.Module):
             self.e_dim = 0
 
         self.z_e_lin = nn.Sequential(
-            activation,
             Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, False, weight_init),
+            activation,
         )
 
     def forward(self, z_embed: Tensor, e_embed: Tensor | None = None) -> Tensor:
@@ -228,16 +228,16 @@ class EmbedCoeffs(nn.Module):
         self.e_dim = e_dim
 
         self.z_lin = nn.Sequential(
-            activation,
             Dense(2 * z_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, True, weight_init),
+            activation,
         )
         self.e_lin = nn.Sequential(
-            activation,
             Dense(e_dim, hidden_dim, False, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, False, weight_init),
+            activation,
         )
 
     def forward(self, z_embed: Tensor, e_embed: Tensor, idx_i: Tensor, idx_j: Tensor) -> Tensor:
@@ -289,25 +289,25 @@ class LCAOInteraction(nn.Module):
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 4 * conv_dim if add_valence else 2 * conv_dim
         self.coeffs_before_lin = nn.Sequential(
-            activation,
             Dense(coeffs_dim, conv_dim, False, weight_init),
             activation,
             Dense(conv_dim, out_dim, False, weight_init),
+            activation,
         )
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.three_lin = nn.Sequential(
-            activation,
             Dense(conv_dim, three_out_dim, True, weight_init),
+            activation,
         )
 
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
 
         self.node_lin = nn.Sequential(
-            activation,
             Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
+            activation,
         )
         self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
 
@@ -431,7 +431,6 @@ class LCAOOut(nn.Module):
         self.is_extensive = is_extensive
 
         self.out_lin = nn.Sequential(
-            activation,
             Dense(hidden_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim // 2, True, weight_init),
