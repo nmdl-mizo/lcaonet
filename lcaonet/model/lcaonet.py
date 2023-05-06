@@ -301,14 +301,15 @@ class LCAOInteraction(nn.Module):
             activation,
         )
 
-        self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
+        # self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
 
-        self.node_lin = nn.Sequential(
-            Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
+        self.conv_lin = nn.Sequential(
+            Dense(3 * conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
             activation,
         )
+
         self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
 
     def forward(
@@ -391,11 +392,11 @@ class LCAOInteraction(nn.Module):
             valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
-        lcao_w = self.basis_weight(lcao_w)
+        # lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
         x = x_before + self.node_after_lin(
-            scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+            scatter(self.conv_lin(torch.cat([x[idx_i], x[idx_j], lcao_w], dim=-1)), idx_i, dim=0)
         )
 
         return x
