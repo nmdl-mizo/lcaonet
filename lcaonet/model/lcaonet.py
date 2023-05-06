@@ -301,15 +301,14 @@ class LCAOInteraction(nn.Module):
             activation,
         )
 
-        # self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
+        self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
 
-        self.conv_lin = nn.Sequential(
-            Dense(3 * conv_dim, conv_dim, True, weight_init),
+        self.node_lin = nn.Sequential(
+            Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
             activation,
         )
-
         self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
 
     def forward(
@@ -374,8 +373,9 @@ class LCAOInteraction(nn.Module):
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
 
         # multiply node embedding
-        xk = torch.sigmoid(xk[tri_idx_k])
-        three_body_w = three_body_orbs * xk
+        # xk = torch.sigmoid(xk[tri_idx_k])
+        # three_body_w = three_body_orbs * xk
+        three_body_w = three_body_orbs
         three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
 
         # threebody orbital information is injected to the coefficient vectors
@@ -392,11 +392,11 @@ class LCAOInteraction(nn.Module):
             valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
-        # lcao_w = self.basis_weight(lcao_w)
+        lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
         x = x_before + self.node_after_lin(
-            scatter(self.conv_lin(torch.cat([x[idx_i], x[idx_j], lcao_w], dim=-1)), idx_i, dim=0)
+            scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
         )
 
         return x
@@ -436,7 +436,7 @@ class LCAOOut(nn.Module):
             activation,
             Dense(hidden_dim, hidden_dim // 2, True, weight_init),
             activation,
-            Dense(hidden_dim // 2, out_dim, False, weight_init),
+            Dense(hidden_dim // 2, out_dim, True, weight_init),
         )
 
     def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
