@@ -284,7 +284,7 @@ class LCAOInteraction(nn.Module):
         self.conv_dim = conv_dim
         self.add_valence = add_valence
 
-        self.xk_weight = Dense(hidden_dim, conv_dim, True, weight_init)
+        self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 2 * conv_dim if add_valence else conv_dim
@@ -348,6 +348,9 @@ class LCAOInteraction(nn.Module):
         if self.add_valence and valence_mask is None:
             raise ValueError("valence_mask must be provided when add_valence=True")
 
+        # Transformation of the node vectors
+        x, xk = torch.chunk(self.node_weight(x), 2, dim=-1)
+
         # Transformation of the coefficient vectors
         cji = self.f_coeffs(cji)
 
@@ -357,7 +360,6 @@ class LCAOInteraction(nn.Module):
 
         # --- Threebody Message-passing ---
         ckj = cji[edge_idx_kj]
-        # ckj = F.normalize(ckj, dim=-1)
         if self.add_valence:
             ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
 
@@ -369,15 +371,14 @@ class LCAOInteraction(nn.Module):
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
 
         # multiply node embedding
-        xk = torch.sigmoid(self.xk_weight(x)[tri_idx_k])
+        xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_orbs * xk
         three_body_w = self.f_three(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
 
         # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
 
-        # --- Twobody Message-passing ---
-        # cji = F.normalize(cji, dim=-1)
+        # --- Twobody Message-passings
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
