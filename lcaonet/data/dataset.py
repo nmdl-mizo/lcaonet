@@ -6,12 +6,11 @@ import numpy as np
 import torch
 from ase.data import atomic_masses
 from numpy import ndarray
-from pymatgen.core import Structure
 from scipy.interpolate import RegularGridInterpolator
 from torch import Tensor
 from torch_geometric.data import Data, Dataset
 
-from lcaonet.data.datakeys import DataKeys
+from lcaonet.data.keys import GraphKeys
 
 
 class BaseGraphDataset(Dataset):
@@ -48,22 +47,6 @@ class BaseGraphDataset(Dataset):
 
         with open(save_pth, "wb") as f:
             pickle.dump(self, f)
-
-    def _structure2atoms(self, s: Structure) -> ase.Atoms:
-        """Helper function to convert one `Structure` object to `ase.Atoms`.
-
-        Args:
-            s (pymatgen.core.Structure): one structure object.
-
-        Returns:
-            atoms (ase.Atoms): one atoms object.
-        """
-        atom_num = np.array(s.atomic_numbers, dtype=int)
-        ce = s.lattice.matrix
-        pos = s.cart_coords
-        atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=self.pbc, cell=ce)
-
-        return atoms
 
     def _atoms2graphdata(self, atoms: ase.Atoms) -> Data:
         """Helper function to convert one `Atoms` object to
@@ -104,28 +87,14 @@ class BaseGraphDataset(Dataset):
             edge_dst = idx_j[idx_j > -100]
             edge_shift = s[1:]
 
-        data = Data(edge_index=torch.stack([torch.LongTensor(edge_src), torch.LongTensor(edge_dst)], dim=0))
-        data[DataKeys.Position] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
-        data[DataKeys.Atom_numbers] = torch.tensor(atoms.numbers, dtype=torch.long)
+        # order is "source_to_target" i.e. [index_j, index_i]
+        data = Data(edge_index=torch.stack([torch.LongTensor(edge_dst), torch.LongTensor(edge_src)], dim=0))
+        data[GraphKeys.Pos] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
+        data[GraphKeys.Z] = torch.tensor(atoms.numbers, dtype=torch.long)
         # add batch dimension
-        data[DataKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
-        data[DataKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
+        data[GraphKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
+        data[GraphKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
-
-    def _graphdata2structure(self, data: Data) -> Structure:
-        """Helper function to convert one `torch_geometric.data.Data` object to
-        `pymatgen.core.Structure`.
-
-        Args:
-            data (torch_geometric.data.Data): one graph data object with edge information include pbc.
-        Returns:
-            s (pymatgen.core.Structure): one structure object.
-        """
-        pos = data[DataKeys.Position].numpy()
-        atom_num = data[DataKeys.Atom_numbers].numpy()
-        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
-        s = Structure(lattice=ce, species=atom_num, coords=pos, coords_are_cartesian=True)
-        return s
 
     def _graphdata2atoms(self, data: Data) -> ase.Atoms:
         """Helper function to convert one `torch_geometric.data.Data` object to
@@ -136,9 +105,9 @@ class BaseGraphDataset(Dataset):
         Returns:
             atoms (ase.Atoms): one Atoms object.
         """
-        pos = data[DataKeys.Position].numpy()
-        atom_num = data[DataKeys.Atom_numbers].numpy()
-        ce = data[DataKeys.Lattice].numpy()[0]  # remove batch dimension
+        pos = data[GraphKeys.Pos].numpy()
+        atom_num = data[GraphKeys.Z].numpy()
+        ce = data[GraphKeys.Lattice].numpy()[0]  # remove batch dimension
         atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=self.pbc, cell=ce)
         return atoms
 
@@ -190,11 +159,11 @@ class List2GraphDataset(BaseGraphDataset):
     During the conversion, the following information is computed:
     - Index of neighboring atoms within the cutoff radius considering PBC.
     - Lattice shift values taking into account PBC (necessary to calculate inter atomic distances with atom in different cell images)
-    """  # NOQA: E501
+    """  # noqa: E501
 
     def __init__(
         self,
-        structures: list[Structure | ase.Atoms],
+        structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
         cutoff: float,
         max_neighbors: int = 32,
@@ -205,7 +174,7 @@ class List2GraphDataset(BaseGraphDataset):
     ):
         """
         Args:
-           structures (list[Structure  |  ase.Atoms]): list of structures or atoms.
+           structures (list[ase.Atoms]): list of atoms.
            y_values (dict[str, list[int  |  float  |  str  |  ndarray  |  Tensor]  |  ndarray  |  Tensor]): dict of physical properties. The key is the name of the property, and the value is the corresponding value of the property.
            cutoff (float): The cutoff radius for computing the neighbor list.
            max_neighbors (int, optional): Threshold of neighboring atoms to be considered. Defaults to `32`.
@@ -213,7 +182,7 @@ class List2GraphDataset(BaseGraphDataset):
            pbc (bool | tuple[bool, ...], optional): Whether to consider PBC. Defaults to `True`.
            subtract_center_of_mass (bool, optional): Whether to subtract the center of mass from the cartesian coordinates. Defaults to `False`.
            remove_batch_key (list[str] | None, optional): List of property names that do not add dimension for batch. Defaults to `None`.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__(cutoff, max_neighbors, self_interaction, pbc, subtract_center_of_mass)
         self.graph_data_list: list[Data] = []
         self.remove_batch_key = remove_batch_key
@@ -223,12 +192,10 @@ class List2GraphDataset(BaseGraphDataset):
 
     def _preprocess(
         self,
-        structures: list[Structure | ase.Atoms],
+        structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
     ):
         for i, s in enumerate(structures):
-            if isinstance(s, Structure):
-                s = self._structure2atoms(s)
             data = self._atoms2graphdata(s)
             for k, v in y_values.items():
                 add_batch = True
@@ -245,9 +212,6 @@ class List2GraphDataset(BaseGraphDataset):
     def get(self, idx: int) -> Data:
         return self.graph_data_list[idx]
 
-    def get_structure(self, idx: int) -> Structure:
-        return self._graphdata2structure(self.graph_data_list[idx])
-
     def get_atoms(self, idx: int) -> ase.Atoms:
         return self._graphdata2atoms(self.graph_data_list[idx])
 
@@ -255,7 +219,7 @@ class List2GraphDataset(BaseGraphDataset):
 class List2ChgFiedlDataset(List2GraphDataset):
     def __init__(
         self,
-        structures: list[Structure | ase.Atoms],
+        structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
         chgcar: list[np.ndarray],
         cutoff: float,
@@ -281,8 +245,8 @@ class List2ChgFiedlDataset(List2GraphDataset):
         node field information."""
         sphere = self._create_sphere(self.out_field_radi, self.in_field_radi, self.field_grid_interval)
         for i, g in enumerate(self.graph_data_list):
-            pos = np.array(g[DataKeys.Position])
-            ce = np.array(g[DataKeys.Lattice][0])
+            pos = np.array(g[GraphKeys.Pos])
+            ce = np.array(g[GraphKeys.Lattice][0])
             chg_data = self._preprocess_chgcar(chgcar[i], ce)
 
             # get field data

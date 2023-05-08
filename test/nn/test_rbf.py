@@ -48,12 +48,12 @@ rbfs = {
     (1, 0): lambda r, a0: (1 / a0)**(3 / 2) * np.exp(-r / a0) * 2,  # 1s
     (2, 0): lambda r, a0: (1 / a0)**(3 / 2) * (2 - r / a0) * np.exp(-r / 2 / a0) / 2 / np.sqrt(2),  # 2s
     (2, 1): lambda r, a0: (1 / a0)**(3 / 2) * r / a0 * np.exp(-r / 2 / a0) / 2 / np.sqrt(6),  # 2p
-    (3, 0): lambda r, a0: (1 / a0)**(3 / 2) * (27 - 18 * r / a0 + 2 * r**2 / a0**2) * np.exp(-r / 3 / a0) * 2 / 81 / np.sqrt(3),  # 3s # NOQA: E501
+    (3, 0): lambda r, a0: (1 / a0)**(3 / 2) * (27 - 18 * r / a0 + 2 * r**2 / a0**2) * np.exp(-r / 3 / a0) * 2 / 81 / np.sqrt(3),  # 3s # noqa: E501
     (3, 1): lambda r, a0: (1 / a0)**(3 / 2) * (6 - r / a0) * r / a0 * np.exp(-r / 3 / a0) * 4 / 81 / np.sqrt(6),  # 3p
     (3, 2): lambda r, a0: (1 / a0)**(3 / 2) * (r / a0)**2 * np.exp(-r / 3 / a0) * 4 / 81 / np.sqrt(30),  # 3d
-    (4, 0): lambda r, a0: (1 / a0)**(3 / 2) * (192 - 144 * r / a0 + 24 * r**2 / a0**2 - r**3 / a0**3) * np.exp(-r / 4 / a0) * 1 / 768,  # 4s # NOQA: E501
-    (4, 1): lambda r, a0: (1 / a0)**(3 / 2) * (80 - 20 * r / a0 + r**2 / a0**2) * r / a0 * np.exp(-r / 4 / a0) * 1 / 256 / np.sqrt(15),  # 4p # NOQA: E501
-    (4, 2): lambda r, a0: (1 / a0)**(3 / 2) * (12 - r / a0) * (r / a0)**2 * np.exp(-r / 4 / a0) * 1 / 768 / np.sqrt(5),  # 4d # NOQA: E501
+    (4, 0): lambda r, a0: (1 / a0)**(3 / 2) * (192 - 144 * r / a0 + 24 * r**2 / a0**2 - r**3 / a0**3) * np.exp(-r / 4 / a0) * 1 / 768,  # 4s # noqa: E501
+    (4, 1): lambda r, a0: (1 / a0)**(3 / 2) * (80 - 20 * r / a0 + r**2 / a0**2) * r / a0 * np.exp(-r / 4 / a0) * 1 / 256 / np.sqrt(15),  # 4p # noqa: E501
+    (4, 2): lambda r, a0: (1 / a0)**(3 / 2) * (12 - r / a0) * (r / a0)**2 * np.exp(-r / 4 / a0) * 1 / 768 / np.sqrt(5),  # 4d # noqa: E501
     (4, 3): lambda r, a0: (1 / a0)**(3 / 2) * (r / a0)**3 * np.exp(-r / 4 / a0) * 1 / 768 / np.sqrt(35),  # 4f
 }
 # fmt: on

@@ -32,4 +32,4 @@ def one_graph_data():
         dtype=torch.long,
     )
 
-    return Data(edge_index=edge_index, atom_numbers=z, pos=pos, edge_shift=edge_shift, lattice=lattice)
+    return Data(edge_index=edge_index, z=z, pos=pos, edge_shift=edge_shift, lattice=lattice)

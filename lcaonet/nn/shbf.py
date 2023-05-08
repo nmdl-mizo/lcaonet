@@ -19,7 +19,7 @@ class SphericalHarmonicsBasis(nn.Module):
         """
         Args:
             elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
-        """  # NOQA: E501
+        """  # noqa: E501
         super().__init__()
         self.elec_info = elec_info
         self.sph_funcs = self._calculate_symbolic_sh_funcs()

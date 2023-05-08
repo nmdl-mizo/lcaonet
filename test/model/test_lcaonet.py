@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 from torch_geometric.nn.inits import glorot_orthogonal
 
 from lcaonet.atomistic.info import ElecInfo
-from lcaonet.data.datakeys import DataKeys
+from lcaonet.data.keys import GraphKeys
 from lcaonet.model.lcaonet import (
     EmbedCoeffs,
     EmbedElec,
@@ -89,9 +89,9 @@ def test_EmbedElec(
     for i, z in enumerate(zs):
         # check padding_idx
         if not extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
+            assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
         if extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # NOQA: E501
+            assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
 
 
 param_ValenceMask = [
@@ -125,8 +125,8 @@ def test_ValenceMask(
 
     for i, z in enumerate(zs[idx_j]):
         # check mask values
-        assert (mask[i, vm.valence[z] == 0, :] == torch.zeros_like(mask[i, vm.valence[z] == 0, :])).all()  # type: ignore # NOQA: E501
-        assert (mask[i, vm.valence[z] == 1, :] == torch.ones_like(mask[i, vm.valence[z] == 1, :])).all()  # type: ignore # NOQA: E501
+        assert (mask[i, vm.valence[z] == 0, :] == torch.zeros_like(mask[i, vm.valence[z] == 0, :])).all()  # type: ignore # noqa: E501
+        assert (mask[i, vm.valence[z] == 1, :] == torch.ones_like(mask[i, vm.valence[z] == 1, :])).all()  # type: ignore # noqa: E501
 
 
 param_EmbedNode = [
@@ -291,7 +291,7 @@ def test_LCAONet(
     extend_orb: bool,
     is_extensive: bool,
 ):
-    max_z = one_graph_data[DataKeys.Atom_numbers].max().item()
+    max_z = one_graph_data[GraphKeys.Z].max().item()
     if cutoff_net is not None and cutoff is None:
         with pytest.raises(ValueError) as e:
             _ = LCAONet(
