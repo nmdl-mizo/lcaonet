@@ -435,7 +435,7 @@ class LCAOOut(nn.Module):
             activation,
             Dense(hidden_dim, hidden_dim // 2, True, weight_init),
             activation,
-            Dense(hidden_dim // 2, out_dim, False, weight_init),
+            Dense(hidden_dim // 2, out_dim, True, weight_init),
         )
 
     def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
