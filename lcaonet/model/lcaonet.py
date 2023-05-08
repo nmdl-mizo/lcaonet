@@ -284,7 +284,7 @@ class LCAOInteraction(nn.Module):
         self.conv_dim = conv_dim
         self.add_valence = add_valence
 
-        self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
+        self.xk_weight = Dense(hidden_dim, conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 4 * conv_dim if add_valence else 2 * conv_dim
@@ -306,7 +306,7 @@ class LCAOInteraction(nn.Module):
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
 
         self.f_node = nn.Sequential(
-            Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
+            Dense(2 * hidden_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
             activation,
@@ -348,11 +348,6 @@ class LCAOInteraction(nn.Module):
         if self.add_valence and valence_mask is None:
             raise ValueError("valence_mask must be provided when add_valence=True")
 
-        # Transformation of the node
-        x_before = x
-        x = self.node_weight(x)
-        x, xk = torch.chunk(x, 2, dim=-1)
-
         # Transformation of the coefficient vectors
         cji = self.f_coeffs(cji)
         cji, ckj = torch.chunk(cji, 2, dim=-1)
@@ -375,7 +370,7 @@ class LCAOInteraction(nn.Module):
         three_body_orbs = F.normalize(three_body_orbs, dim=-1)
 
         # multiply node embedding
-        xk = torch.sigmoid(xk[tri_idx_k])
+        xk = torch.sigmoid(self.xk_weight(x)[tri_idx_k])
         three_body_w = three_body_orbs * xk
         three_body_w = self.f_three(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
 
@@ -396,9 +391,7 @@ class LCAOInteraction(nn.Module):
         lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
-        x = x_before + self.out_weight(
-            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
-        )
+        x = x + self.out_weight(scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0))
 
         return x
 
