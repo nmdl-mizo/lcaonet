@@ -284,7 +284,7 @@ class LCAOInteraction(nn.Module):
         self.conv_dim = conv_dim
         self.add_valence = add_valence
 
-        self.node_weight = Dense(hidden_dim, 3 * conv_dim, True, weight_init)
+        self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 4 * conv_dim if add_valence else 2 * conv_dim
@@ -351,7 +351,7 @@ class LCAOInteraction(nn.Module):
         # Transformation of the node
         x_before = x
         x = self.node_weight(x)
-        x, xj, xk = torch.chunk(x, 3, dim=-1)
+        x, xk = torch.chunk(x, 2, dim=-1)
 
         # Transformation of the coefficient vectors
         cji = self.f_coeffs(cji)
@@ -397,7 +397,7 @@ class LCAOInteraction(nn.Module):
 
         # Message-passing and update node embedding vector
         x = x_before + self.out_weight(
-            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], xj[idx_j]], dim=-1)), idx_i, dim=0)
+            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
         )
 
         return x
