@@ -176,7 +176,7 @@ class EmbedNode(nn.Module):
         else:
             self.e_dim = 0
 
-        self.z_e_lin = nn.Sequential(
+        self.f_enc = nn.Sequential(
             Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, False, weight_init),
@@ -199,7 +199,7 @@ class EmbedNode(nn.Module):
             z_e_embed = torch.cat([z_embed, e_embed.sum(1)], dim=-1)
         else:
             z_e_embed = z_embed
-        return self.z_e_lin(z_e_embed)
+        return self.f_enc(z_e_embed)
 
 
 class EmbedCoeffs(nn.Module):
@@ -227,13 +227,13 @@ class EmbedCoeffs(nn.Module):
         self.z_dim = z_dim
         self.e_dim = e_dim
 
-        self.z_lin = nn.Sequential(
+        self.f_z = nn.Sequential(
             Dense(2 * z_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, True, weight_init),
             activation,
         )
-        self.e_lin = nn.Sequential(
+        self.f_e = nn.Sequential(
             Dense(e_dim, hidden_dim, False, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, False, weight_init),
@@ -252,8 +252,8 @@ class EmbedCoeffs(nn.Module):
         Returns:
             coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
         """
-        z_embed = self.z_lin(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
-        e_embed = self.e_lin(e_embed)[idx_j]
+        z_embed = self.f_z(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
+        e_embed = self.f_e(e_embed)[idx_j]
         return e_embed + e_embed * z_embed.unsqueeze(1)
 
 
@@ -434,8 +434,6 @@ class LCAOOut(nn.Module):
             Dense(hidden_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim // 2, True, weight_init),
-            activation,
-            Dense(hidden_dim // 2, hidden_dim // 2, True, weight_init),
             activation,
             Dense(hidden_dim // 2, out_dim, False, weight_init),
         )
