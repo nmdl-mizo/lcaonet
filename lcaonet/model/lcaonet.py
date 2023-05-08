@@ -287,6 +287,7 @@ class LCAOInteraction(nn.Module):
         self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
+        # out_dim = 4 * conv_dim if add_valence else 2 * conv_dim
         out_dim = 2 * conv_dim if add_valence else conv_dim
         self.f_coeffs = nn.Sequential(
             Dense(coeffs_dim, conv_dim, False, weight_init),
@@ -306,7 +307,7 @@ class LCAOInteraction(nn.Module):
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
 
         self.f_node = nn.Sequential(
-            Dense(2 * hidden_dim, conv_dim, True, weight_init),
+            Dense(2 * conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
             activation,
@@ -348,11 +349,14 @@ class LCAOInteraction(nn.Module):
         if self.add_valence and valence_mask is None:
             raise ValueError("valence_mask must be provided when add_valence=True")
 
+        x_before = x
+
         # Transformation of the node vectors
         x, xk = torch.chunk(self.node_weight(x), 2, dim=-1)
 
         # Transformation of the coefficient vectors
         cji = self.f_coeffs(cji)
+        # cji, ckj = torch.chunk(cji, 2, dim=-1)
 
         # cutoff
         if cutoff_w is not None:
@@ -391,7 +395,9 @@ class LCAOInteraction(nn.Module):
         lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
-        x = x + self.out_weight(scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0))
+        x = x_before + self.out_weight(
+            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+        )
 
         return x
 
