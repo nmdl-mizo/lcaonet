@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import torch
 from torch import Tensor
 
 from .elec import ELEC_TABLE, MAX_ELEC_IDX, NL_LIST, VALENCE_TABLE
@@ -104,6 +105,10 @@ class ElecInfo:
     @property
     def elec_table(self) -> Tensor:
         return self._elec_table[: self.max_z + 1, : self._max_orb_idx + 1].repeat_interleave(self.n_per_orb, dim=1)
+
+    @property
+    def elec_mask(self) -> Tensor:
+        return torch.where(self.elec_table > 0, 1, 0)
 
     @property
     def valence_table(self) -> Tensor:
