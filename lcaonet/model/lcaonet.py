@@ -284,11 +284,11 @@ class LCAOInteraction(nn.Module):
         self.conv_dim = conv_dim
         self.add_valence = add_valence
 
-        self.node_before_lin = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
+        self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
-        out_dim = 4 * conv_dim if add_valence else 2 * conv_dim
-        self.coeffs_before_lin = nn.Sequential(
+        out_dim = 2 * conv_dim if add_valence else conv_dim
+        self.f_coeffs = nn.Sequential(
             Dense(coeffs_dim, conv_dim, False, weight_init),
             activation,
             Dense(conv_dim, out_dim, False, weight_init),
@@ -296,20 +296,22 @@ class LCAOInteraction(nn.Module):
         )
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
-        self.three_lin = nn.Sequential(
+        self.f_three = nn.Sequential(
+            Dense(conv_dim, conv_dim, True, weight_init),
+            activation,
             Dense(conv_dim, three_out_dim, True, weight_init),
             activation,
         )
 
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
 
-        self.node_lin = nn.Sequential(
-            Dense(conv_dim + conv_dim, conv_dim, True, weight_init),
+        self.f_node = nn.Sequential(
+            Dense(2 * conv_dim, conv_dim, True, weight_init),
             activation,
             Dense(conv_dim, conv_dim, True, weight_init),
             activation,
         )
-        self.node_after_lin = Dense(conv_dim, hidden_dim, False, weight_init)
+        self.out_weight = Dense(conv_dim, hidden_dim, False, weight_init)
 
     def forward(
         self,
@@ -346,42 +348,40 @@ class LCAOInteraction(nn.Module):
         if self.add_valence and valence_mask is None:
             raise ValueError("valence_mask must be provided when add_valence=True")
 
-        # Transformation of the node
         x_before = x
-        x = self.node_before_lin(x)
-        x, xk = torch.chunk(x, 2, dim=-1)
+
+        # Transformation of the node vectors
+        x, xk = torch.chunk(self.node_weight(x), 2, dim=-1)
 
         # Transformation of the coefficient vectors
-        cji = self.coeffs_before_lin(cji)
-        cji, ckj = torch.chunk(cji, 2, dim=-1)
+        cji = self.f_coeffs(cji)
 
         # cutoff
         if cutoff_w is not None:
             rb = rb * cutoff_w.unsqueeze(-1)
 
         # --- Threebody Message-passing ---
-        ckj = ckj[edge_idx_kj]
-        ckj = F.normalize(ckj, dim=-1)
+        ckj = cji[edge_idx_kj]
         if self.add_valence:
             ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
 
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj).contiguous()
+        three_body_orbs = rb[edge_idx_kj] * shb
+        three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb[edge_idx_kj] * shb, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
-            three_body_orbs = three_body_orbs + valence_w
-        three_body_orbs = F.normalize(three_body_orbs, dim=-1)
+            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
+            three_body_w = three_body_w + valence_w
+        three_body_w = F.normalize(three_body_w, dim=-1)
 
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
-        three_body_w = three_body_orbs * xk
-        three_body_w = self.three_lin(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
+        three_body_w = three_body_w * xk
+        three_body_w = self.f_three(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
 
         # threebody orbital information is injected to the coefficient vectors
         cji = cji + cji * three_body_w.unsqueeze(1)
 
-        # --- Twobody Message-passing ---
-        cji = F.normalize(cji, dim=-1)
+        # --- Twobody Message-passings
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
 
@@ -394,8 +394,8 @@ class LCAOInteraction(nn.Module):
         lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
-        x = x_before + self.node_after_lin(
-            scatter(lcao_w * self.node_lin(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+        x = x_before + self.out_weight(
+            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
         )
 
         return x
@@ -435,7 +435,7 @@ class LCAOOut(nn.Module):
             activation,
             Dense(hidden_dim, hidden_dim // 2, True, weight_init),
             activation,
-            Dense(hidden_dim // 2, out_dim, False, weight_init),
+            Dense(hidden_dim // 2, out_dim, True, weight_init),
         )
 
     def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:

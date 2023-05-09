@@ -4,4 +4,4 @@ from . import nn  # noqa: F401
 from . import train  # noqa: F401
 from . import utils  # noqa: F401
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
