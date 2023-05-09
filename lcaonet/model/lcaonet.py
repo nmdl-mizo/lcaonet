@@ -297,12 +297,7 @@ class LCAOInteraction(nn.Module):
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.f_three = nn.Sequential(
-            Dense(conv_dim, three_out_dim, True, weight_init),
-            activation,
-        )
-        self.f_three_gate = nn.Sequential(
-            Dense(conv_dim, three_out_dim, True, weight_init),
-            nn.Sigmoid(),
+            Dense(conv_dim, three_out_dim, False, weight_init),
         )
 
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
@@ -382,9 +377,7 @@ class LCAOInteraction(nn.Module):
         three_body_w = scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + torch.where(cji == 0, 0, 1) * (
-            self.f_three_gate(three_body_w) * self.f_three(three_body_w)
-        ).unsqueeze(1)
+        cji = cji + torch.where(cji == 0, 0, 1) * self.f_three(three_body_w).unsqueeze(1)
 
         # --- Twobody Message-passings ---
         if self.add_valence:
