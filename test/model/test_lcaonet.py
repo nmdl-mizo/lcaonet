@@ -10,6 +10,7 @@ from torch_geometric.nn.inits import glorot_orthogonal
 from lcaonet.atomistic.info import ElecInfo
 from lcaonet.data.keys import GraphKeys
 from lcaonet.model.lcaonet import (
+    ElecMask,
     EmbedCoeffs,
     EmbedElec,
     EmbedNode,
@@ -54,44 +55,79 @@ def test_EmbedZ(
 
 
 param_EmbedElec = [
-    (2, 96, None, 1, False),
-    (2, 96, None, 1, True),
-    (2, 96, None, 2, True),
-    (2, 96, None, 2, True),
-    (2, 5, "4s", 1, False),
-    (2, 5, "4s", 1, True),
-    (2, 5, "4s", 2, False),
-    (2, 5, "4s", 2, True),
-    (32, 96, None, 1, False),
-    (32, 96, None, 1, True),
-    (32, 5, "4p", 1, False),
-    (32, 5, "4p", 1, True),
+    (2, 96, None, 1),
+    (2, 96, None, 1),
+    (2, 96, None, 2),
+    (2, 96, None, 2),
+    (2, 5, "4s", 1),
+    (2, 5, "4s", 1),
+    (2, 5, "4s", 2),
+    (2, 5, "4s", 2),
+    (32, 96, None, 1),
+    (32, 96, None, 1),
+    (32, 5, "4p", 1),
+    (32, 5, "4p", 1),
+    (32, 25, None, 1),
+    (32, 25, "2s", 1),
+    (32, 25, "5s", 1),
+    (32, 25, "5s", 2),
 ]
 
 
-@pytest.mark.parametrize("embed_dim, max_z, max_orb, n_per_orb, extend_orb", param_EmbedElec)
+@pytest.mark.parametrize("embed_dim, max_z, max_orb, n_per_orb", param_EmbedElec)
 def test_EmbedElec(
     embed_dim: int,
     max_z: int,
     max_orb: str | None,
     n_per_orb: int,
-    extend_orb: bool,
 ):
     n_node = max_z * 3
     zs = torch.randint(0, max_z + 1, (n_node,))
     ei = ElecInfo(max_z, max_orb, n_per_orb)
 
-    ee = EmbedElec(embed_dim, ei, extend_orb)
+    ee = EmbedElec(embed_dim, ei)
     elec_embed = ee(zs)
 
     assert elec_embed.size() == (zs.size(0), ei.n_orb, embed_dim)
 
     for i, z in enumerate(zs):
-        # check padding_idx
-        if not extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
-        if extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
+        assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
+
+
+param_ElecMask = [
+    (2, 96, None, 1),
+    (2, 96, None, 2),
+    (2, 5, "4s", 1),
+    (2, 5, "4s", 2),
+    (32, 96, None, 1),
+    (32, 96, None, 2),
+    (32, 5, "4s", 1),
+    (32, 5, "4s", 2),
+    (32, 96, None, 5),
+]
+
+
+@pytest.mark.parametrize("embed_dim, max_z, max_orb, n_per_orb", param_ElecMask)
+def test_ElecMask(
+    embed_dim: int,
+    max_z: int,
+    max_orb: str | None,
+    n_per_orb: int,
+):
+    n_node, n_edge = max_z * 3, max_z * 5
+    zs = torch.randint(0, max_z + 1, (n_node,))
+    idx_j = torch.randint(0, zs.size(0), (n_edge,))
+    ei = ElecInfo(max_z, max_orb, n_per_orb)
+
+    em = ElecMask(embed_dim, ei)
+    mask = em(zs, idx_j)
+
+    assert mask.size() == (n_edge, ei.n_orb, embed_dim)
+
+    for i, z in enumerate(zs[idx_j]):
+        # check mask values
+        assert (mask[i, em.elec_mask[z] == 0, :] == torch.zeros_like(mask[i, em.elec_mask[z] == 0, :])).all()  # type: ignore # noqa: E501
+        assert (mask[i, em.elec_mask[z] == 1, :] == torch.ones_like(mask[i, em.elec_mask[z] == 1, :])).all()  # type: ignore # noqa: E501
 
 
 param_ValenceMask = [
@@ -103,6 +139,7 @@ param_ValenceMask = [
     (32, 96, None, 2),
     (32, 5, "4s", 1),
     (32, 5, "4s", 2),
+    (32, 96, None, 5),
 ]
 
 
@@ -287,7 +324,7 @@ param_LCAONet = [
 @pytest.mark.model
 @pytest.mark.parametrize(
     """hidden_dim, coeffs_dim, conv_dim, out_dim, n_per_orb, cutoff, cutoff_net, max_orb,
-    elec_to_node, add_valence, extend_orb, is_extensive""",
+    elec_to_node, extend_orb, add_valence, is_extensive""",
     param_LCAONet,
 )
 def test_LCAONet(
@@ -301,8 +338,8 @@ def test_LCAONet(
     cutoff_net: str | type[BaseCutoff] | None,
     max_orb: str | None,
     elec_to_node: bool,
-    add_valence: bool,
     extend_orb: bool,
+    add_valence: bool,
     is_extensive: bool,
 ):
     max_z = one_graph_data[GraphKeys.Z].max().item()
@@ -321,8 +358,8 @@ def test_LCAONet(
                 max_z=max_z,
                 max_orb=max_orb,
                 elec_to_node=elec_to_node,
-                add_valence=add_valence,
                 extend_orb=extend_orb,
+                add_valence=add_valence,
                 is_extensive=is_extensive,
                 activation="SiLU",
                 weight_init="glorotorthogonal",
@@ -342,8 +379,8 @@ def test_LCAONet(
             max_z=max_z,
             max_orb=max_orb,
             elec_to_node=elec_to_node,
-            add_valence=add_valence,
             extend_orb=extend_orb,
+            add_valence=add_valence,
             is_extensive=is_extensive,
             activation="SiLU",
             weight_init="glorotorthogonal",
