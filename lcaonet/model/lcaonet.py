@@ -63,31 +63,24 @@ class EmbedElec(nn.Module):
     state is zero, the orbital is a zero vector embedding.
     """
 
-    def __init__(self, embed_dim: int, elec_info: ElecInfo, extend_orb: bool = False):
+    def __init__(self, embed_dim: int, elec_info: ElecInfo):
         """
         Args:
             embed_dim (int): the dimension of embedding.
             elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
-            extend_orb (bool, optional): Whether to use an extended basis. Defaults to `False`.
         """  # noqa: E501
         super().__init__()
         self.register_buffer("elec", elec_info.elec_table)
         self.n_orb = ElecInfo.n_orb
         self.embed_dim = embed_dim
-        self.extend_orb = extend_orb
 
-        self.e_embeds = nn.ModuleList(
-            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in elec_info.max_elec_idx]
-        )
+        self.e_embeds = nn.ModuleList([nn.Embedding(m, embed_dim, padding_idx=None) for m in elec_info.max_elec_idx])
 
         self.reset_parameters()
 
     def reset_parameters(self):
         for ee in self.e_embeds:
             ee.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
-            # set padding_idx to zero
-            if not self.extend_orb:
-                ee._fill_padding_idx_with_zero()
 
     def forward(self, z: Tensor) -> Tensor:
         """Forward calculation of EmbedElec.
@@ -108,6 +101,39 @@ class EmbedElec(nn.Module):
         e_embed = torch.transpose(e_embed, 0, 1)
 
         return e_embed
+
+
+class ElecMask(nn.Module):
+    """The layer that generates electronic orbital mask.
+
+    Only the coefficients for occupied orbital set to 1, and the
+    coefficients for all other orbitals are set to 0.
+    """
+
+    def __init__(self, embed_dim: int, elec_info: ElecInfo):
+        """
+        Args:
+            embed_dim (int): the dimension of embedding.
+            elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
+        """  # noqa: E501
+        super().__init__()
+        self.register_buffer("elec_mask", elec_info.elec_mask)
+        self.n_orb = ElecInfo.n_orb
+
+        self.embed_dim = embed_dim
+
+    def forward(self, z: Tensor, idx_j: Tensor) -> Tensor:
+        """Forward calculation of ValenceMask.
+
+        Args:
+            z (torch.Tensor): the atomic numbers with (N) shape.
+            idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
+
+        Returns:
+            elec_mask (torch.Tensor): valence orbital mask with (E, n_orb, embed_dim) shape.
+        """
+        elec_mask = self.elec_mask[z]  # type: ignore # Since mypy cannot determine that the elec_mask is a Tensor
+        return elec_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)[idx_j]
 
 
 class ValenceMask(nn.Module):
@@ -134,13 +160,13 @@ class ValenceMask(nn.Module):
         """Forward calculation of ValenceMask.
 
         Args:
-            z (torch.Tensor): the atomic numbers with (n_node) shape.
+            z (torch.Tensor): the atomic numbers with (N) shape.
             idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
 
         Returns:
             valence_mask (torch.Tensor): valence orbital mask with (E, n_orb, embed_dim) shape.
         """
-        valence_mask = self.valence[z]  # type: ignore # Since mypy cannot determine that the valence is a tensor
+        valence_mask = self.valence[z]  # type: ignore # Since mypy cannot determine that the valence is a Tensor
         return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)[idx_j]
 
 
@@ -179,7 +205,7 @@ class EmbedNode(nn.Module):
         self.f_enc = nn.Sequential(
             Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim, False, weight_init),
+            Dense(hidden_dim, hidden_dim, True, weight_init),
             activation,
         )
 
@@ -227,16 +253,10 @@ class EmbedCoeffs(nn.Module):
         self.z_dim = z_dim
         self.e_dim = e_dim
 
-        self.f_z = nn.Sequential(
-            Dense(2 * z_dim, hidden_dim, True, weight_init),
+        self.f_enc = nn.Sequential(
+            Dense(2 * z_dim + e_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim, True, weight_init),
-            activation,
-        )
-        self.f_e = nn.Sequential(
-            Dense(e_dim, hidden_dim, False, weight_init),
-            activation,
-            Dense(hidden_dim, hidden_dim, False, weight_init),
             activation,
         )
 
@@ -250,11 +270,19 @@ class EmbedCoeffs(nn.Module):
             idx_j (torch.Tensor): the indices of neighbor atoms with (E) shape.
 
         Returns:
-            coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
+            coeff_embed (torch.Tensor): coefficient embedding vectors with (E, n_orb, hidden_dim) shape.
         """
-        z_embed = self.f_z(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
-        e_embed = self.f_e(e_embed)[idx_j]
-        return e_embed + e_embed * z_embed.unsqueeze(1)
+        n_orb = e_embed.size(1)
+        z_e_embed = torch.cat(
+            [
+                z_embed[idx_i].unsqueeze(1).expand(-1, n_orb, -1),
+                z_embed[idx_j].unsqueeze(1).expand(-1, n_orb, -1),
+                e_embed[idx_j],
+            ],
+            dim=-1,
+        )
+        coeff_embed = self.f_enc(z_e_embed)
+        return coeff_embed
 
 
 class LCAOInteraction(nn.Module):
@@ -265,6 +293,7 @@ class LCAOInteraction(nn.Module):
         hidden_dim: int,
         coeffs_dim: int,
         conv_dim: int,
+        extend_orb: bool,
         add_valence: bool = False,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
@@ -274,6 +303,7 @@ class LCAOInteraction(nn.Module):
             hidden_dim (int): the dimension of node vector.
             coeffs_dim (int): the dimension of coefficient vectors.
             conv_dim (int): the dimension of embedding vectors at convolution.
+            extend_orb (bool): whether to extend the basis set. If `True`, MP is performed including unoccupied orbitals of the ground state.
             add_valence (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization func. Defaults to `None`.
@@ -282,16 +312,16 @@ class LCAOInteraction(nn.Module):
         self.hidden_dim = hidden_dim
         self.coeffs_dim = coeffs_dim
         self.conv_dim = conv_dim
+        self.extend_orb = extend_orb
         self.add_valence = add_valence
 
         self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
 
-        # No bias is used to keep 0 coefficient vectors at 0
         out_dim = 2 * conv_dim if add_valence else conv_dim
         self.f_coeffs = nn.Sequential(
-            Dense(coeffs_dim, conv_dim, False, weight_init),
+            Dense(coeffs_dim, conv_dim, True, weight_init),
             activation,
-            Dense(conv_dim, out_dim, False, weight_init),
+            Dense(conv_dim, out_dim, True, weight_init),
             activation,
         )
 
@@ -314,6 +344,7 @@ class LCAOInteraction(nn.Module):
         self,
         x: Tensor,
         cji: Tensor,
+        elec_mask: Tensor | None,
         valence_mask: Tensor | None,
         cutoff_w: Tensor | None,
         rb: Tensor,
@@ -329,6 +360,7 @@ class LCAOInteraction(nn.Module):
         Args:
             x (torch.Tensor): node embedding vectors with (N, hidden_dim) shape.
             cji (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
+            elec_mask (torch.Tensor): occupied orbital mask with (E, n_orb, conv_dim) shape.
             valence_mask (torch.Tensor | None): valence orbital mask with (E, n_orb, conv_dim) shape.
             cutoff_w (torch.Tensor | None): cutoff weight with (E) shape.
             rb (torch.Tensor): the radial basis with (E, n_orb) shape.
@@ -342,6 +374,8 @@ class LCAOInteraction(nn.Module):
         Returns:
             torch.Tensor: updated node embedding vectors with (N, hidden_dim) shape.
         """
+        if not self.extend_orb and elec_mask is None:
+            raise ValueError("elec_mask must be provided when extend_orb=True")
         if self.add_valence and valence_mask is None:
             raise ValueError("valence_mask must be provided when add_valence=True")
 
@@ -361,12 +395,15 @@ class LCAOInteraction(nn.Module):
         ckj = cji[edge_idx_kj]
         if self.add_valence:
             ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
+            ckj_valence = ckj_valence * valence_mask[edge_idx_kj]  # type: ignore # Since mypy cannot determine that the valence_mask is not None # noqa: E501
+        if not self.extend_orb:
+            ckj = ckj * elec_mask[edge_idx_kj]  # type: ignore # Since mypy cannot determine that the elec_mask is not None # noqa: E501
 
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         three_body_orbs = rb[edge_idx_kj] * shb
         three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
+            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence).contiguous()
             three_body_w = three_body_w + valence_w
         three_body_w = F.normalize(three_body_w, dim=-1)
 
@@ -381,18 +418,20 @@ class LCAOInteraction(nn.Module):
         # --- Twobody Message-passings
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
+            cji_valence = cji_valence * valence_mask
+        if not self.extend_orb:
+            cji = cji * elec_mask
 
         # twobody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         lcao_w = torch.einsum("ed,edh->eh", rb, cji).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask).contiguous()
+            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
-        lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
         x = x_before + self.out_weight(
-            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+            scatter(self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
         )
 
         return x
@@ -473,8 +512,8 @@ class LCAONet(BaseMPNN):
         max_z: int = 36,
         max_orb: str | None = None,
         elec_to_node: bool = True,
-        add_valence: bool = False,
         extend_orb: bool = False,
+        add_valence: bool = False,
         is_extensive: bool = True,
         activation: str = "SiLU",
         weight_init: str | None = "glorotorthogonal",
@@ -496,8 +535,8 @@ class LCAONet(BaseMPNN):
             max_z (int): the maximum atomic number. Defaults to `36`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
             elec_to_node (bool): whether to use electrons information to nodes embedding. Defaults to `True`.
-            add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
             extend_orb (bool): whether to extend the basis set. Defaults to `False`. If `True`, MP is performed including unoccupied orbitals of the ground state.
+            add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
             is_extensive (bool): whether to predict extensive property. Defaults to `True`.
             activation (str): the name of activation function. Defaults to `"SiLU"`.
             weight_init (str | None): the name of weight initialization function. Defaults to `"glorotorthogonal"`.
@@ -518,6 +557,7 @@ class LCAONet(BaseMPNN):
             raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
         self.elec_to_node = elec_to_node
+        self.extend_orb = extend_orb
         self.add_valence = add_valence
 
         # electron information
@@ -534,15 +574,20 @@ class LCAONet(BaseMPNN):
         self.node_e_embed_dim = hidden_dim if elec_to_node else 0
         e_embed_dim = self.node_e_embed_dim + self.coeffs_dim
         self.z_embed = EmbedZ(embed_dim=z_embed_dim, max_z=max_z)
-        self.e_embed = EmbedElec(e_embed_dim, elec_info, extend_orb)
+        self.e_embed = EmbedElec(e_embed_dim, elec_info)
         self.node_embed = EmbedNode(hidden_dim, hidden_dim, elec_to_node, self.node_e_embed_dim, act, wi)
         self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, act, wi)
+        if not extend_orb:
+            self.elec_mask = ElecMask(conv_dim, elec_info)
         if add_valence:
             self.valence_mask = ValenceMask(conv_dim, elec_info)
 
         # interaction layers
         self.int_layers = nn.ModuleList(
-            [LCAOInteraction(hidden_dim, coeffs_dim, conv_dim, add_valence, act, wi) for _ in range(n_interaction)]
+            [
+                LCAOInteraction(hidden_dim, coeffs_dim, conv_dim, extend_orb, add_valence, act, wi)
+                for _ in range(n_interaction)
+            ]
         )
 
         # output layers
@@ -594,12 +639,15 @@ class LCAONet(BaseMPNN):
             x = self.node_embed(node_z)
         cji = self.coeff_embed(coeff_z, coeff_e, idx_i, idx_j)
 
-        # get valence mask coefficients
+        # get mask coefficients
+        elec_mask: Tensor | None = self.elec_mask(z, idx_j) if not self.extend_orb else None
         valence_mask: Tensor | None = self.valence_mask(z, idx_j) if self.add_valence else None
 
         # calc interaction
         for inte in self.int_layers:
-            x = inte(x, cji, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(
+                x, cji, elec_mask, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji
+            )
 
         # output
         out = self.out_layer(x, batch_idx)
