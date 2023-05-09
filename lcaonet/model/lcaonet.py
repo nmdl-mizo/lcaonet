@@ -355,7 +355,6 @@ class LCAOInteraction(nn.Module):
 
         # Transformation of the coefficient vectors
         cji = self.f_coeffs(cji)
-        cji = F.normalize(cji, dim=-1)
 
         # cutoff
         if cutoff_w is not None:
