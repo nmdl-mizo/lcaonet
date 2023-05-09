@@ -100,8 +100,8 @@ You can train LCAONet with custom data in the following three steps.
 
     from lcaonet.data import List2GraphDataset
 
-    # Prepare a list of Atoms objects
-    data_list: list[Union[Atoms]] = ...
+    # Prepare a list of ase.Atoms objects
+    data_list: list[Atoms] = ...
     # Prepare a dict of physical property values(Key: label name, Value: array of label values).
     label_list: dict[str, list[float] | ndarray | Tensor] = ...
 
@@ -150,15 +150,16 @@ You can train LCAONet with custom data in the following three steps.
     # Prepare DataLoader
     loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-    for batch in loader:
-        # Forward
-        y_pred = model(batch)
-        # Calculate loss
-        loss = ...
-        loss.backward()
-        ...
+    for _ in range(epochs):
+        for batch in loader:
+            # Forward
+            y_pred = model(batch)
+            # Calculate loss
+            loss = ...
+            loss.backward()
+            ...
     ```
 
 ## References
 
-1. K. Nishio, K. Shibata, T. Mizoguchi. *LCAONet: Message passing with basis functions optimized by edge elemental species.* (2023) [Paper](https://arxiv.org/abs/)
+1. K. Nishio, K. Shibata, T. Mizoguchi. *LCAONet: Message passing with physically optimized atomic basis functions.* (2023) [Paper](https://arxiv.org/abs/)
