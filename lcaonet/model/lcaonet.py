@@ -413,7 +413,7 @@ class LCAOInteraction(nn.Module):
         three_body_w = self.f_three(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + cji * three_body_w.unsqueeze(1)
+        cji = cji + three_body_w.unsqueeze(1)
 
         # --- Twobody Message-passings
         if self.add_valence:
