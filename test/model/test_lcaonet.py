@@ -66,6 +66,14 @@ param_EmbedElec = [
     (32, 96, None, 1, True),
     (32, 5, "4p", 1, False),
     (32, 5, "4p", 1, True),
+    (32, 25, None, 1, False),
+    (32, 25, None, 1, True),
+    (32, 25, "2s", 1, False),
+    (32, 25, "2s", 1, True),
+    (32, 25, "5s", 1, False),
+    (32, 25, "5s", 1, True),
+    (32, 25, "5s", 5, False),
+    (32, 25, "5s", 5, True),
 ]
 
 
