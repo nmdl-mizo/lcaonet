@@ -297,10 +297,7 @@ class LCAOInteraction(nn.Module):
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.f_three = nn.Sequential(
-            Dense(conv_dim, conv_dim, True, weight_init),
-            activation,
-            Dense(conv_dim, three_out_dim, True, weight_init),
-            activation,
+            Dense(conv_dim, three_out_dim, False, weight_init),
         )
 
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
