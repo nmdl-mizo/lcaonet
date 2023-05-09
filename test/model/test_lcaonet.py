@@ -224,6 +224,20 @@ def test_LCAOOut(
 
     assert out.size() == (n_batch, out_dim)
 
+    if batch:
+        after_lin = lcao_out.out_lin(node_embed)
+        out_test = torch.zeros((n_batch, out_dim))
+        for i, idx in enumerate(batch_idx):  # type: ignore # Since mypy cannnot determine that batch_idx is iterable
+            out_test[idx] += after_lin[i]
+        if not is_extensive:
+            out_test /= torch.bincount(batch_idx, minlength=n_batch).unsqueeze(1)  # type: ignore # Since mypy cannot determine that batch_idx is Tensor # noqa: E501
+        assert torch.allclose(out, out_test)
+    else:
+        out_test = lcao_out.out_lin(node_embed).sum(dim=0, keepdim=True)
+        if not is_extensive:
+            out_test /= n_node
+        assert torch.allclose(out, out_test)
+
 
 param_LCAONet = [
     (16, 16, 10, 1, 1, None, None, None, True, False, False, True),  # default small
