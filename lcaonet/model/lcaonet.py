@@ -177,9 +177,9 @@ class EmbedNode(nn.Module):
             self.e_dim = 0
 
         self.f_enc = nn.Sequential(
-            Dense(z_dim + self.e_dim, hidden_dim, True, weight_init),
+            Dense(z_dim + self.e_dim, min(hidden_dim, z_dim + self.e_dim // 2), True, weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim, False, weight_init),
+            Dense(min(hidden_dim, z_dim + self.e_dim // 2), hidden_dim, True, weight_init),
             activation,
         )
 
@@ -297,10 +297,12 @@ class LCAOInteraction(nn.Module):
 
         three_out_dim = 2 * conv_dim if add_valence else conv_dim
         self.f_three = nn.Sequential(
-            Dense(conv_dim, conv_dim, True, weight_init),
-            activation,
             Dense(conv_dim, three_out_dim, True, weight_init),
             activation,
+        )
+        self.f_three_gate = nn.Sequential(
+            Dense(conv_dim, three_out_dim, True, weight_init),
+            nn.Sigmoid(),
         )
 
         self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
@@ -364,38 +366,41 @@ class LCAOInteraction(nn.Module):
         ckj = cji[edge_idx_kj]
         if self.add_valence:
             ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
+            ckj_valence = ckj_valence * valence_mask[edge_idx_kj]  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
 
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         three_body_orbs = rb[edge_idx_kj] * shb
         three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence * valence_mask[edge_idx_kj]).contiguous()  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
+            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence).contiguous()
             three_body_w = three_body_w + valence_w
         three_body_w = F.normalize(three_body_w, dim=-1)
 
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_w * xk
-        three_body_w = self.f_three(scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0)))
+        three_body_w = scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + cji * three_body_w.unsqueeze(1)
+        cji = cji + torch.where(cji == 0, 0, 1) * (
+            self.f_three_gate(three_body_w) * self.f_three(three_body_w)
+        ).unsqueeze(1)
 
-        # --- Twobody Message-passings
+        # --- Twobody Message-passings ---
         if self.add_valence:
             cji, cji_valence = torch.chunk(cji, 2, dim=-1)
+            cji_valence = cji_valence * valence_mask
 
         # twobody LCAO weight: summation of all orbitals multiplied by coefficient vectors
         lcao_w = torch.einsum("ed,edh->eh", rb, cji).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence * valence_mask).contiguous()
+            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
-        lcao_w = self.basis_weight(lcao_w)
 
         # Message-passing and update node embedding vector
         x = x_before + self.out_weight(
-            scatter(lcao_w * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+            scatter(self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
         )
 
         return x
