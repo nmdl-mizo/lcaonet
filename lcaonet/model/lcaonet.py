@@ -176,10 +176,11 @@ class EmbedNode(nn.Module):
         else:
             self.e_dim = 0
 
+        hidden_layer = max(hidden_dim, z_dim + self.e_dim // 2)
         self.f_enc = nn.Sequential(
-            Dense(z_dim + self.e_dim, min(hidden_dim, z_dim + self.e_dim // 2), True, weight_init),
+            Dense(z_dim + self.e_dim, hidden_layer, True, weight_init),
             activation,
-            Dense(min(hidden_dim, z_dim + self.e_dim // 2), hidden_dim, True, weight_init),
+            Dense(hidden_layer, hidden_dim, True, weight_init),
             activation,
         )
 
