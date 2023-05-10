@@ -71,8 +71,8 @@ def activation_resolver(query: torch.nn.Module | str = "relu", **kwargs) -> torc
     acts = [
         act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
     ]
-    # add Swish and ShiftedSoftplus
-    acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus]
+    # add Swish, ShiftedSoftplus and ScaledSiLU
+    acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus, lcaonet.nn.activation.ScaledSiLU]
     return _resolver(query, acts, base_cls, **kwargs)  # type: ignore # Since mypy cannot identify that _resolver returns a Module # noqa: E501
 
 
