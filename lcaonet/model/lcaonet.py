@@ -72,7 +72,7 @@ class EmbedElec(nn.Module):
         """  # noqa: E501
         super().__init__()
         self.register_buffer("elec", elec_info.elec_table)
-        self.n_orb = ElecInfo.n_orb
+        self.n_orb = elec_info.n_orb
         self.embed_dim = embed_dim
         self.extend_orb = extend_orb
 
@@ -126,7 +126,7 @@ class ValenceMask(nn.Module):
         """  # noqa: E501
         super().__init__()
         self.register_buffer("valence", elec_info.valence_table)
-        self.n_orb = ElecInfo.n_orb
+        self.n_orb = elec_info.n_orb
 
         self.embed_dim = embed_dim
 
