@@ -106,7 +106,9 @@ class ElecInfo:
 
     @property
     def min_orb_idx(self) -> int | None:
-        return self._min_orb_idx
+        if self._min_orb_idx is None:
+            return None
+        return self._min_orb_idx * self.n_per_orb + (self.n_per_orb - 1)
 
     @property
     def elec_table(self) -> Tensor:

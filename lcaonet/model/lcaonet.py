@@ -72,13 +72,18 @@ class EmbedElec(nn.Module):
         """  # noqa: E501
         super().__init__()
         self.register_buffer("elec", elec_info.elec_table)
-        self.n_orb = ElecInfo.n_orb
+        self.n_orb = elec_info.n_orb
         self.embed_dim = embed_dim
         self.extend_orb = extend_orb
 
-        self.e_embeds = nn.ModuleList(
-            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in elec_info.max_elec_idx]
-        )
+        self.e_embeds = nn.ModuleList()
+        min_idx = elec_info.min_orb_idx if elec_info.min_orb_idx else -1
+        for i, max_e in enumerate(elec_info.max_elec_idx):
+            if i <= min_idx or extend_orb:
+                padding_idx = None
+            else:
+                padding_idx = 0
+            self.e_embeds.append(nn.Embedding(max_e, embed_dim, padding_idx=padding_idx))
 
         self.reset_parameters()
 
@@ -86,8 +91,7 @@ class EmbedElec(nn.Module):
         for ee in self.e_embeds:
             ee.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
             # set padding_idx to zero
-            if not self.extend_orb:
-                ee._fill_padding_idx_with_zero()
+            ee._fill_padding_idx_with_zero()
 
     def forward(self, z: Tensor) -> Tensor:
         """Forward calculation of EmbedElec.
@@ -126,7 +130,7 @@ class ValenceMask(nn.Module):
         """  # noqa: E501
         super().__init__()
         self.register_buffer("valence", elec_info.valence_table)
-        self.n_orb = ElecInfo.n_orb
+        self.n_orb = elec_info.n_orb
 
         self.embed_dim = embed_dim
 
@@ -473,6 +477,7 @@ class LCAONet(BaseMPNN):
         rbf_type: str | type[BaseRadialBasis] = "hydrogen",
         cutoff_net: str | type[BaseCutoff] | None = None,
         max_z: int = 36,
+        min_orb: str | None = None,
         max_orb: str | None = None,
         elec_to_node: bool = True,
         add_valence: bool = False,
@@ -496,6 +501,7 @@ class LCAONet(BaseMPNN):
             rbf_type (str | type[lcaonet.nn.rbf.BaseRadialBasis]): the radial basis function or the name. Defaults to `hydrogen`.
             cutoff_net (str | type[lcaonet.nn.cutoff.BaseCutoff] | None): the cutoff network or the name Defaults to `None`.
             max_z (int): the maximum atomic number. Defaults to `36`.
+            min_orb (str | None): the minimum orbital name like "2s". Defaults to `None`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
             elec_to_node (bool): whether to use electrons information to nodes embedding. Defaults to `True`.
             add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
@@ -523,7 +529,7 @@ class LCAONet(BaseMPNN):
         self.add_valence = add_valence
 
         # electron information
-        elec_info = ElecInfo(max_z, max_orb, n_per_orb)
+        elec_info = ElecInfo(max_z, max_orb, min_orb, n_per_orb)
 
         # calc basis layers
         self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info)
