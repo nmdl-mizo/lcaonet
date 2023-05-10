@@ -32,8 +32,8 @@ class SphericalHarmonicsBasis(nn.Module):
             Y_0^0 = \frac{1}{2} \sqrt{\frac{1}{\pi}}
 
         Args:
-            theta: the azimuthal angle.
-            phi: the polar angle.
+            theta: the polar angle.
+            phi: the azimuthal angle.
 
         Returns:
             `Y_0^0`: the spherical harmonics with `l=m=0`.

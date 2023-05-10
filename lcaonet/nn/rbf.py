@@ -126,10 +126,10 @@ class HydrogenRadialBasis(BaseRadialBasis):
         """Forward calculation of RadialOrbitalBasis.
 
         Args:
-            d (torch.Tensor): the interatomic distance with (n_edge) shape.
+            d (torch.Tensor): the interatomic distance with (E) shape.
 
         Returns:
-            rb (torch.Tensor): the expanded distance with HydrogenRadialBasis with (n_edge, n_orb) shape.
+            rb (torch.Tensor): the expanded distance with HydrogenRadialBasis with (E, n_orb) shape.
         """
         if self.cutoff is not None:
             rb = torch.stack([f(d) * sc.to(d.device) for f, sc in zip(self.basis_func, self.stand_coeff)], dim=1)
