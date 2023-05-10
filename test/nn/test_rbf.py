@@ -68,7 +68,7 @@ def test_HydrogenRadialBasis(
 ):
     n_edge = 200
     r = torch.linspace(0, 10, n_edge)
-    ei = ElecInfo(max_z, max_orb, n_per_orb)
+    ei = ElecInfo(max_z, max_orb, None, n_per_orb)
 
     rbf = HydrogenRadialBasis(cutoff, ei)
     rb = rbf(r)

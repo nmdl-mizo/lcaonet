@@ -32,7 +32,7 @@ def test_SphericalHarmonicsBasis(
 ):
     n_triplet = 200
     angle = torch.linspace(0, 2 * math.pi, n_triplet)
-    ei = ElecInfo(max_z, max_orb, n_per_orb)
+    ei = ElecInfo(max_z, max_orb, None, n_per_orb)
 
     shbf = SphericalHarmonicsBasis(ei)
     shb = shbf(angle)
