@@ -85,7 +85,7 @@ def activation_gain_resolver(query: torch.nn.Module | str = "relu", **kwargs) ->
         act for act in vars(torch.nn.modules.activation).values() if isinstance(act, type) and issubclass(act, base_cls)
     ]
     # add Swish and ShiftedSoftplus
-    acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus, lcaonet.nn.activation.ScaledSiLU]
+    acts += [lcaonet.nn.activation.Swish, lcaonet.nn.activation.ShiftedSoftplus]
     gain_dict = {
         "sigmoid": "sigmoid",
         "tanh": "tanh",
