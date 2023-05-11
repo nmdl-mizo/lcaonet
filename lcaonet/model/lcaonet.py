@@ -233,10 +233,7 @@ class EmbedCoeffs(nn.Module):
         self.e_dim = e_dim
 
         self.f_z = nn.Sequential(
-            Dense(2 * z_dim, hidden_dim, True, weight_init),
-            activation,
-            Dense(hidden_dim, hidden_dim, True, weight_init),
-            activation,
+            Dense(2 * z_dim, hidden_dim, False, weight_init),
         )
         self.f_e = nn.Sequential(
             Dense(e_dim, hidden_dim, False, weight_init),
@@ -382,7 +379,7 @@ class LCAOInteraction(nn.Module):
         three_body_w = scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + torch.where(cji == 0, 0, 1) * self.f_three(three_body_w).unsqueeze(1)
+        cji = cji + cji * self.f_three(three_body_w).unsqueeze(1)
 
         # --- Twobody Message-passings ---
         if self.add_valence:
