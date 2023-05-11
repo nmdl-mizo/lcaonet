@@ -71,16 +71,3 @@ class ShiftedSoftplus(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return shifted_softplus(x)
-
-
-class ScaledSiLU(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.scale_factor = 1 / 0.6
-        self._activation = torch.nn.SiLU()
-
-    def extra_repr(self) -> str:
-        return f"scale_factor={self.scale_factor:.2f}"
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self._activation(x) * self.scale_factor
