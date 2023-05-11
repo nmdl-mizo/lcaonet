@@ -120,11 +120,11 @@ def test_EmbedElec(
             else:
                 min_idx = ei.min_orb_idx
                 for orb in range(ei.n_orb):
-                    if orb <= min_idx:
+                    if orb <= min_idx:  # type: ignore # Since mypy cannot determine min_idx is not None
                         # not 0 padding
                         assert (elec_embed[i, orb] != torch.zeros(embed_dim)).all()
                     else:
-                        if ee.elec[z, orb].item() == 0:
+                        if ee.elec[z, orb].item() == 0:  # type: ignore # Since mypy cannnot determine elec is Tensor
                             # 0 padding for out of min_idx
                             assert (elec_embed[i, orb] == torch.zeros(embed_dim)).all()
                         else:
