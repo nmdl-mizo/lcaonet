@@ -76,9 +76,14 @@ class EmbedElec(nn.Module):
         self.embed_dim = embed_dim
         self.extend_orb = extend_orb
 
-        self.e_embeds = nn.ModuleList(
-            [nn.Embedding(m, embed_dim, padding_idx=None if extend_orb else 0) for m in elec_info.max_elec_idx]
-        )
+        self.e_embeds = nn.ModuleList()
+        min_idx = elec_info.min_orb_idx if elec_info.min_orb_idx else -1
+        for i, max_e in enumerate(elec_info.max_elec_idx):
+            if i <= min_idx or extend_orb:
+                padding_idx = None
+            else:
+                padding_idx = 0
+            self.e_embeds.append(nn.Embedding(max_e, embed_dim, padding_idx=padding_idx))
 
         self.reset_parameters()
 
@@ -86,8 +91,7 @@ class EmbedElec(nn.Module):
         for ee in self.e_embeds:
             ee.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
             # set padding_idx to zero
-            if not self.extend_orb:
-                ee._fill_padding_idx_with_zero()
+            ee._fill_padding_idx_with_zero()
 
     def forward(self, z: Tensor) -> Tensor:
         """Forward calculation of EmbedElec.
@@ -229,10 +233,7 @@ class EmbedCoeffs(nn.Module):
         self.e_dim = e_dim
 
         self.f_z = nn.Sequential(
-            Dense(2 * z_dim, hidden_dim, True, weight_init),
-            activation,
-            Dense(hidden_dim, hidden_dim, True, weight_init),
-            activation,
+            Dense(2 * z_dim, hidden_dim, False, weight_init),
         )
         self.f_e = nn.Sequential(
             Dense(e_dim, hidden_dim, False, weight_init),
@@ -378,7 +379,7 @@ class LCAOInteraction(nn.Module):
         three_body_w = scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + torch.where(cji == 0, 0, 1) * self.f_three(three_body_w).unsqueeze(1)
+        cji = cji + cji * self.f_three(three_body_w).unsqueeze(1)
 
         # --- Twobody Message-passings ---
         if self.add_valence:
@@ -473,6 +474,7 @@ class LCAONet(BaseMPNN):
         rbf_type: str | type[BaseRadialBasis] = "hydrogen",
         cutoff_net: str | type[BaseCutoff] | None = None,
         max_z: int = 36,
+        min_orb: str | None = None,
         max_orb: str | None = None,
         elec_to_node: bool = True,
         add_valence: bool = False,
@@ -496,6 +498,7 @@ class LCAONet(BaseMPNN):
             rbf_type (str | type[lcaonet.nn.rbf.BaseRadialBasis]): the radial basis function or the name. Defaults to `hydrogen`.
             cutoff_net (str | type[lcaonet.nn.cutoff.BaseCutoff] | None): the cutoff network or the name Defaults to `None`.
             max_z (int): the maximum atomic number. Defaults to `36`.
+            min_orb (str | None): the minimum orbital name like "2s". Defaults to `None`.
             max_orb (str | None): the maximum orbital name like "2p". Defaults to `None`.
             elec_to_node (bool): whether to use electrons information to nodes embedding. Defaults to `True`.
             add_valence (bool): whether to add the effect of valence orbitals. Defaults to `False`.
@@ -523,7 +526,7 @@ class LCAONet(BaseMPNN):
         self.add_valence = add_valence
 
         # electron information
-        elec_info = ElecInfo(max_z, max_orb, n_per_orb)
+        elec_info = ElecInfo(max_z, max_orb, min_orb, n_per_orb)
 
         # calc basis layers
         self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info)

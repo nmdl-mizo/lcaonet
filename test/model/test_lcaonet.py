@@ -54,52 +54,81 @@ def test_EmbedZ(
 
 
 param_EmbedElec = [
-    (2, 96, None, 1, False),
-    (2, 96, None, 1, True),
-    (2, 96, None, 2, True),
-    (2, 96, None, 2, True),
-    (2, 5, "4s", 1, False),
-    (2, 5, "4s", 1, True),
-    (2, 5, "4s", 2, False),
-    (2, 5, "4s", 2, True),
-    (32, 96, None, 1, False),
-    (32, 96, None, 1, True),
-    (32, 5, "4p", 1, False),
-    (32, 5, "4p", 1, True),
-    (32, 25, None, 1, False),
-    (32, 25, None, 1, True),
-    (32, 25, "2s", 1, False),
-    (32, 25, "2s", 1, True),
-    (32, 25, "5s", 1, False),
-    (32, 25, "5s", 1, True),
-    (32, 25, "5s", 5, False),
-    (32, 25, "5s", 5, True),
+    # all element test
+    (2, 96, None, None, 1, False),
+    (2, 96, None, None, 1, True),
+    (2, 96, None, None, 3, False),
+    (2, 96, None, None, 3, True),
+    # dimension test
+    (32, 96, None, None, 1, False),
+    (32, 96, None, None, 1, True),
+    (32, 96, None, None, 3, False),
+    (32, 96, None, None, 3, True),
+    # max_z and max_orb test
+    (2, 5, "4s", None, 1, False),
+    (2, 5, "4s", None, 1, True),
+    (32, 5, "4p", None, 1, False),
+    (32, 5, "4p", None, 1, True),
+    (32, 25, "5s", None, 1, False),
+    (32, 25, "5s", None, 1, True),
+    (32, 25, "5s", None, 3, False),
+    (32, 25, "5s", None, 3, True),
+    # small orb test (not valid max_orb parameter)
+    (32, 5, "1s", None, 1, False),
+    (32, 5, "1s", None, 1, True),
+    (32, 40, "2s", None, 1, False),
+    (32, 40, "2s", None, 1, True),
+    # min_orb test
+    (32, 96, None, "3p", 1, False),
+    (32, 96, None, "3p", 2, False),
+    (32, 96, None, "3p", 3, False),
+    (32, 96, None, "3p", 3, True),
+    (32, 20, "4s", "4s", 3, False),
+    (32, 20, "5p", "4s", 3, False),
 ]
 
 
-@pytest.mark.parametrize("embed_dim, max_z, max_orb, n_per_orb, extend_orb", param_EmbedElec)
+@pytest.mark.parametrize("embed_dim, max_z, max_orb, min_orb, n_per_orb, extend_orb", param_EmbedElec)
 def test_EmbedElec(
     embed_dim: int,
     max_z: int,
     max_orb: str | None,
+    min_orb: str | None,
     n_per_orb: int,
     extend_orb: bool,
 ):
     n_node = max_z * 3
     zs = torch.randint(0, max_z + 1, (n_node,))
-    ei = ElecInfo(max_z, max_orb, n_per_orb)
+    ei = ElecInfo(max_z, max_orb, min_orb, n_per_orb)
 
     ee = EmbedElec(embed_dim, ei, extend_orb)
     elec_embed = ee(zs)
 
     assert elec_embed.size() == (zs.size(0), ei.n_orb, embed_dim)
 
+    # check padding_idx
     for i, z in enumerate(zs):
-        # check padding_idx
-        if not extend_orb:
-            assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
         if extend_orb:
+            # not 0 padding
             assert (elec_embed[i, ee.elec[z] == 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
+            assert (elec_embed[i, ee.elec[z] != 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] != 0, :])).all()  # type: ignore # noqa: E501
+        else:
+            if min_orb is None:
+                # 0 padding
+                assert (elec_embed[i, ee.elec[z] == 0, :] == torch.zeros_like(elec_embed[i, ee.elec[z] == 0, :])).all()  # type: ignore # noqa: E501
+                assert (elec_embed[i, ee.elec[z] != 0, :] != torch.zeros_like(elec_embed[i, ee.elec[z] != 0, :])).all()  # type: ignore # noqa: E501
+            else:
+                min_idx = ei.min_orb_idx
+                for orb in range(ei.n_orb):
+                    if orb <= min_idx:
+                        # not 0 padding
+                        assert (elec_embed[i, orb] != torch.zeros(embed_dim)).all()
+                    else:
+                        if ee.elec[z, orb].item() == 0:
+                            # 0 padding for out of min_idx
+                            assert (elec_embed[i, orb] == torch.zeros(embed_dim)).all()
+                        else:
+                            assert (elec_embed[i, orb] != torch.zeros(embed_dim)).all()
 
 
 param_ValenceMask = [
@@ -124,7 +153,7 @@ def test_ValenceMask(
     n_node, n_edge = max_z * 3, max_z * 5
     zs = torch.randint(0, max_z + 1, (n_node,))
     idx_j = torch.randint(0, zs.size(0), (n_edge,))
-    ei = ElecInfo(max_z, max_orb, n_per_orb)
+    ei = ElecInfo(max_z, max_orb, None, n_per_orb)
 
     vm = ValenceMask(embed_dim, ei)
     mask = vm(zs, idx_j)

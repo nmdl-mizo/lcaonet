@@ -9,21 +9,24 @@ class ElecInfo:
     """Objects that manage electronic structure information, valence electron
     information, and quantum numbers for each element."""
 
-    def __init__(self, max_z: int, max_orb: str | None, n_per_orb: int = 1):
+    def __init__(self, max_z: int, max_orb: str | None, min_orb: str | None = None, n_per_orb: int = 1):
         """
         Args:
             max_z (int): the maximum atomic number.
             max_orb (str | None): the maximum orbital name like `"3s"`. When using this parameter, use it when you want to include orbitals beyond the valence orbitals.
                 For example, when `max_z=6`, the largest orbital is `"2p"`, but by setting `max_orb="3s"`, the message passing can take into account the basis up to 3s orbitals.
+            min_orb (str | None): the minimum orbital name like `"2s"`. When using this parameter, use basis functions up to min_orb for all elements.
             n_per_orb (int): Number of bases used per orbit. Default is `1`.
         """  # noqa: E501
         self.max_z = max_z
         self.max_orb = max_orb
+        self.min_orb = min_orb
         self.n_per_orb = n_per_orb
 
-        self._max_orb_idx = self._get_max_orb_idx_byz(max_z)
+        self._min_orb_idx = self._get_orb_idx_byorb(min_orb) if min_orb else None
+        self._max_orb_idx = self._get_orb_idx_byz(max_z)
         if max_orb is not None:
-            self._max_orb_idx = max(self._max_orb_idx, self._get_max_orb_idx_byorb(max_orb))
+            self._max_orb_idx = max(self._max_orb_idx, self._get_orb_idx_byorb(max_orb))
         # Number of orbits used for MP
         self._n_orb = (self._max_orb_idx + 1) * self.n_per_orb
 
@@ -33,7 +36,7 @@ class ElecInfo:
         self._max_elec_idx = MAX_ELEC_IDX
         self._nl_list = NL_LIST
 
-    def _get_max_orb_idx_byz(self, max_z: int) -> int:
+    def _get_orb_idx_byz(self, max_z: int) -> int:
         if max_z <= 0:
             raise ValueError(f"max_z={max_z} is too small.")
         if max_z <= 2:
@@ -71,7 +74,7 @@ class ElecInfo:
         else:
             raise ValueError(f"max_z={max_z} is too large.")
 
-    def _get_max_orb_idx_byorb(self, max_orb: str) -> int:
+    def _get_orb_idx_byorb(self, max_orb: str) -> int:
         orb_idx_dict = {
             "1s": 0,
             "2s": 1,
@@ -100,6 +103,12 @@ class ElecInfo:
     @property
     def n_orb(self) -> int:
         return self._n_orb
+
+    @property
+    def min_orb_idx(self) -> int | None:
+        if self._min_orb_idx is None:
+            return None
+        return self._min_orb_idx * self.n_per_orb + (self.n_per_orb - 1)
 
     @property
     def elec_table(self) -> Tensor:
