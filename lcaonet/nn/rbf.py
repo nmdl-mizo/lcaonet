@@ -154,7 +154,7 @@ class Envelope(torch.nn.Module):
         return (1.0 / x + a * x_pow_p0 + b * x_pow_p1 + c * x_pow_p2) * (x < 1.0).to(x.dtype)
 
 
-class SpehricalBesselRadialBasis(BaseRadialBasis):
+class SphericalBesselRadialBasis(BaseRadialBasis):
     """Layer to compute the basis of the spherical Bessel functions that decay
     in the cutoff sphere."""
 
