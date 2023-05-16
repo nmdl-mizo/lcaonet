@@ -177,7 +177,7 @@ class SpehricalBesselRadialBasis(BaseRadialBasis):
         freq = np.pi * nq
 
         def r_nl(d: Tensor) -> Tensor:
-            d = d.unsqueeze(-1) / self.cutoff
+            d = d / self.cutoff
             return self.envelope(d) * (freq * d).sin()
 
         return r_nl
