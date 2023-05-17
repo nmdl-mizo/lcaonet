@@ -164,7 +164,8 @@ class SphericalBesselRadialBasis(BaseRadialBasis):
             cutoff (float): cutoff radius.
             elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
         """  # noqa: E501
-        assert cutoff is not None
+        if cutoff is None:
+            raise ValueError("cutoff must not be None")
         super().__init__(cutoff, elec_info)
         self.n_orb = elec_info.n_orb
         self.envelope = Envelope(6)
