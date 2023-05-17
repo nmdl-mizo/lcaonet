@@ -19,14 +19,12 @@ class BaseGraphDataset(Dataset):
         cutoff: float,
         max_neighbors: int = 32,
         self_interaction: bool = False,
-        pbc: bool | tuple[bool, ...] = True,
         subtract_center_of_mass: bool = False,
     ):
         super().__init__()
         self.cutoff = cutoff
         self.max_neighbors = max_neighbors
         self.self_interaction = self_interaction
-        self.pbc = pbc
         self.subtract_center_of_mass = subtract_center_of_mass
 
     def len(self) -> int:
@@ -92,6 +90,7 @@ class BaseGraphDataset(Dataset):
         data[GraphKeys.Pos] = torch.tensor(atoms.get_positions(), dtype=torch.float32)
         data[GraphKeys.Z] = torch.tensor(atoms.numbers, dtype=torch.long)
         # add batch dimension
+        data[GraphKeys.PBC] = torch.tensor(atoms.pbc, dtype=torch.long).unsqueeze(0)
         data[GraphKeys.Lattice] = torch.tensor(atoms.cell.array, dtype=torch.float32).unsqueeze(0)
         data[GraphKeys.Edge_shift] = torch.tensor(edge_shift, dtype=torch.float32)
         return data
@@ -108,7 +107,8 @@ class BaseGraphDataset(Dataset):
         pos = data[GraphKeys.Pos].numpy()
         atom_num = data[GraphKeys.Z].numpy()
         ce = data[GraphKeys.Lattice].numpy()[0]  # remove batch dimension
-        atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=self.pbc, cell=ce)
+        pbc = data[GraphKeys.PBC].numpy()[0]  # remove batch dimension
+        atoms = ase.Atoms(numbers=atom_num, positions=pos, pbc=pbc, cell=ce)
         return atoms
 
     def _set_data(
@@ -168,7 +168,6 @@ class List2GraphDataset(BaseGraphDataset):
         cutoff: float,
         max_neighbors: int = 32,
         self_interaction: bool = False,
-        pbc: bool | tuple[bool, ...] = True,
         subtract_center_of_mass: bool = False,
         remove_batch_key: list[str] | None = None,
     ):
@@ -179,11 +178,10 @@ class List2GraphDataset(BaseGraphDataset):
            cutoff (float): The cutoff radius for computing the neighbor list.
            max_neighbors (int, optional): Threshold of neighboring atoms to be considered. Defaults to `32`.
            self_interaction (bool, optional): Whether to consider self interaction as edge index. Defaults to `False`.
-           pbc (bool | tuple[bool, ...], optional): Whether to consider PBC. Defaults to `True`.
            subtract_center_of_mass (bool, optional): Whether to subtract the center of mass from the cartesian coordinates. Defaults to `False`.
            remove_batch_key (list[str] | None, optional): List of property names that do not add dimension for batch. Defaults to `None`.
         """  # noqa: E501
-        super().__init__(cutoff, max_neighbors, self_interaction, pbc, subtract_center_of_mass)
+        super().__init__(cutoff, max_neighbors, self_interaction, subtract_center_of_mass)
         self.graph_data_list: list[Data] = []
         self.remove_batch_key = remove_batch_key
         self._preprocess(structures, y_values)
@@ -195,8 +193,8 @@ class List2GraphDataset(BaseGraphDataset):
         structures: list[ase.Atoms],
         y_values: dict[str, list[int | float | str | ndarray | Tensor] | ndarray | Tensor],
     ):
-        for i, s in enumerate(structures):
-            data = self._atoms2graphdata(s)
+        for i, a in enumerate(structures):
+            data = self._atoms2graphdata(a)
             for k, v in y_values.items():
                 add_batch = True
                 if self.remove_batch_key is not None and k in self.remove_batch_key:
@@ -228,11 +226,10 @@ class List2ChgFiedlDataset(List2GraphDataset):
         field_grid_interval: float,
         max_neighbors: int = 32,
         self_interaction: bool = False,
-        pbc: bool | tuple[bool, ...] = True,
         remove_batch_key: list[str] | None = None,
     ):
         super().__init__(
-            structures, y_values, cutoff, max_neighbors, self_interaction, pbc, remove_batch_key=remove_batch_key
+            structures, y_values, cutoff, max_neighbors, self_interaction, remove_batch_key=remove_batch_key
         )
         self.out_field_radi = out_field_radi
         self.in_field_radi = in_field_radi
