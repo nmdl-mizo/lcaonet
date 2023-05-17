@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
+import numpy as np
 import sympy as sym
 import torch
 import torch.nn as nn
@@ -45,7 +46,6 @@ class HydrogenRadialBasis(BaseRadialBasis):
             bohr_radius (float | None, optional): the bohr radius. Defaults to `0.529`.
         """  # noqa: E501
         super().__init__(cutoff, elec_info)
-        self.cutoff = cutoff
         self.n_orb = elec_info.n_orb
         self.bohr_radius = bohr_radius
 
@@ -136,3 +136,62 @@ class HydrogenRadialBasis(BaseRadialBasis):
         else:
             rb = torch.stack([f(d) for f in self.basis_func], dim=1)  # type: ignore # Since mypy cannot determine that the return type of a function is tensor # noqa: E501
         return rb
+
+
+class Envelope(torch.nn.Module):
+    def __init__(self, exponent: int):
+        super().__init__()
+        self.p = exponent + 1
+        self.a = -(self.p + 1) * (self.p + 2) / 2
+        self.b = self.p * (self.p + 2)
+        self.c = -self.p * (self.p + 1) / 2
+
+    def forward(self, x: Tensor) -> Tensor:
+        p, a, b, c = self.p, self.a, self.b, self.c
+        x_pow_p0 = x.pow(p - 1)
+        x_pow_p1 = x_pow_p0 * x
+        x_pow_p2 = x_pow_p1 * x
+        return (1.0 / x + a * x_pow_p0 + b * x_pow_p1 + c * x_pow_p2) * (x < 1.0).to(x.dtype)
+
+
+class SphericalBesselRadialBasis(BaseRadialBasis):
+    """Layer to compute the basis of the spherical Bessel functions that decay
+    in the cutoff sphere."""
+
+    def __init__(self, cutoff: float, elec_info: ElecInfo):
+        """
+        Args:
+            cutoff (float): cutoff radius.
+            elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
+        """  # noqa: E501
+        if cutoff is None:
+            raise ValueError("cutoff must not be None")
+        super().__init__(cutoff, elec_info)
+        self.n_orb = elec_info.n_orb
+        self.envelope = Envelope(6)
+        self.basis_func = []
+        for nl in elec_info.nl_list:
+            r_nl = self._get_r_nl(nl[0].item(), nl[1].item())
+            self.basis_func.append(r_nl)
+
+    def _get_r_nl(self, nq: int, lq: int) -> Callable[[Tensor], Tensor]:
+        freq = np.pi * nq
+
+        def r_nl(d: Tensor) -> Tensor:
+            d = d / self.cutoff
+            return self.envelope(d) * (freq * d).sin()
+
+        return r_nl
+
+    def forward(self, d: Tensor) -> Tensor:
+        r"""Forward calculation of SphericalBesselBasis.
+
+        Args:
+            d (torch.Tensor): inter atomic distance with (E) shape.
+
+        Returns:
+            sbb (torch.Tensor): the spherical bessel basis functions with (E, n_orb) shape.
+        """
+        sbb = torch.stack([f(d) for f in self.basis_func], dim=1)  # type: ignore # Since mypy cannot determine that the return type of a function is tensor # noqa: E501
+
+        return sbb
