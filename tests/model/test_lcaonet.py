@@ -277,54 +277,61 @@ def test_LCAOOut(
 
 
 param_LCAONet = [
-    (16, 16, 10, 1, 1, None, None, None, True, False, False, True),  # default small
+    (16, 16, 10, 1, 1, None, None, None, True, False, False, True, "hydrogen"),  # default small
     # boolean param test
-    (16, 16, 10, 1, 1, None, None, None, True, False, False, False),
-    (16, 16, 10, 1, 1, None, None, None, True, False, True, True),
-    (16, 16, 10, 1, 1, None, None, None, True, False, True, False),
-    (16, 16, 10, 1, 1, None, None, None, True, True, False, True),
-    (16, 16, 10, 1, 1, None, None, None, True, True, False, False),
-    (16, 16, 10, 1, 1, None, None, None, True, True, True, True),
-    (16, 16, 10, 1, 1, None, None, None, True, True, True, False),
-    (16, 16, 10, 1, 1, None, None, None, False, False, False, True),
-    (16, 16, 10, 1, 1, None, None, None, False, False, False, False),
-    (16, 16, 10, 1, 1, None, None, None, False, False, True, True),
-    (16, 16, 10, 1, 1, None, None, None, False, False, True, False),
-    (16, 16, 10, 1, 1, None, None, None, False, True, False, True),
-    (16, 16, 10, 1, 1, None, None, None, False, True, False, False),
-    (16, 16, 10, 1, 1, None, None, None, False, True, True, True),
-    (16, 16, 10, 1, 1, None, None, None, False, True, True, False),
+    (16, 16, 10, 1, 1, None, None, None, True, False, False, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, True, False, True, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, True, False, True, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, True, True, False, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, True, True, False, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, True, True, True, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, True, True, True, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, False, False, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, False, True, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, False, True, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, True, False, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, True, False, False, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, True, True, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, None, None, False, True, True, False, "hydrogen"),
     # cutoff test
-    (16, 16, 10, 1, 1, 5.0, None, None, True, False, False, True),
-    (16, 16, 10, 1, 1, 5.0, "polynomial", None, True, False, False, True),
-    (16, 16, 10, 1, 1, None, "polynomial", None, True, False, False, True),
-    (16, 16, 10, 1, 1, 5.0, "cosine", None, True, False, False, True),
-    (16, 16, 10, 1, 1, None, "cosine", None, True, False, False, True),
-    (16, 16, 10, 1, 1, 2.0, "polynomial", None, True, True, True, True),
-    (16, 16, 10, 1, 1, 2.0, "cosine", None, True, True, True, True),
+    (16, 16, 10, 1, 1, 5.0, None, None, True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 1, 5.0, "polynomial", None, True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, "polynomial", None, True, False, False, True, "hydrogen"),  # raise error
+    (16, 16, 10, 1, 1, 5.0, "cosine", None, True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 1, None, "cosine", None, True, False, False, True, "hydrogen"),  # raise error
+    (16, 16, 10, 1, 1, 2.0, "polynomial", None, True, True, True, True, "hydrogen"),
+    (16, 16, 10, 1, 1, 2.0, "cosine", None, True, True, True, True, "hydrogen"),
     # dimension test
-    (32, 16, 10, 1, 1, None, None, None, True, False, False, True),
-    (16, 32, 10, 1, 1, None, None, None, True, False, False, True),
-    (10, 16, 32, 1, 1, None, None, None, True, False, False, True),
-    (10, 32, 16, 2, 1, None, None, None, True, False, False, True),
-    (10, 32, 16, 2, 1, None, None, None, True, True, True, True),
+    (32, 16, 10, 1, 1, None, None, None, True, False, False, True, "hydrogen"),
+    (16, 32, 10, 1, 1, None, None, None, True, False, False, True, "hydrogen"),
+    (10, 16, 32, 1, 1, None, None, None, True, False, False, True, "hydrogen"),
+    (10, 32, 16, 2, 1, None, None, None, True, False, False, True, "hydrogen"),
+    (10, 32, 16, 2, 1, None, None, None, True, True, True, True, "hydrogen"),
     # n_per_orb test
-    (16, 16, 10, 1, 2, None, None, None, True, False, False, True),
-    (16, 16, 10, 1, 2, None, None, None, True, True, True, True),
-    (10, 32, 16, 2, 2, None, None, None, True, False, False, True),
+    (16, 16, 10, 1, 2, None, None, None, True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 2, None, None, None, True, True, True, True, "hydrogen"),
+    (10, 32, 16, 2, 2, None, None, None, True, False, False, True, "hydrogen"),
     # max_orb test
-    (16, 16, 10, 1, 2, None, None, "4p", True, False, False, True),
-    (16, 16, 10, 1, 2, None, None, "3s", True, False, False, True),
-    (16, 16, 10, 1, 2, None, None, "1s", True, False, False, True),
-    (16, 16, 10, 1, 2, None, None, "4p", True, True, True, True),
-    (10, 32, 16, 2, 1, None, None, "3s", True, False, False, True),
+    (16, 16, 10, 1, 2, None, None, "4p", True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 2, None, None, "3s", True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 2, None, None, "1s", True, False, False, True, "hydrogen"),
+    (16, 16, 10, 1, 2, None, None, "4p", True, True, True, True, "hydrogen"),
+    (10, 32, 16, 2, 1, None, None, "3s", True, False, False, True, "hydrogen"),
+    # rbf_type test
+    (16, 16, 10, 1, 1, 2.0, None, None, True, False, False, True, "sphericalbessel"),
+    (16, 16, 10, 1, 1, None, None, None, True, False, False, True, "sphericalbessel"),  # raise error
+    (16, 16, 10, 1, 1, 2.0, None, "4p", True, False, False, True, "sphericalbessel"),
+    (16, 16, 10, 1, 2, 2.0, None, None, True, False, False, True, "sphericalbessel"),
+    (16, 16, 10, 1, 2, 2.0, None, None, True, True, True, True, "sphericalbessel"),
+    (16, 16, 10, 1, 2, 2.0, None, "4p", True, True, True, True, "sphericalbessel"),
 ]
 
 
 @pytest.mark.model
 @pytest.mark.parametrize(
     """hidden_dim, coeffs_dim, conv_dim, out_dim, n_per_orb, cutoff, cutoff_net, max_orb,
-    elec_to_node, add_valence, extend_orb, is_extensive""",
+    elec_to_node, add_valence, extend_orb, is_extensive, rbf_type""",
     param_LCAONet,
 )
 def test_LCAONet(
@@ -341,6 +348,7 @@ def test_LCAONet(
     add_valence: bool,
     extend_orb: bool,
     is_extensive: bool,
+    rbf_type: str,
 ):
     max_z = one_graph_data[GraphKeys.Z].max().item()
     if cutoff_net is not None and cutoff is None:
@@ -353,7 +361,7 @@ def test_LCAONet(
                 n_interaction=2,
                 n_per_orb=n_per_orb,
                 cutoff=cutoff,
-                rbf_type="hydrogen",
+                rbf_type=rbf_type,
                 cutoff_net=cutoff_net,
                 max_z=max_z,
                 max_orb=max_orb,
@@ -365,6 +373,28 @@ def test_LCAONet(
                 weight_init="glorotorthogonal",
             )
         assert str(e.value) == "cutoff must be specified when cutoff_net is used"
+    elif rbf_type == "sphericalbessel" and cutoff is None:
+        with pytest.raises(ValueError) as e:
+            _ = LCAONet(
+                hidden_dim=hidden_dim,
+                coeffs_dim=coeffs_dim,
+                conv_dim=conv_dim,
+                out_dim=out_dim,
+                n_interaction=2,
+                n_per_orb=n_per_orb,
+                cutoff=cutoff,
+                rbf_type=rbf_type,
+                cutoff_net=cutoff_net,
+                max_z=max_z,
+                max_orb=max_orb,
+                elec_to_node=elec_to_node,
+                add_valence=add_valence,
+                extend_orb=extend_orb,
+                is_extensive=is_extensive,
+                activation="SiLU",
+                weight_init="glorotorthogonal",
+            )
+        assert str(e.value) == "cutoff must not be None when using SphericalBesselRadialBasis"
     else:
         model = LCAONet(
             hidden_dim=hidden_dim,
@@ -374,7 +404,7 @@ def test_LCAONet(
             n_interaction=2,
             n_per_orb=n_per_orb,
             cutoff=cutoff,
-            rbf_type="hydrogen",
+            rbf_type=rbf_type,
             cutoff_net=cutoff_net,
             max_z=max_z,
             max_orb=max_orb,
