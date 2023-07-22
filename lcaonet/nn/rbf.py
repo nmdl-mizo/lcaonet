@@ -10,7 +10,7 @@ import torch.nn as nn
 from scipy.integrate import quad
 from torch import Tensor
 
-from lcaonet.atomistic.info import ElecInfo
+from ..atomistic.info import ElecInfo
 
 
 class BaseRadialBasis(nn.Module):

@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from lcaonet.atomistic.info import ElecInfo
+from ..atomistic.info import ElecInfo
 
 
 class SphericalHarmonicsBasis(nn.Module):
