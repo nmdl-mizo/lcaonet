@@ -1,8 +1,12 @@
+import inspect
+
+
 class GraphKeys:
     """Class that holds the name of the data key."""
 
     Lattice = "lattice"  # (B, 3, 3) shape
     PBC = "pbc"  # (B, 3) shape
+    Neighbors = "neighbors"  # number of neighbor index per each image of (B) shape
 
     Batch_idx = "batch"  # (N) shape
     Z = "z"  # (N) shape
@@ -21,3 +25,10 @@ class GraphKeys:
     Edge_idx_kj_3b = "edge_idx_kj_3b"  # (n_triplets) shape
     Edge_idx_ji_3b = "edge_idx_ji_3b"  # (n_triplets) shape
     Angles_3b = "angles_3b"  # (n_triplets) shape
+
+
+KEYS = [
+    a[1]
+    for a in inspect.getmembers(GraphKeys, lambda a: not (inspect.isroutine(a)))
+    if not (a[0].startswith("__") and a[0].endswith("__"))
+]
