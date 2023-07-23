@@ -732,6 +732,10 @@ class LCAONet(BaseMPNN):
 
         # ---------- Output blocks ----------
         out = self.out_layer(x, batch_idx, idx_i, idx_j, edge_vec, pos)
+        print(type(out))
+        print(out)
         out = self.pp_layer(out, z, batch_idx)
+        print(type(out))
+        print(out)
 
         return out
