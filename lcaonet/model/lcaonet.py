@@ -687,6 +687,7 @@ class LCAONet(BaseMPNN):
         # ---------- Get Graph information ----------
         batch_idx: Tensor | None = graph.get(GraphKeys.Batch_idx)
         z = graph[GraphKeys.Z]
+        pos = graph[GraphKeys.Pos]
         # order is "source_to_target" i.e. [index_j, index_i]
         idx_j, idx_i = graph[GraphKeys.Edge_idx]
 
@@ -699,6 +700,7 @@ class LCAONet(BaseMPNN):
         # calc atomic distances
         graph = self.calc_atomic_distances(graph, return_vec=True)
         distances = graph[GraphKeys.Edge_dist]
+        edge_vec = graph[GraphKeys.Edge_vec]
 
         # calc angles of each triplets
         graph = self.calc_3body_angles(graph)
@@ -729,7 +731,7 @@ class LCAONet(BaseMPNN):
             x = inte(x, cji, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
         # ---------- Output blocks ----------
-        out = self.out_layer(x, batch_idx, idx_i, idx_j)
+        out = self.out_layer(x, batch_idx, idx_i, idx_j, edge_vec, pos)
         out = self.pp_layer(out, z, batch_idx)
 
         return out
