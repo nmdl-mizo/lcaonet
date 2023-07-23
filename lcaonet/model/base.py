@@ -16,7 +16,7 @@ class BaseMPNN(nn.Module):
 
         Args:
             graph (torch_geometric.data.Batch): material graph batch.
-            return_vec (bool, optional): return distance vector from i to j atom. Defaults to `False`.
+            return_vec (bool, optional): return normalized distance vector from i to j atom. Defaults to `False`.
 
         Returns:
             graph (torch_geometric.data.Batch): material graph batch with edge information:
@@ -38,7 +38,7 @@ class BaseMPNN(nn.Module):
         )
         graph[GraphKeys.Edge_dist] = torch.norm(edge_vec, dim=1)
         if return_vec:
-            graph[GraphKeys.Edge_vec] = edge_vec
+            graph[GraphKeys.Edge_vec] = edge_vec / graph[GraphKeys.Edge_dist].unsqueeze(-1)
         return graph
 
     @property
