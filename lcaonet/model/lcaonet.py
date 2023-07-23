@@ -475,7 +475,7 @@ class LCAOOut(nn.Module):
         """
         prop = self.out_lin(x)
         if batch_idx is not None:
-            return scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
+            prop = scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
         if self.is_extensive:
             prop = prop.sum(dim=0, keepdim=True)
         else:
@@ -732,10 +732,6 @@ class LCAONet(BaseMPNN):
 
         # ---------- Output blocks ----------
         out = self.out_layer(x, batch_idx, idx_i, idx_j, edge_vec, pos)
-        print(type(out))
-        print(out)
         out = self.pp_layer(out, z, batch_idx)
-        print(type(out))
-        print(out)
 
         return out
