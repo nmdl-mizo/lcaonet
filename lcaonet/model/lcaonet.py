@@ -11,15 +11,15 @@ from torch_geometric.data import Batch
 from torch_scatter import scatter
 from torch_sparse import SparseTensor
 
-from lcaonet.atomistic.info import ElecInfo
-from lcaonet.data.keys import GraphKeys
-from lcaonet.model.base import BaseMPNN
-from lcaonet.nn import Dense
-from lcaonet.nn.cutoff import BaseCutoff
-from lcaonet.nn.post import PostProcess
-from lcaonet.nn.rbf import BaseRadialBasis
-from lcaonet.nn.shbf import SphericalHarmonicsBasis
-from lcaonet.utils.resolve import (
+from ..atomistic.info import ElecInfo
+from ..data.keys import GraphKeys
+from ..model.base import BaseMPNN
+from ..nn import Dense
+from ..nn.cutoff import BaseCutoff
+from ..nn.post import PostProcess
+from ..nn.rbf import BaseRadialBasis
+from ..nn.shbf import SphericalHarmonicsBasis
+from ..utils.resolve import (
     activation_resolver,
     cutoffnet_resolver,
     init_resolver,
@@ -414,6 +414,8 @@ class LCAOOut(nn.Module):
         hidden_dim: int,
         out_dim: int,
         is_extensive: bool = True,
+        regress_forces: bool = False,
+        direct_forces: bool = True,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
@@ -422,6 +424,8 @@ class LCAOOut(nn.Module):
             hidden_dim (int): the dimension of node embedding vectors.
             out_dim (int): the dimension of output property.
             is_extensive (bool): whether the output property is extensive or not. Defaults to `True`.
+            regress_forces (bool): whether to regress inter atomic forces. Defaults to `False`.
+            direct_forces (bool): whether to regress inter atomic forces directly. Defaults to `True`.
             activation (nn.Module): the activation function. Defaults to `nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None): the weight initialization function.
                 Defaults to `None`.
@@ -430,16 +434,35 @@ class LCAOOut(nn.Module):
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim
         self.is_extensive = is_extensive
+        self.regress_forces = regress_forces
+        self.direct_forces = direct_forces
 
         self.out_lin = nn.Sequential(
             Dense(hidden_dim, hidden_dim, True, weight_init),
             activation,
             Dense(hidden_dim, hidden_dim // 2, True, weight_init),
             activation,
-            Dense(hidden_dim // 2, out_dim, True, weight_init),
+            Dense(hidden_dim // 2, out_dim, False, weight_init),
         )
 
-    def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
+        if regress_forces and direct_forces:
+            self.out_lin_force = nn.Sequential(
+                Dense(2 * hidden_dim, hidden_dim, True, weight_init),
+                activation,
+                Dense(hidden_dim, hidden_dim // 2, True, weight_init),
+                activation,
+                Dense(hidden_dim // 2, 1, False, weight_init),
+            )
+
+    def forward(
+        self,
+        x: Tensor,
+        batch_idx: Tensor | None,
+        idx_i: Tensor,
+        idx_j: Tensor,
+        edge_vec: Tensor,
+        pos: Tensor,
+    ) -> Tensor | tuple[Tensor, Tensor]:
         """Forward calculation of LCAOOut.
 
         Args:
@@ -447,15 +470,34 @@ class LCAOOut(nn.Module):
             batch_idx (torch.Tensor | None): the batch indices of nodes with (N) shape.
 
         Returns:
-            torch.Tensor: the output property values with (B, out_dim) shape.
+            prop: the output property values with (B, out_dim) shape.
+            force_i: the inter atomic forces with (N, 3) shape.
         """
-        out = self.out_lin(x)
+        prop = self.out_lin(x)
         if batch_idx is not None:
-            return scatter(out, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
+            return scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
         if self.is_extensive:
-            return out.sum(dim=0, keepdim=True)
+            prop = prop.sum(dim=0, keepdim=True)
         else:
-            return out.mean(dim=0, keepdim=True)
+            prop = prop.mean(dim=0, keepdim=True)
+        if not self.regress_forces:
+            return prop
+
+        if self.direct_forces:
+            force_ji = self.out_lin_force(torch.cat([x[idx_i], x[idx_j]], dim=-1))  # (E, 1)
+            force_ji = force_ji * edge_vec  # (E, 3)
+            force_i = scatter(force_ji, idx_i, dim=0, reduce="sum")  # (N, 3)
+            return prop, force_i
+
+        if self.out_dim > 1:
+            force_i = torch.stack(
+                [-torch.autograd.grad(prop[:, i].sum(), pos, create_graph=True)[0] for i in range(self.out_dim)],
+                dim=1,
+            )  # (N, out_dim, 3)
+            force_i = force_i.squeeze(1)  # (N, 3)
+        else:
+            force_i = -torch.autograd.grad(prop.sum(), pos, create_graph=True)[0]  # (N, 3)
+        return prop, force_i
 
 
 class LCAONet(BaseMPNN):
@@ -485,6 +527,8 @@ class LCAONet(BaseMPNN):
         weight_init: str | None = "glorotorthogonal",
         atomref: Tensor | None = None,
         mean: Tensor | None = None,
+        regress_forces: bool = False,
+        direct_forces: bool = True,
     ):
         """
         Args:
@@ -525,6 +569,8 @@ class LCAONet(BaseMPNN):
         self.cutoff_net = cutoff_net
         self.elec_to_node = elec_to_node
         self.add_valence = add_valence
+        self.regress_forces = regress_forces
+        self.direct_forces = direct_forces
 
         # electron information
         elec_info = ElecInfo(max_z, max_orb, min_orb, n_per_orb)
@@ -552,7 +598,7 @@ class LCAONet(BaseMPNN):
         )
 
         # output layers
-        self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
+        self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, regress_forces, direct_forces, act, wi)
         self.pp_layer = PostProcess(out_dim, is_extensive, atomref, mean)
 
     def calc_3body_angles(self, graph: Batch) -> Batch:
@@ -626,7 +672,7 @@ class LCAONet(BaseMPNN):
         graph[GraphKeys.Edge_idx_ji_3b] = edge_idx_ji
         return graph
 
-    def forward(self, graph: Batch) -> Tensor:
+    def forward(self, graph: Batch) -> Tensor | tuple[Tensor, Tensor]:
         """Forward calculation of LCAONet.
 
         Args:
@@ -635,6 +681,10 @@ class LCAONet(BaseMPNN):
         Returns:
             torch.Tensor: the output property with (n_batch, out_dim) shape.
         """
+        if self.regress_forces and not self.direct_forces:
+            graph[GraphKeys.Pos].requires_grad_(True)
+
+        # ---------- Get Graph information ----------
         batch_idx: Tensor | None = graph.get(GraphKeys.Batch_idx)
         z = graph[GraphKeys.Z]
         # order is "source_to_target" i.e. [index_j, index_i]
@@ -654,12 +704,12 @@ class LCAONet(BaseMPNN):
         graph = self.calc_3body_angles(graph)
         angles = graph[GraphKeys.Angles_3b]
 
-        # calc basis
+        # ---------- Basis layers ----------
         rb = self.rbf(distances)
         shb = self.shbf(angles)
         cutoff_w = self.cn(distances) if self.cutoff_net else None
 
-        # calc node and coefficient embedding vectors
+        # ---------- Embedding blocks ----------
         z_embed = self.z_embed(z)
         node_z, coeff_z = torch.split(z_embed, [self.hidden_dim, self.coeffs_dim], dim=-1)
         e_embed = self.e_embed(z)
@@ -674,12 +724,12 @@ class LCAONet(BaseMPNN):
         # get valence mask coefficients
         valence_mask: Tensor | None = self.valence_mask(z, idx_j) if self.add_valence else None
 
-        # calc interaction
+        # ---------- Interaction blocks ----------
         for inte in self.int_layers:
             x = inte(x, cji, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
 
-        # output
-        out = self.out_layer(x, batch_idx)
+        # ---------- Output blocks ----------
+        out = self.out_layer(x, batch_idx, idx_i, idx_j)
         out = self.pp_layer(out, z, batch_idx)
 
         return out

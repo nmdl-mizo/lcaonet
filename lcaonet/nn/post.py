@@ -41,7 +41,9 @@ class PostProcess(nn.Module):
             self.mean if self.mean is not None else None,
         )
 
-    def forward(self, out: Tensor, z: Tensor, batch_idx: Tensor | None) -> Tensor:
+    def forward(
+        self, out: Tensor | tuple[Tensor, Tensor], z: Tensor, batch_idx: Tensor | None
+    ) -> Tensor | tuple[Tensor, Tensor]:
         """Forward calculation of PostProcess.
 
         Args:
@@ -52,6 +54,8 @@ class PostProcess(nn.Module):
         Returns:
             torch.Tensor: Offset output property values with (n_batch, out_dim) shape.
         """
+        out, force = out if isinstance(out, tuple) else (out, None)
+
         if self.atomref is not None:
             aref = self.atomref[z]  # type: ignore # Since mypy cannot determine that the atomref is a tensor
             if self.is_extensive:
@@ -79,4 +83,6 @@ class PostProcess(nn.Module):
                 )
             out = out + mean
 
+        if force is not None:
+            return out, force
         return out
