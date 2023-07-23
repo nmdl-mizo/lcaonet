@@ -349,6 +349,7 @@ class LCAOInteraction(nn.Module):
             raise ValueError("valence_mask must be provided when add_valence=True")
 
         x_before = x
+        N = x.size(0)
 
         # Transformation of the node vectors
         x, xk = torch.chunk(self.node_weight(x), 2, dim=-1)
@@ -396,7 +397,12 @@ class LCAOInteraction(nn.Module):
 
         # Message-passing and update node embedding vector
         x = x_before + self.out_weight(
-            scatter(self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+            scatter(
+                self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)),
+                idx_i,
+                dim=0,
+                dim_size=N,
+            )
         )
 
         return x
@@ -475,7 +481,8 @@ class LCAOOut(nn.Module):
         """
         prop = self.out_lin(x)
         if batch_idx is not None:
-            prop = scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
+            B = batch_idx.size(0)
+            prop = scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean", dim_size=B)
         if self.is_extensive:
             prop = prop.sum(dim=0, keepdim=True)
         else:
@@ -484,9 +491,10 @@ class LCAOOut(nn.Module):
             return prop
 
         if self.direct_forces:
+            N = x.size(0)
             force_ji = self.out_lin_force(torch.cat([x[idx_i], x[idx_j]], dim=-1))  # (E, 1)
             force_ji = force_ji * edge_vec  # (E, 3)
-            force_i = scatter(force_ji, idx_i, dim=0, reduce="sum")  # (N, 3)
+            force_i = scatter(force_ji, idx_i, dim=0, reduce="sum", dim_size=N)  # (N, 3)
             return prop, force_i
 
         if self.out_dim > 1:
