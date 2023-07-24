@@ -243,20 +243,20 @@ class EmbedCoeffs(nn.Module):
             activation,
         )
 
-    def forward(self, z_embed: Tensor, e_embed: Tensor, idx_i: Tensor, idx_j: Tensor) -> Tensor:
+    def forward(self, z_embed: Tensor, e_embed: Tensor, idx_s: Tensor, idx_t: Tensor) -> Tensor:
         """Forward calculation of EmbedCoeffs.
 
         Args:
             z_embed (torch.Tensor): the embedding of atomic numbers with (N, z_dim) shape.
             e_embed (torch.Tensor): the embedding of electron numbers with (N, n_orb, e_dim) shape.
-            idx_i (torch.Tensor): the indices of center atoms with (E) shape.
-            idx_j (torch.Tensor): the indices of neighbor atoms with (E) shape.
+            idx_s (torch.Tensor): the indices of center atoms with (E) shape.
+            idx_t (torch.Tensor): the indices of neighbor atoms with (E) shape.
 
         Returns:
             coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
         """
-        z_embed = self.f_z(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
-        e_embed = self.f_e(e_embed)[idx_j]
+        z_embed = self.f_z(torch.cat([z_embed[idx_s], z_embed[idx_t]], dim=-1))
+        e_embed = self.f_e(e_embed)[idx_t]
         return e_embed + e_embed * z_embed.unsqueeze(1)
 
 
@@ -316,31 +316,31 @@ class LCAOInteraction(nn.Module):
     def forward(
         self,
         x: Tensor,
-        cji: Tensor,
+        cst: Tensor,
         valence_mask: Tensor | None,
         cutoff_w: Tensor | None,
         rb: Tensor,
         shb: Tensor,
-        idx_i: Tensor,
-        idx_j: Tensor,
+        idx_s: Tensor,
+        idx_t: Tensor,
         tri_idx_k: Tensor,
-        edge_idx_kj: torch.LongTensor,
-        edge_idx_ji: torch.LongTensor,
+        edge_idx_ks: torch.LongTensor,
+        edge_idx_st: torch.LongTensor,
     ) -> Tensor:
         """Forward calculation of LCAOConv.
 
         Args:
             x (torch.Tensor): node embedding vectors with (N, hidden_dim) shape.
-            cji (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
+            cst (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
             valence_mask (torch.Tensor | None): valence orbital mask with (E, n_orb, conv_dim) shape.
             cutoff_w (torch.Tensor | None): cutoff weight with (E) shape.
             rb (torch.Tensor): the radial basis with (E, n_orb) shape.
             shb (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
-            idx_i (torch.Tensor): the indices of the first node of each edge with (E) shape.
-            idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
+            idx_s (torch.Tensor): the indices of the first node of each edge with (E) shape.
+            idx_t (torch.Tensor): the indices of the second node of each edge with (E) shape.
             tri_idx_k (torch.Tensor): the indices of the third node of each triplet with (n_triplets) shape.
-            edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
-            edge_idx_ji (torch.LongTensor): the edge index from atom j to i with (n_triplets) shape.
+            edge_idx_ks (torch.LongTensor): the edge index from atom k to s with (n_triplets) shape.
+            edge_idx_st (torch.LongTensor): the edge index from atom s to t with (n_triplets) shape.
 
         Returns:
             torch.Tensor: updated node embedding vectors with (N, hidden_dim) shape.
@@ -355,51 +355,51 @@ class LCAOInteraction(nn.Module):
         x, xk = torch.chunk(self.node_weight(x), 2, dim=-1)
 
         # Transformation of the coefficient vectors
-        cji = self.f_coeffs(cji)
+        cst = self.f_coeffs(cst)
 
         # cutoff
         if cutoff_w is not None:
             rb = rb * cutoff_w.unsqueeze(-1)
 
         # --- Threebody Message-passing ---
-        ckj = cji[edge_idx_kj]
+        cks = cst[edge_idx_ks]
         if self.add_valence:
-            ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
-            ckj_valence = ckj_valence * valence_mask[edge_idx_kj]  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
+            cks, cks_valence = torch.chunk(cks, 2, dim=-1)
+            cks_valence = cks_valence * valence_mask[edge_idx_ks]  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
 
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = rb[edge_idx_kj] * shb
-        three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj).contiguous()
+        three_body_orbs = rb[edge_idx_ks] * shb
+        three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, cks).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence).contiguous()
+            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, cks_valence).contiguous()
             three_body_w = three_body_w + valence_w
         three_body_w = F.normalize(three_body_w, dim=-1)
 
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_w * xk
-        three_body_w = scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0))
+        three_body_w = scatter(three_body_w, edge_idx_st, dim=0, dim_size=rb.size(0))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + cji * self.f_three(three_body_w).unsqueeze(1)
+        cst = cst + cst * self.f_three(three_body_w).unsqueeze(1)
 
         # --- Twobody Message-passings ---
         if self.add_valence:
-            cji, cji_valence = torch.chunk(cji, 2, dim=-1)
-            cji_valence = cji_valence * valence_mask
+            cst, cst_valence = torch.chunk(cst, 2, dim=-1)
+            cst_valence = cst_valence * valence_mask
 
         # twobody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        lcao_w = torch.einsum("ed,edh->eh", rb, cji).contiguous()
+        lcao_w = torch.einsum("ed,edh->eh", rb, cst).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence).contiguous()
+            valence_w = torch.einsum("ed,edh->eh", rb, cst_valence).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
 
         # Message-passing and update node embedding vector
         x = x_before + self.out_weight(
             scatter(
-                self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)),
-                idx_i,
+                self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_s], x[idx_t]], dim=-1)),
+                idx_s,
                 dim=0,
                 dim_size=N,
             )
@@ -464,9 +464,9 @@ class LCAOOut(nn.Module):
         self,
         x: Tensor,
         batch_idx: Tensor | None,
-        idx_i: Tensor,
-        idx_j: Tensor,
-        edge_vec: Tensor,
+        idx_s: Tensor,
+        idx_t: Tensor,
+        edge_vec_st: Tensor,
         pos: Tensor,
     ) -> Tensor | tuple[Tensor, Tensor]:
         """Forward calculation of LCAOOut.
@@ -477,7 +477,7 @@ class LCAOOut(nn.Module):
 
         Returns:
             prop: the output property values with (B, out_dim) shape.
-            force_i: the inter atomic forces with (N, 3) shape.
+            force_s: the inter atomic forces with (N, 3) shape.
         """
         prop = self.out_lin(x)
         if batch_idx is not None:
@@ -492,20 +492,20 @@ class LCAOOut(nn.Module):
 
         if self.direct_forces:
             N = x.size(0)
-            force_ji = self.out_lin_force(torch.cat([x[idx_i], x[idx_j]], dim=-1))  # (E, 1)
-            force_ji = force_ji * edge_vec  # (E, 3)
-            force_i = scatter(force_ji, idx_i, dim=0, reduce="sum", dim_size=N)  # (N, 3)
-            return prop, force_i
+            force_st = self.out_lin_force(torch.cat([x[idx_s], x[idx_t]], dim=-1))  # (E, 1)
+            force_st = force_st * edge_vec_st  # (E, 3)
+            force_s = scatter(force_st, idx_s, dim=0, reduce="sum", dim_size=N)  # (N, 3)
+            return prop, force_s
 
         if self.out_dim > 1:
-            force_i = torch.stack(
+            force_s = torch.stack(
                 [-torch.autograd.grad(prop[:, i].sum(), pos, create_graph=True)[0] for i in range(self.out_dim)],
                 dim=1,
             )  # (N, out_dim, 3)
-            force_i = force_i.squeeze(1)  # (N, 3)
+            force_s = force_s.squeeze(1)  # (N, 3)
         else:
-            force_i = -torch.autograd.grad(prop.sum(), pos, create_graph=True)[0]  # (N, 3)
-        return prop, force_i
+            force_s = -torch.autograd.grad(prop.sum(), pos, create_graph=True)[0]  # (N, 3)
+        return prop, force_s
 
 
 class LCAONet(BaseMPNN):
@@ -619,14 +619,14 @@ class LCAONet(BaseMPNN):
             graph (torch_geometric.data.Batch): material graph batch with 3body angles:
                 angles (torch.Tensor): angle of ijk with (n_triplets) shape.
         """
-        pair_vec_ij = graph.get(GraphKeys.Edge_vec)
-        if pair_vec_ij is None:
-            raise ValueError("edge_vec is not calculated. Please run calc_atomic_distances(return_vec=True) first.")
-        edge_idx_ji, edge_idx_kj = graph[GraphKeys.Edge_idx_ji_3b], graph[GraphKeys.Edge_idx_kj_3b]
+        pair_vec_st = graph.get(GraphKeys.Edge_vec_st)
+        if pair_vec_st is None:
+            raise ValueError("edge_vec_st is not calculated. Please run calc_atomic_distances(return_vec=True) first.")
+        edge_idx_st, edge_idx_ks = graph[GraphKeys.Edge_idx_st_3b], graph[GraphKeys.Edge_idx_ks_3b]
 
-        vec_ij, vec_jk = pair_vec_ij[edge_idx_ji], pair_vec_ij[edge_idx_kj]
-        inner = (vec_ij * vec_jk).sum(dim=-1)
-        outter = torch.cross(vec_ij, vec_jk).norm(dim=-1)
+        vec_st, vec_ks = pair_vec_st[edge_idx_st], pair_vec_st[edge_idx_ks]
+        inner = (vec_st * vec_ks).sum(dim=-1)
+        outter = torch.cross(vec_st, vec_ks).norm(dim=-1)
         # arctan is more stable than arccos
         angles = torch.atan2(outter, inner)
 
@@ -641,43 +641,45 @@ class LCAONet(BaseMPNN):
 
         Returns:
             graph (torch_geometric.data.Batch): material graph batch with 3body index:
-                tri_idx_i (Tensor): index of atom i of (n_triplets) shape.
-                tri_idx_j (Tensor): index of atom j of (n_triplets) shape.
+                tri_idx_s (Tensor): index of atom i of (n_triplets) shape.
+                tri_idx_t (Tensor): index of atom j of (n_triplets) shape.
                 tri_idx_k (Tensor): index of atom k of (n_triplets) shape.
-                edge_idx_kj (Tensor): edge index of center k to j of (n_triplets) shape.
-                edge_idx_ji (Tensor): edge index of center j to i of (n_triplets) shape.
+                edge_idx_ks (Tensor): edge index of center k to j of (n_triplets) shape.
+                edge_idx_st (Tensor): edge index of center j to i of (n_triplets) shape.
 
         Notes:
             ref:
                 https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
         """
-        # order is "source_to_traget" i.e. [index_j, index_i]
-        idx_j, idx_i = graph[GraphKeys.Edge_idx]
+        # order is "source_to_traget"
+        idx_s, idx_t = graph[GraphKeys.Edge_idx]
 
-        value = torch.arange(idx_j.size(0), device=idx_j.device)
+        value = torch.arange(idx_s.size(0), device=idx_s.device)
         num_nodes = graph[GraphKeys.Z].size(0)
-        adj_t = SparseTensor(row=idx_i, col=idx_j, value=value, sparse_sizes=(num_nodes, num_nodes))
-        adj_t_row = adj_t[idx_j]
+        adj_t = SparseTensor(row=idx_t, col=idx_s, value=value, sparse_sizes=(num_nodes, num_nodes))
+        adj_t_row = adj_t[idx_s]
         num_triplets = adj_t_row.set_value(None).sum(dim=1).to(torch.long)
 
-        # Node indices (i, j, k) for triplets.
-        tri_idx_i = idx_i.repeat_interleave(num_triplets)
-        tri_idx_j = idx_j.repeat_interleave(num_triplets)
+        # Edge indices (k -> t) and (s -> t) for triplets.
+        # The position of s in the pair edge_index becomes k and the position of i becomes j
+        edge_idx_ks = adj_t_row.storage.value()
+        edge_idx_st = adj_t_row.storage.row()
+        mask = edge_idx_ks != edge_idx_st
+        edge_idx_ks = edge_idx_ks[mask]
+        edge_idx_st = edge_idx_st[mask]
+
+        # Node indices (s, t, k) for triplets.
+        tri_idx_s = idx_s.repeat_interleave(num_triplets)
+        tri_idx_t = idx_t.repeat_interleave(num_triplets)
         tri_idx_k = adj_t_row.storage.col()
         # Remove i == k triplets.
-        mask = tri_idx_i != tri_idx_k
-        tri_idx_i, tri_idx_j, tri_idx_k = (tri_idx_i[mask], tri_idx_j[mask], tri_idx_k[mask])
+        tri_idx_s, tri_idx_t, tri_idx_k = (tri_idx_s[mask], tri_idx_t[mask], tri_idx_k[mask])
 
-        # Edge indices (k -> j) and (j -> i) for triplets.
-        # The position of j in the pair edge_index becomes k and the position of i becomes j
-        edge_idx_kj = adj_t_row.storage.value()[mask]
-        edge_idx_ji = adj_t_row.storage.row()[mask]
-
-        graph[GraphKeys.Idx_i_3b] = tri_idx_i
-        graph[GraphKeys.Idx_j_3b] = tri_idx_j
+        # graph[GraphKeys.Idx_i_3b] = tri_idx_s
+        # graph[GraphKeys.Idx_j_3b] = tri_idx_t
         graph[GraphKeys.Idx_k_3b] = tri_idx_k
-        graph[GraphKeys.Edge_idx_kj_3b] = edge_idx_kj
-        graph[GraphKeys.Edge_idx_ji_3b] = edge_idx_ji
+        graph[GraphKeys.Edge_idx_ks_3b] = edge_idx_ks
+        graph[GraphKeys.Edge_idx_st_3b] = edge_idx_st
         return graph
 
     def forward(self, graph: Batch) -> Tensor | tuple[Tensor, Tensor]:
@@ -697,18 +699,18 @@ class LCAONet(BaseMPNN):
         z = graph[GraphKeys.Z]
         pos = graph[GraphKeys.Pos]
         # order is "source_to_target" i.e. [index_j, index_i]
-        idx_j, idx_i = graph[GraphKeys.Edge_idx]
+        idx_s, idx_t = graph[GraphKeys.Edge_idx]
 
         # get triplets
         graph = self.get_triplets(graph)
         tri_idx_k = graph[GraphKeys.Idx_k_3b]
-        edge_idx_ji = graph[GraphKeys.Edge_idx_ji_3b]
-        edge_idx_kj = graph[GraphKeys.Edge_idx_kj_3b]
+        edge_idx_ks = graph[GraphKeys.Edge_idx_ks_3b]
+        edge_idx_st = graph[GraphKeys.Edge_idx_st_3b]
 
         # calc atomic distances
         graph = self.calc_atomic_distances(graph, return_vec=True)
         distances = graph[GraphKeys.Edge_dist]
-        edge_vec = graph[GraphKeys.Edge_vec]
+        edge_vec_st = graph[GraphKeys.Edge_vec_st]
 
         # calc angles of each triplets
         graph = self.calc_3body_angles(graph)
@@ -729,17 +731,17 @@ class LCAONet(BaseMPNN):
         else:
             coeff_e = e_embed
             x = self.node_embed(node_z)
-        cji = self.coeff_embed(coeff_z, coeff_e, idx_i, idx_j)
+        cst = self.coeff_embed(coeff_z, coeff_e, idx_s, idx_t)
 
         # get valence mask coefficients
-        valence_mask: Tensor | None = self.valence_mask(z, idx_j) if self.add_valence else None
+        valence_mask: Tensor | None = self.valence_mask(z, idx_t) if self.add_valence else None
 
         # ---------- Interaction blocks ----------
         for inte in self.int_layers:
-            x = inte(x, cji, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(x, cst, valence_mask, cutoff_w, rb, shb, idx_s, idx_t, tri_idx_k, edge_idx_ks, edge_idx_st)
 
         # ---------- Output blocks ----------
-        out = self.out_layer(x, batch_idx, idx_i, idx_j, edge_vec, pos)
+        out = self.out_layer(x, batch_idx, idx_s, idx_t, edge_vec_st, pos)
         out = self.pp_layer(out, z, batch_idx)
 
         return out
