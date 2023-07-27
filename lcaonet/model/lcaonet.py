@@ -318,7 +318,6 @@ class LCAOInteraction(nn.Module):
         x: Tensor,
         cst: Tensor,
         valence_mask: Tensor | None,
-        cutoff_w: Tensor | None,
         rb: Tensor,
         shb: Tensor,
         idx_s: Tensor,
@@ -333,7 +332,6 @@ class LCAOInteraction(nn.Module):
             x (torch.Tensor): node embedding vectors with (N, hidden_dim) shape.
             cst (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
             valence_mask (torch.Tensor | None): valence orbital mask with (E, n_orb, conv_dim) shape.
-            cutoff_w (torch.Tensor | None): cutoff weight with (E) shape.
             rb (torch.Tensor): the radial basis with (E, n_orb) shape.
             shb (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
             idx_s (torch.Tensor): the indices of the first node of each edge with (E) shape.
@@ -356,10 +354,6 @@ class LCAOInteraction(nn.Module):
 
         # Transformation of the coefficient vectors
         cst = self.f_coeffs(cst)
-
-        # cutoff
-        if cutoff_w is not None:
-            rb = rb * cutoff_w.unsqueeze(-1)
 
         # --- Threebody Message-passing ---
         cks = cst[edge_idx_ks]
@@ -521,9 +515,9 @@ class LCAONet(BaseMPNN):
         out_dim: int = 1,
         n_interaction: int = 3,
         n_per_orb: int = 1,
-        cutoff: float | None = None,
+        cutoff: float = 6.0,
         rbf_type: str | type[BaseRadialBasis] = "hydrogen",
-        cutoff_net: str | type[BaseCutoff] | None = None,
+        cutoff_net: str | type[BaseCutoff] = "envelope",
         max_z: int = 36,
         min_orb: str | None = None,
         max_orb: str | None = None,
@@ -572,8 +566,6 @@ class LCAONet(BaseMPNN):
         self.out_dim = out_dim
         self.n_interaction = n_interaction
         self.cutoff = cutoff
-        if cutoff_net is not None and cutoff is None:
-            raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
         self.elec_to_node = elec_to_node
         self.add_valence = add_valence
@@ -583,11 +575,10 @@ class LCAONet(BaseMPNN):
         # electron information
         elec_info = ElecInfo(max_z, max_orb, min_orb, n_per_orb)
 
-        # calc basis layers
-        self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info)
+        # basis layers
+        cn = cutoffnet_resolver(cutoff_net, cutoff=cutoff)
+        self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info, cutoff_net=cn)
         self.shbf = SphericalHarmonicsBasis(elec_info)
-        if cutoff_net:
-            self.cn = cutoffnet_resolver(cutoff_net, cutoff=cutoff)
 
         # node and coefficient embedding layers
         z_embed_dim = self.hidden_dim + self.coeffs_dim
@@ -719,7 +710,6 @@ class LCAONet(BaseMPNN):
         # ---------- Basis layers ----------
         rb = self.rbf(distances)
         shb = self.shbf(angles)
-        cutoff_w = self.cn(distances) if self.cutoff_net else None
 
         # ---------- Embedding blocks ----------
         z_embed = self.z_embed(z)
@@ -738,7 +728,7 @@ class LCAONet(BaseMPNN):
 
         # ---------- Interaction blocks ----------
         for inte in self.int_layers:
-            x = inte(x, cst, valence_mask, cutoff_w, rb, shb, idx_s, idx_t, tri_idx_k, edge_idx_ks, edge_idx_st)
+            x = inte(x, cst, valence_mask, rb, shb, idx_s, idx_t, tri_idx_k, edge_idx_ks, edge_idx_st)
 
         # ---------- Output blocks ----------
         out = self.out_layer(x, batch_idx, idx_s, idx_t, edge_vec_st, pos)
