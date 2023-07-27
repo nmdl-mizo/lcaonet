@@ -54,7 +54,7 @@ class EnvelopeCutoff(BaseCutoff):
         """
         super().__init__(cutoff)
         assert p > 0
-        self.p = p + 1
+        self.p = p
         self.a = -(self.p + 1) * (self.p + 2) / 2
         self.b = self.p * (self.p + 2)
         self.c = -self.p * (self.p + 1) / 2
@@ -62,9 +62,6 @@ class EnvelopeCutoff(BaseCutoff):
     def forward(self, r: Tensor) -> Tensor:
         r_scaled = r / self.cutoff
         env_val = (
-            1 / r_scaled
-            + self.a * r_scaled ** (self.p - 1)
-            + self.b * r_scaled**self.p
-            + self.c * r_scaled ** (self.p + 1)
+            1 + self.a * r_scaled**self.p + self.b * r_scaled ** (self.p + 1) + self.c * r_scaled ** (self.p + 2)
         )
         return torch.where(r <= self.cutoff, env_val, torch.zeros_like(r_scaled))

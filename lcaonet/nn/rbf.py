@@ -11,6 +11,7 @@ from scipy.integrate import quad
 from torch import Tensor
 
 from ..atomistic.info import ElecInfo
+from ..nn.cutoff import EnvelopeCutoff
 
 
 class BaseRadialBasis(nn.Module):
@@ -138,22 +139,6 @@ class HydrogenRadialBasis(BaseRadialBasis):
         return rb
 
 
-class Envelope(torch.nn.Module):
-    def __init__(self, exponent: int):
-        super().__init__()
-        self.p = exponent + 1
-        self.a = -(self.p + 1) * (self.p + 2) / 2
-        self.b = self.p * (self.p + 2)
-        self.c = -self.p * (self.p + 1) / 2
-
-    def forward(self, x: Tensor) -> Tensor:
-        p, a, b, c = self.p, self.a, self.b, self.c
-        x_pow_p0 = x.pow(p - 1)
-        x_pow_p1 = x_pow_p0 * x
-        x_pow_p2 = x_pow_p1 * x
-        return (1.0 / x + a * x_pow_p0 + b * x_pow_p1 + c * x_pow_p2) * (x < 1.0).to(x.dtype)
-
-
 class SphericalBesselRadialBasis(BaseRadialBasis):
     """Layer to compute the basis of the spherical Bessel functions that decay
     in the cutoff sphere."""
@@ -168,7 +153,7 @@ class SphericalBesselRadialBasis(BaseRadialBasis):
             raise ValueError("cutoff must not be None when using SphericalBesselRadialBasis")
         super().__init__(cutoff, elec_info)
         self.n_orb = elec_info.n_orb
-        self.envelope = Envelope(6)
+        self.envelope = EnvelopeCutoff(cutoff, p=5)
         self.basis_func = []
         for nl in elec_info.nl_list:
             r_nl = self._get_r_nl(nl[0].item(), nl[1].item())
@@ -178,8 +163,7 @@ class SphericalBesselRadialBasis(BaseRadialBasis):
         freq = np.pi * nq
 
         def r_nl(d: Tensor) -> Tensor:
-            d = d / self.cutoff
-            return self.envelope(d) * (freq * d).sin()
+            return self.envelope(d) * (freq * d / self.cutoff).sin()
 
         return r_nl
 
