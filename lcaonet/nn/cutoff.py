@@ -31,7 +31,6 @@ class PolynomialCutoff(BaseCutoff):
 
     def forward(self, r: Tensor) -> Tensor:
         ratio = r / self.cutoff
-        # Remove contributions beyond the cutoff radius
         return torch.where(r <= self.cutoff, 1 - 6 * ratio**5 + 15 * ratio**4 - 10 * ratio**3, 0.0)
 
 
@@ -41,7 +40,6 @@ class CosineCutoff(BaseCutoff):
 
     def forward(self, r: Tensor) -> Tensor:
         cutoffs = 0.5 * (torch.cos(r * pi / self.cutoff) + 1.0)
-        # Remove contributions beyond the cutoff radius
         return torch.where(r <= self.cutoff, cutoffs, 0.0)
 
 
@@ -56,7 +54,7 @@ class EnvelopeCutoff(BaseCutoff):
         """
         super().__init__(cutoff)
         assert p > 0
-        self.p = p
+        self.p = p + 1
         self.a = -(self.p + 1) * (self.p + 2) / 2
         self.b = self.p * (self.p + 2)
         self.c = -self.p * (self.p + 1) / 2
@@ -64,6 +62,9 @@ class EnvelopeCutoff(BaseCutoff):
     def forward(self, r: Tensor) -> Tensor:
         r_scaled = r / self.cutoff
         env_val = (
-            1 + self.a * r_scaled**self.p + self.b * r_scaled ** (self.p + 1) + self.c * r_scaled ** (self.p + 2)
+            1 / r_scaled
+            + self.a * r_scaled ** (self.p - 1)
+            + self.b * r_scaled**self.p
+            + self.c * r_scaled ** (self.p + 1)
         )
         return torch.where(r <= self.cutoff, env_val, torch.zeros_like(r_scaled))
