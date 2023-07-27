@@ -11,7 +11,8 @@ class BaseMPNN(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def calc_atomic_distances(self, graph: Batch, return_vec: bool = False) -> Batch:
+    @staticmethod
+    def calc_atomic_distances(graph: Batch, return_vec: bool = False) -> Batch:
         """calculate atomic distances for periodic boundary conditions.
 
         Args:

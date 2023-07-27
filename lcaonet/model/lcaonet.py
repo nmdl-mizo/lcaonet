@@ -708,7 +708,7 @@ class LCAONet(BaseMPNN):
         edge_idx_st = graph[GraphKeys.Edge_idx_st_3b]
 
         # calc atomic distances
-        graph = self.calc_atomic_distances(graph, return_vec=True)
+        graph = BaseMPNN.calc_atomic_distances(graph, return_vec=True)
         distances = graph[GraphKeys.Edge_dist]
         edge_vec_st = graph[GraphKeys.Edge_vec_st]
 
