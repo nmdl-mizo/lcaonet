@@ -61,7 +61,7 @@ class EnvelopeCutoff(BaseCutoff):
         self.b = self.p * (self.p + 2)
         self.c = -self.p * (self.p + 1) / 2
 
-    def cutoff_weight(self, r: Tensor) -> Tensor:
+    def forward(self, r: Tensor) -> Tensor:
         r_scaled = r / self.cutoff
         env_val = (
             1 + self.a * r_scaled**self.p + self.b * r_scaled ** (self.p + 1) + self.c * r_scaled ** (self.p + 2)
