@@ -31,17 +31,17 @@ def test_SphericalHarmonicsBasis(
     n_per_orb: int,
 ):
     n_triplet = 200
-    angle = torch.linspace(0, 2 * math.pi, n_triplet)
+    costheta = torch.linspace(0, 2 * math.pi, n_triplet).cos()
     ei = ElecInfo(max_z, max_orb, None, n_per_orb)
 
     shbf = SphericalHarmonicsBasis(ei)
-    shb = shbf(angle)
+    shb = shbf(costheta)
 
     assert shb.size() == (n_triplet, ei.n_orb)
 
     # check with scipy function
-    angle_numpy = angle.numpy()
+    costheta_numpy = costheta.numpy()
     for i in range(ei.n_orb):
         lq = ei.nl_list[i][1].item()
-        shb_scipy = scipy.special.sph_harm(0, lq, 0, angle_numpy).astype(np.float64)
+        shb_scipy = scipy.special.sph_harm(0, lq, 0, np.arccos(costheta_numpy)).astype(np.float64)
         assert torch.allclose(shb[:, i], torch.tensor(shb_scipy, dtype=torch.float32), rtol=1e-5, atol=1e-7)
