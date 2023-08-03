@@ -428,12 +428,10 @@ class LCAONet(BaseMPNN):
         edge_idx_st, edge_idx_ks = graph[GraphKeys.Edge_idx_st_3b], graph[GraphKeys.Edge_idx_ks_3b]
 
         vec_st, vec_ks = pair_vec_st[edge_idx_st], pair_vec_st[edge_idx_ks]
-        inner = (vec_st * vec_ks).sum(dim=-1)
-        outter = torch.cross(vec_st, vec_ks).norm(dim=-1)
-        # arctan is more stable than arccos
-        angles = torch.atan2(outter, inner)
+        costheta = (vec_st * vec_ks).sum(dim=-1)
 
-        graph[GraphKeys.Angles_3b] = angles
+        graph[GraphKeys.Angles_3b] = costheta
+
         return graph
 
     def get_triplets(self, graph: Batch) -> Batch:
@@ -517,11 +515,11 @@ class LCAONet(BaseMPNN):
 
         # calc angles of each triplets
         graph = self.calc_3body_angles(graph)
-        angles = graph[GraphKeys.Angles_3b]
+        costheta = graph[GraphKeys.Angles_3b]
 
         # ---------- Basis layers ----------
         rb = self.rbf(distances)
-        shb = self.shbf(angles)
+        shb = self.shbf(costheta)
 
         # ---------- Embedding block ----------
         x, cst = self.emb_layer(z, idx_s, idx_t)
