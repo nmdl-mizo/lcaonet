@@ -48,16 +48,22 @@ def test_CosineCutoff(cutoff: float):
 
 
 param_EnvelopeCutoff = [
-    (1.0),
-    (2.0),
-    (3.0),
+    (1.0, 5),
+    (1.0, 10),
+    (1.0, 15),
+    (2.0, 5),
+    (2.0, 10),
+    (2.0, 15),
+    (3.0, 5),
+    (3.0, 10),
+    (3.0, 15),
 ]
 
 
-@pytest.mark.parametrize("cutoff", param_EnvelopeCutoff)
-def test_EnvelopeCutoff(cutoff: float):
+@pytest.mark.parametrize("cutoff, p", param_EnvelopeCutoff)
+def test_EnvelopeCutoff(cutoff: float, p: int):
     r = torch.linspace(0.0, cutoff + 2, 100)
-    cn = EnvelopeCutoff(cutoff, p=5)
+    cn = EnvelopeCutoff(cutoff, p=p)
     cutoff_vals = cn(r)
 
     assert cutoff_vals.size() == r.size()
