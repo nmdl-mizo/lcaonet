@@ -5,7 +5,7 @@ from collections.abc import Callable
 import torch.nn as nn
 from torch import Tensor
 
-from lcaonet.utils.resolve import init_param_resolver
+from ..utils.resolve import init_param_resolver
 
 
 class Dense(nn.Linear):
@@ -33,6 +33,7 @@ class Dense(nn.Linear):
             raise ValueError("bias_init must not be None if set bias")
         self.bias_init = bias_init
         self.weight_init = weight_init
+        self.kwargs = kwargs
         # gain and scale paramer is set to default values
         if self.weight_init is not None:
             params = init_param_resolver(self.weight_init)
@@ -53,17 +54,17 @@ class Dense(nn.Linear):
     def reset_parameters(self):
         if self.weight_init is not None:
             self.weight_init(self.weight, **self.kwargs)
-        if self.bias is not None:
+        if self.bias is not None and self.bias_init is not None:
             self.bias_init(self.bias)
 
     def extra_repr(self) -> str:
-        weight_init_key = ", ".join([f"{k}={v}" for k, v in self.kwargs.items()])
-        return "in_features={}, out_features={}, bias={}, weight_init={}({}), bias_init={}".format(
+        weight_init_key = "(" + ", ".join([f"{k}={v}" for k, v in self.kwargs.items()]) + ")"
+        return "in_features={}, out_features={}, bias={}, weight_init={}{}, bias_init={}".format(
             self.in_features,
             self.out_features,
             self.bias is not None,
             self.weight_init.__name__ if self.weight_init is not None else None,
-            weight_init_key,
+            weight_init_key if self.weight_init is not None else "",
             self.bias_init.__name__ if self.bias_init is not None else None,
         )
 

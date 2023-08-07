@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from lcaonet.atomistic.info import ElecInfo
+from ..atomistic.info import ElecInfo
 
 
 class SphericalHarmonicsBasis(nn.Module):
@@ -49,6 +49,7 @@ class SphericalHarmonicsBasis(nn.Module):
         """
         funcs = []
         theta, phi = sym.symbols("theta phi")
+        costheta = sym.symbols("costheta")
         modules = {"sin": torch.sin, "cos": torch.cos, "conjugate": torch.conj, "sqrt": torch.sqrt, "exp": torch.exp}
         for nl in self.elec_info.nl_list:
             # !! only m=zero is used
@@ -58,8 +59,8 @@ class SphericalHarmonicsBasis(nn.Module):
                     funcs.append(SphericalHarmonicsBasis._y00)
                 else:
                     func = sym.expand_func(sym.functions.special.spherical_harmonics.Znm(nl[1].item(), m, theta, phi))
-                    func = sym.simplify(func).evalf()
-                    funcs.append(sym.lambdify([theta, phi], func, modules))
+                    func = func.subs({theta: sym.acos(costheta)})
+                    funcs.append(sym.lambdify([costheta, phi], sym.simplify(func).evalf(), modules))
 
         return funcs
 
@@ -71,16 +72,16 @@ class SphericalHarmonicsBasis(nn.Module):
             self.elec_info.n_per_orb,
         )
 
-    def forward(self, angle: Tensor) -> Tensor:
+    def forward(self, costheta: Tensor) -> Tensor:
         """Forward calculation of SphericalHarmonicsBasis.
 
         Args:
-            angle (torch.Tensor): the angles of triplets with (n_triplets) shape.
+            costheta (torch.Tensor): the cosine values of triplets with (n_triplets) shape.
 
         Returns:
             shb (torch.Tensor): the expanded angles with SphericalHarmonicsFunctions with (n_triplets, n_orb) shape.
         """
         # (n_triplets, n_orb)
-        shb = torch.stack([f(angle, None) for f in self.sph_funcs], dim=1)
+        shb = torch.stack([f(costheta, None) for f in self.sph_funcs], dim=1)
 
         return shb

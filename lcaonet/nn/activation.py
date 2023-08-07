@@ -2,21 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch.nn import functional as F
-
-
-def swish(x: Tensor, beta: Tensor = torch.tensor(1.0)) -> Tensor:
-    """Compute Swish activation function.
-
-    Args:
-        x (torch.Tensor): inpu tensor.
-        beta (torch.Tensor, optional): beta coefficient of swish activation.
-            Defaults to torch.tensor(1.0).
-
-    Returns:
-        Tensor: output tensor.
-    """
-    return x * torch.sigmoid(beta * x)
 
 
 class Swish(nn.Module):
@@ -34,19 +19,20 @@ class Swish(nn.Module):
 
     def __init__(self, beta: float = 1.0, train_beta: bool = True):
         super().__init__()
+        self.train_beta = train_beta
         if train_beta:
-            self.beta_coeff = nn.Parameter(torch.tensor(float(beta)))
+            self.beta = nn.Parameter(torch.tensor(float(beta)))
         else:
-            self.register_buffer("beta_coeff", torch.tensor(float(beta)))
+            self.register_buffer("beta", torch.tensor(float(beta)))
 
     def extra_repr(self) -> str:
-        return f"beta={self.beta_coeff.item():.2f}"
+        return f"beta={self.beta.item():.2f}, trainable_beta:{self.train_beta}"
 
     def forward(self, x: Tensor) -> Tensor:
-        return swish(x, self.beta_coeff)
+        return x * torch.sigmoid(self.beta * x)
 
 
-def shifted_softplus(x: Tensor) -> Tensor:
+class ShiftedSoftplus(nn.Module):
     r"""Compute shifted soft-plus activation function.
 
     .. math::
@@ -62,12 +48,13 @@ def shifted_softplus(x: Tensor) -> Tensor:
         ref:
             [1] K. T. Schütt et al., J. Chem. Theory Comput. 15, 448–455 (2019).
     """
-    return F.softplus(x) - np.log(2.0)
 
-
-class ShiftedSoftplus(nn.Module):
-    def __init__(self):
+    def __init__(self, shift: float = float(np.log(2.0))):
         super().__init__()
+        self.shift = shift
+
+    def extra_repr(self) -> str:
+        return f"shift={self.shift:.2f}"
 
     def forward(self, x: Tensor) -> Tensor:
-        return shifted_softplus(x)
+        return torch.nn.functional.softplus(x) - self.shift

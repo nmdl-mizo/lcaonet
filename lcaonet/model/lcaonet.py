@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from collections.abc import Callable
 
 import torch
@@ -9,16 +8,18 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.data import Batch
 from torch_scatter import scatter
+from torch_sparse import SparseTensor
 
-from lcaonet.atomistic.info import ElecInfo
-from lcaonet.data.keys import GraphKeys
-from lcaonet.model.base import BaseMPNN
-from lcaonet.nn import Dense
-from lcaonet.nn.cutoff import BaseCutoff
-from lcaonet.nn.post import PostProcess
-from lcaonet.nn.rbf import BaseRadialBasis
-from lcaonet.nn.shbf import SphericalHarmonicsBasis
-from lcaonet.utils.resolve import (
+from ..atomistic.info import ElecInfo
+from ..data.keys import GraphKeys
+from ..model.base import BaseMPNN
+from ..nn import Dense
+from ..nn.cutoff import BaseCutoff
+from ..nn.embed import EmbedCoeffs, EmbedElec, EmbedNode, EmbedZ, ValenceMask
+from ..nn.post import PostProcess
+from ..nn.rbf import BaseRadialBasis
+from ..nn.shbf import SphericalHarmonicsBasis
+from ..utils.resolve import (
     activation_resolver,
     cutoffnet_resolver,
     init_resolver,
@@ -26,237 +27,51 @@ from lcaonet.utils.resolve import (
 )
 
 
-class EmbedZ(nn.Module):
-    """The layer that embeds atomic numbers into latent vectors."""
-
-    def __init__(self, embed_dim: int, max_z: int = 36):
-        """
-        Args:
-            embed_dim (int): the dimension of embedding.
-            max_z (int, optional): the maximum atomic number. Defaults to `36`.
-        """
-        super().__init__()
-        self.embed_dim = embed_dim
-        self.z_embed = nn.Embedding(max_z + 1, embed_dim)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.z_embed.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
-
-    def forward(self, z: Tensor) -> Tensor:
-        """Forward calculation of EmbedZ.
-
-        Args:
-            z (torch.Tensor): the atomic numbers with (N) shape.
-
-        Returns:
-            z_embed (torch.Tensor): the embedding vectors with (N, embed_dim) shape.
-        """
-        return self.z_embed(z)
-
-
-class EmbedElec(nn.Module):
-    """The layer that embeds electron numbers into latent vectors.
-
-    If `extend_orb=False`, then if the number of electrons in the ground
-    state is zero, the orbital is a zero vector embedding.
-    """
-
-    def __init__(self, embed_dim: int, elec_info: ElecInfo, extend_orb: bool = False):
-        """
-        Args:
-            embed_dim (int): the dimension of embedding.
-            elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
-            extend_orb (bool, optional): Whether to use an extended basis. Defaults to `False`.
-        """  # noqa: E501
-        super().__init__()
-        self.register_buffer("elec", elec_info.elec_table)
-        self.n_orb = elec_info.n_orb
-        self.embed_dim = embed_dim
-        self.extend_orb = extend_orb
-
-        self.e_embeds = nn.ModuleList()
-        min_idx = elec_info.min_orb_idx if elec_info.min_orb_idx else -1
-        for i, max_e in enumerate(elec_info.max_elec_idx):
-            if i <= min_idx or extend_orb:
-                padding_idx = None
-            else:
-                padding_idx = 0
-            self.e_embeds.append(nn.Embedding(max_e, embed_dim, padding_idx=padding_idx))
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        for ee in self.e_embeds:
-            ee.weight.data.uniform_(-math.sqrt(3), math.sqrt(3))
-            # set padding_idx to zero
-            ee._fill_padding_idx_with_zero()
-
-    def forward(self, z: Tensor) -> Tensor:
-        """Forward calculation of EmbedElec.
-
-        Args:
-            z (torch.Tensor): the atomic numbers with (N) shape.
-
-        Returns:
-            e_embed (torch.Tensor): the embedding of electron numbers with (N, n_orb, embed_dim) shape.
-        """
-        # (n_node, n_orb)
-        elec = self.elec[z]  # type: ignore # Since mypy cannot determine that the elec is a tensor
-        # (n_orb, n_node)
-        elec = torch.transpose(elec, 0, 1)
-        # (n_orb, n_node, embed_dim)
-        e_embed = torch.stack([ce(elec[i]) for i, ce in enumerate(self.e_embeds)], dim=0)
-        # (n_node, n_orb, embed_dim)
-        e_embed = torch.transpose(e_embed, 0, 1)
-
-        return e_embed
-
-
-class ValenceMask(nn.Module):
-    """The layer that generates valence orbital mask.
-
-    Only the coefficients for valence orbitals are set to 1, and the
-    coefficients for all other orbitals (including inner-shell orbitals)
-    are set to 0.
-    """
-
-    def __init__(self, embed_dim: int, elec_info: ElecInfo):
-        """
-        Args:
-            embed_dim (int): the dimension of embedding.
-            elec_info (lcaonet.atomistic.info.ElecInfo): the object that contains the information about the number of electrons.
-        """  # noqa: E501
-        super().__init__()
-        self.register_buffer("valence", elec_info.valence_table)
-        self.n_orb = elec_info.n_orb
-
-        self.embed_dim = embed_dim
-
-    def forward(self, z: Tensor, idx_j: Tensor) -> Tensor:
-        """Forward calculation of ValenceMask.
-
-        Args:
-            z (torch.Tensor): the atomic numbers with (n_node) shape.
-            idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
-
-        Returns:
-            valence_mask (torch.Tensor): valence orbital mask with (E, n_orb, embed_dim) shape.
-        """
-        valence_mask = self.valence[z]  # type: ignore # Since mypy cannot determine that the valence is a tensor
-        return valence_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)[idx_j]
-
-
-class EmbedNode(nn.Module):
-    """The layer that embedds atomic numbers and electron numbers into node
-    embedding vectors."""
-
+class LCAOEmbedding(nn.Module):
     def __init__(
         self,
-        hidden_dim: int,
-        z_dim: int,
+        emb_size: int,
+        emb_size_coeff: int,
+        elec_info: ElecInfo,
+        max_z: int,
         use_elec: bool,
-        e_dim: int | None = None,
+        extend_orb: bool,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
-        """
-        Args:
-            hidden_dim (int): the dimension of node vector.
-            z_dim (int): the dimension of atomic number embedding.
-            use_elec (bool): whether to use electron number embedding.
-            e_dim (int | None): the dimension of electron number embedding.
-            activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization function. Defaults to `None`.
-        """  # noqa: E501
         super().__init__()
-        self.hidden_dim = hidden_dim
-        self.z_dim = z_dim
+        self.emb_size = emb_size
+        self.emb_size_coeff = emb_size_coeff
         self.use_elec = use_elec
-        if use_elec:
-            assert e_dim is not None
-            self.e_dim = e_dim
-        else:
-            self.e_dim = 0
 
-        hidden_layer = max(hidden_dim, z_dim + self.e_dim // 2)
-        self.f_enc = nn.Sequential(
-            Dense(z_dim + self.e_dim, hidden_layer, True, weight_init),
-            activation,
-            Dense(hidden_layer, hidden_dim, True, weight_init),
-            activation,
+        emb_size_z = emb_size + emb_size_coeff
+        self.z_embed = EmbedZ(emb_size_z, max_z)
+
+        self.emb_size_node_e = emb_size if use_elec else 0
+        emb_size_e = self.emb_size_node_e + emb_size_coeff
+        self.e_embed = EmbedElec(emb_size_e, elec_info, extend_orb)
+
+        self.node_embed = EmbedNode(emb_size, emb_size, use_elec, self.emb_size_node_e, activation, weight_init)
+        self.coeff_embed = EmbedCoeffs(
+            emb_size_coeff, emb_size_coeff, emb_size_coeff, elec_info.n_orb, activation, weight_init
         )
 
-    def forward(self, z_embed: Tensor, e_embed: Tensor | None = None) -> Tensor:
-        """Forward calculation of EmbedNode.
+    def forward(self, z: Tensor, idx_s: Tensor, idx_t: Tensor) -> tuple[Tensor, Tensor]:
+        # z: (N, emb_size_z)
+        z_embed = self.z_embed(z)
+        node_z, coeff_z = torch.split(z_embed, [self.emb_size, self.emb_size_coeff], dim=-1)
 
-        Args:
-            z_embed (torch.Tensor): the embedding of atomic numbers with (N, z_dim) shape.
-            e_embed (torch.Tensor | None): the embedding of electron numbers with (N, n_orb, e_dim) shape.
-
-        Returns:
-            torch.Tensor: node embedding vectors with (N, hidden_dim) shape.
-        """
+        # e: (N, n_orb, emb_size_e)
+        e_embed = self.e_embed(z)
         if self.use_elec:
-            if e_embed is None:
-                raise ValueError("e_embed must be set when use_elec is True.")
-            z_e_embed = torch.cat([z_embed, e_embed.sum(1)], dim=-1)
+            node_e, coeff_e = torch.split(e_embed, [self.emb_size_node_e, self.emb_size_coeff], dim=-1)
+            x = self.node_embed(node_z, node_e)
         else:
-            z_e_embed = z_embed
-        return self.f_enc(z_e_embed)
+            coeff_e = e_embed
+            x = self.node_embed(node_z)
+        cst = self.coeff_embed(coeff_z, coeff_e, idx_s, idx_t)
 
-
-class EmbedCoeffs(nn.Module):
-    """The layer that embedds atomic numbers and electron numbers into
-    coefficient embedding vectors."""
-
-    def __init__(
-        self,
-        hidden_dim: int,
-        z_dim: int,
-        e_dim: int,
-        activation: nn.Module = nn.SiLU(),
-        weight_init: Callable[[Tensor], Tensor] | None = None,
-    ):
-        """
-        Args:
-            hidden_dim (int): the dimension of coefficient vector.
-            z_dim (int): the dimension of atomic number embedding.
-            e_dim (int): the dimension of electron number embedding.
-            activation (nn.Module): the activation function. Defaults to `torch.nn.SiLU()`.
-            weight_init (Callable[[Tensor], Tensor] | None): weight initialization func. Defaults to `None`.
-        """
-        super().__init__()
-        self.hidden_dim = hidden_dim
-        self.z_dim = z_dim
-        self.e_dim = e_dim
-
-        self.f_z = nn.Sequential(
-            Dense(2 * z_dim, hidden_dim, False, weight_init),
-        )
-        self.f_e = nn.Sequential(
-            Dense(e_dim, hidden_dim, False, weight_init),
-            activation,
-            Dense(hidden_dim, hidden_dim, False, weight_init),
-            activation,
-        )
-
-    def forward(self, z_embed: Tensor, e_embed: Tensor, idx_i: Tensor, idx_j: Tensor) -> Tensor:
-        """Forward calculation of EmbedCoeffs.
-
-        Args:
-            z_embed (torch.Tensor): the embedding of atomic numbers with (N, z_dim) shape.
-            e_embed (torch.Tensor): the embedding of electron numbers with (N, n_orb, e_dim) shape.
-            idx_i (torch.Tensor): the indices of center atoms with (E) shape.
-            idx_j (torch.Tensor): the indices of neighbor atoms with (E) shape.
-
-        Returns:
-            coeff_embed (torch.Tensor): coefficient embedding vectors with (n_edge, n_orb, hidden_dim) shape.
-        """
-        z_embed = self.f_z(torch.cat([z_embed[idx_i], z_embed[idx_j]], dim=-1))
-        e_embed = self.f_e(e_embed)[idx_j]
-        return e_embed + e_embed * z_embed.unsqueeze(1)
+        return x, cst
 
 
 class LCAOInteraction(nn.Module):
@@ -264,82 +79,80 @@ class LCAOInteraction(nn.Module):
 
     def __init__(
         self,
-        hidden_dim: int,
-        coeffs_dim: int,
-        conv_dim: int,
+        emb_size: int,
+        emb_size_coeff: int,
+        emb_size_conv: int,
         add_valence: bool = False,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         """
         Args:
-            hidden_dim (int): the dimension of node vector.
-            coeffs_dim (int): the dimension of coefficient vectors.
-            conv_dim (int): the dimension of embedding vectors at convolution.
+            emb_size (int): the size of node vector.
+            emb_size_coeff (int): the size of coefficient vectors.
+            emb_size_conv (int): the size of embedding vectors at convolution.
             add_valence (bool, optional): whether to add the effect of valence orbitals. Defaults to `False`.
             activation (nn.Module, optional): the activation function. Defaults to `torch.nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None, optional): the weight initialization func. Defaults to `None`.
         """  # noqa: E501
         super().__init__()
-        self.hidden_dim = hidden_dim
-        self.coeffs_dim = coeffs_dim
-        self.conv_dim = conv_dim
+        self.emb_size = emb_size
+        self.emb_size_coeff = emb_size_coeff
+        self.emb_size_conv = emb_size_conv
         self.add_valence = add_valence
 
-        self.node_weight = Dense(hidden_dim, 2 * conv_dim, True, weight_init)
+        self.node_weight = Dense(emb_size, 2 * emb_size_conv, True, weight_init)
 
         # No bias is used to keep 0 coefficient vectors at 0
-        out_dim = 2 * conv_dim if add_valence else conv_dim
+        out_size = 2 * emb_size_conv if add_valence else emb_size_conv
         self.f_coeffs = nn.Sequential(
-            Dense(coeffs_dim, conv_dim, False, weight_init),
+            Dense(emb_size_coeff, emb_size_conv, False, weight_init),
             activation,
-            Dense(conv_dim, out_dim, False, weight_init),
+            Dense(emb_size_conv, out_size, False, weight_init),
             activation,
         )
 
-        three_out_dim = 2 * conv_dim if add_valence else conv_dim
+        three_out_dim = 2 * emb_size_conv if add_valence else emb_size_conv
         self.f_three = nn.Sequential(
-            Dense(conv_dim, three_out_dim, False, weight_init),
+            Dense(emb_size_conv, three_out_dim, False, weight_init),
         )
 
-        self.basis_weight = Dense(conv_dim, conv_dim, False, weight_init)
+        self.basis_weight = Dense(emb_size_conv, emb_size_conv, False, weight_init)
 
         self.f_node = nn.Sequential(
-            Dense(2 * conv_dim, conv_dim, True, weight_init),
+            Dense(2 * emb_size_conv, emb_size_conv, True, weight_init),
             activation,
-            Dense(conv_dim, conv_dim, True, weight_init),
+            Dense(emb_size_conv, emb_size_conv, True, weight_init),
             activation,
         )
-        self.out_weight = Dense(conv_dim, hidden_dim, False, weight_init)
+        self.out_weight = Dense(emb_size_conv, emb_size, False, weight_init)
 
     def forward(
         self,
         x: Tensor,
-        cji: Tensor,
+        cst: Tensor,
         valence_mask: Tensor | None,
-        cutoff_w: Tensor | None,
         rb: Tensor,
         shb: Tensor,
-        idx_i: Tensor,
-        idx_j: Tensor,
+        idx_s: Tensor,
+        idx_t: Tensor,
         tri_idx_k: Tensor,
-        edge_idx_kj: torch.LongTensor,
-        edge_idx_ji: torch.LongTensor,
+        edge_idx_ks: torch.LongTensor,
+        edge_idx_st: torch.LongTensor,
     ) -> Tensor:
         """Forward calculation of LCAOConv.
 
         Args:
             x (torch.Tensor): node embedding vectors with (N, hidden_dim) shape.
-            cji (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
+            cst (torch.Tensor): coefficient vectors with (E, n_orb, coeffs_dim) shape.
             valence_mask (torch.Tensor | None): valence orbital mask with (E, n_orb, conv_dim) shape.
-            cutoff_w (torch.Tensor | None): cutoff weight with (E) shape.
             rb (torch.Tensor): the radial basis with (E, n_orb) shape.
             shb (torch.Tensor): the spherical harmonics basis with (n_triplets, n_orb) shape.
-            idx_i (torch.Tensor): the indices of the first node of each edge with (E) shape.
-            idx_j (torch.Tensor): the indices of the second node of each edge with (E) shape.
+            idx_s (torch.Tensor): the indices of the first node of each edge with (E) shape.
+            idx_t (torch.Tensor): the indices of the second node of each edge with (E) shape.
             tri_idx_k (torch.Tensor): the indices of the third node of each triplet with (n_triplets) shape.
-            edge_idx_kj (torch.LongTensor): the edge index from atom k to j with (n_triplets) shape.
-            edge_idx_ji (torch.LongTensor): the edge index from atom j to i with (n_triplets) shape.
+            edge_idx_ks (torch.LongTensor): the edge index from atom k to s with (n_triplets) shape.
+            edge_idx_st (torch.LongTensor): the edge index from atom s to t with (n_triplets) shape.
 
         Returns:
             torch.Tensor: updated node embedding vectors with (N, hidden_dim) shape.
@@ -348,54 +161,56 @@ class LCAOInteraction(nn.Module):
             raise ValueError("valence_mask must be provided when add_valence=True")
 
         x_before = x
+        N = x.size(0)
 
         # Transformation of the node vectors
         x, xk = torch.chunk(self.node_weight(x), 2, dim=-1)
 
         # Transformation of the coefficient vectors
-        cji = self.f_coeffs(cji)
-
-        # cutoff
-        if cutoff_w is not None:
-            rb = rb * cutoff_w.unsqueeze(-1)
+        cst = self.f_coeffs(cst)
 
         # --- Threebody Message-passing ---
-        ckj = cji[edge_idx_kj]
+        cks = cst[edge_idx_ks]
         if self.add_valence:
-            ckj, ckj_valence = torch.chunk(ckj, 2, dim=-1)
-            ckj_valence = ckj_valence * valence_mask[edge_idx_kj]  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
+            cks, cks_valence = torch.chunk(cks, 2, dim=-1)
+            cks_valence = cks_valence * valence_mask[edge_idx_ks]  # type: ignore # Since mypy cannot determine that the Valencemask is not None # noqa: E501
 
         # threebody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        three_body_orbs = rb[edge_idx_kj] * shb
-        three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj).contiguous()
+        three_body_orbs = rb[edge_idx_ks] * shb
+        three_body_w = torch.einsum("ed,edh->eh", three_body_orbs, cks).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, ckj_valence).contiguous()
+            valence_w = torch.einsum("ed,edh->eh", three_body_orbs, cks_valence).contiguous()
             three_body_w = three_body_w + valence_w
         three_body_w = F.normalize(three_body_w, dim=-1)
 
         # multiply node embedding
         xk = torch.sigmoid(xk[tri_idx_k])
         three_body_w = three_body_w * xk
-        three_body_w = scatter(three_body_w, edge_idx_ji, dim=0, dim_size=rb.size(0))
+        three_body_w = scatter(three_body_w, edge_idx_st, dim=0, dim_size=rb.size(0))
 
         # threebody orbital information is injected to the coefficient vectors
-        cji = cji + cji * self.f_three(three_body_w).unsqueeze(1)
+        cst = cst + cst * self.f_three(three_body_w).unsqueeze(1)
 
         # --- Twobody Message-passings ---
         if self.add_valence:
-            cji, cji_valence = torch.chunk(cji, 2, dim=-1)
-            cji_valence = cji_valence * valence_mask
+            cst, cst_valence = torch.chunk(cst, 2, dim=-1)
+            cst_valence = cst_valence * valence_mask
 
         # twobody LCAO weight: summation of all orbitals multiplied by coefficient vectors
-        lcao_w = torch.einsum("ed,edh->eh", rb, cji).contiguous()
+        lcao_w = torch.einsum("ed,edh->eh", rb, cst).contiguous()
         if self.add_valence:
-            valence_w = torch.einsum("ed,edh->eh", rb, cji_valence).contiguous()
+            valence_w = torch.einsum("ed,edh->eh", rb, cst_valence).contiguous()
             lcao_w = lcao_w + valence_w
         lcao_w = F.normalize(lcao_w, dim=-1)
 
         # Message-passing and update node embedding vector
         x = x_before + self.out_weight(
-            scatter(self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_i], x[idx_j]], dim=-1)), idx_i, dim=0)
+            scatter(
+                self.basis_weight(lcao_w) * self.f_node(torch.cat([x[idx_s], x[idx_t]], dim=-1)),
+                idx_s,
+                dim=0,
+                dim_size=N,
+            )
         )
 
         return x
@@ -410,35 +225,58 @@ class LCAOOut(nn.Module):
 
     def __init__(
         self,
-        hidden_dim: int,
-        out_dim: int,
+        emb_size: int,
+        out_size: int,
         is_extensive: bool = True,
+        regress_forces: bool = False,
+        direct_forces: bool = True,
         activation: nn.Module = nn.SiLU(),
         weight_init: Callable[[Tensor], Tensor] | None = None,
     ):
         """
         Args:
-            hidden_dim (int): the dimension of node embedding vectors.
-            out_dim (int): the dimension of output property.
+            emb_size (int): the size of node embedding vectors.
+            out_size (int): the size of output property.
             is_extensive (bool): whether the output property is extensive or not. Defaults to `True`.
+            regress_forces (bool): whether to regress inter atomic forces. Defaults to `False`.
+            direct_forces (bool): whether to regress inter atomic forces directly. Defaults to `True`.
             activation (nn.Module): the activation function. Defaults to `nn.SiLU()`.
             weight_init (Callable[[torch.Tensor], torch.Tensor] | None): the weight initialization function.
                 Defaults to `None`.
         """
         super().__init__()
-        self.hidden_dim = hidden_dim
-        self.out_dim = out_dim
+        self.emb_size = emb_size
+        self.out_size = out_size
         self.is_extensive = is_extensive
+        self.regress_forces = regress_forces
+        self.direct_forces = direct_forces
 
         self.out_lin = nn.Sequential(
-            Dense(hidden_dim, hidden_dim, True, weight_init),
+            Dense(emb_size, emb_size, True, weight_init),
             activation,
-            Dense(hidden_dim, hidden_dim // 2, True, weight_init),
+            Dense(emb_size, emb_size // 2, True, weight_init),
             activation,
-            Dense(hidden_dim // 2, out_dim, True, weight_init),
+            Dense(emb_size // 2, out_size, False, weight_init),
         )
 
-    def forward(self, x: Tensor, batch_idx: Tensor | None) -> Tensor:
+        if regress_forces and direct_forces:
+            self.out_lin_force = nn.Sequential(
+                Dense(2 * emb_size, emb_size, True, weight_init),
+                activation,
+                Dense(emb_size, emb_size // 2, True, weight_init),
+                activation,
+                Dense(emb_size // 2, 1, False, weight_init),
+            )
+
+    def forward(
+        self,
+        x: Tensor,
+        batch_idx: Tensor | None,
+        idx_s: Tensor,
+        idx_t: Tensor,
+        edge_vec_st: Tensor,
+        pos: Tensor,
+    ) -> Tensor | tuple[Tensor, Tensor]:
         """Forward calculation of LCAOOut.
 
         Args:
@@ -446,15 +284,37 @@ class LCAOOut(nn.Module):
             batch_idx (torch.Tensor | None): the batch indices of nodes with (N) shape.
 
         Returns:
-            torch.Tensor: the output property values with (B, out_dim) shape.
+            prop: the output property values with (B, out_dim) shape.
+            force_s: the inter atomic forces with (N, 3) shape.
         """
-        out = self.out_lin(x)
+        prop = self.out_lin(x)
         if batch_idx is not None:
-            return scatter(out, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean")
+            B = batch_idx.max().item() + 1
+            prop = scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean", dim_size=B)
+            return prop
         if self.is_extensive:
-            return out.sum(dim=0, keepdim=True)
+            prop = prop.sum(dim=0, keepdim=True)
         else:
-            return out.mean(dim=0, keepdim=True)
+            prop = prop.mean(dim=0, keepdim=True)
+        if not self.regress_forces:
+            return prop
+
+        if self.direct_forces:
+            N = x.size(0)
+            force_st = self.out_lin_force(torch.cat([x[idx_s], x[idx_t]], dim=-1))  # (E, 1)
+            force_st = force_st * edge_vec_st  # (E, 3)
+            force_s = scatter(force_st, idx_s, dim=0, reduce="sum", dim_size=N)  # (N, 3)
+            return prop, force_s
+
+        if self.out_size > 1:
+            force_s = torch.stack(
+                [-torch.autograd.grad(prop[:, i].sum(), pos, create_graph=True)[0] for i in range(self.out_size)],
+                dim=1,
+            )  # (N, out_dim, 3)
+            force_s = force_s.squeeze(1)  # (N, 3)
+        else:
+            force_s = -torch.autograd.grad(prop.sum(), pos, create_graph=True)[0]  # (N, 3)
+        return prop, force_s
 
 
 class LCAONet(BaseMPNN):
@@ -464,15 +324,15 @@ class LCAONet(BaseMPNN):
 
     def __init__(
         self,
-        hidden_dim: int = 128,
-        coeffs_dim: int = 128,
-        conv_dim: int = 128,
-        out_dim: int = 1,
+        emb_size: int = 128,
+        emb_size_coeff: int = 128,
+        emb_size_conv: int = 128,
+        out_size: int = 1,
         n_interaction: int = 3,
         n_per_orb: int = 1,
-        cutoff: float | None = None,
+        cutoff: float = 6.0,
         rbf_type: str | type[BaseRadialBasis] = "hydrogen",
-        cutoff_net: str | type[BaseCutoff] | None = None,
+        cutoff_net: str | type[BaseCutoff] = "envelope",
         max_z: int = 36,
         min_orb: str | None = None,
         max_orb: str | None = None,
@@ -484,13 +344,15 @@ class LCAONet(BaseMPNN):
         weight_init: str | None = "glorotorthogonal",
         atomref: Tensor | None = None,
         mean: Tensor | None = None,
+        regress_forces: bool = False,
+        direct_forces: bool = True,
     ):
         """
         Args:
-            hidden_dim (int): the dimension of node embedding vectors. Defaults to `128`.
-            coeffs_dim (int): the dimension of coefficient vectors. Defaults to `64`.
-            conv_dim (int): the dimension of embedding vectors at convolution. Defaults to `64`.
-            out_dim (int): the dimension of output property. Defaults to `1`.
+            emb_size (int): the size of node embedding vectors. Defaults to `128`.
+            emb_size_coeff (int): the size of coefficient vectors. Defaults to `64`.
+            emb_size_conv (int): the size of embedding vectors at convolution. Defaults to `64`.
+            out_size (int): the size of output property. Defaults to `1`.
             n_interaction (int): the number of interaction layers. Defaults to `3`.
             cutoff (float | None): the cutoff radius. Defaults to `None`.
                 If specified, the basis functions are normalized within the cutoff radius.
@@ -513,48 +375,115 @@ class LCAONet(BaseMPNN):
         wi: Callable[[Tensor], Tensor] | None = init_resolver(weight_init) if weight_init is not None else None
         act: nn.Module = activation_resolver(activation)
 
-        self.hidden_dim = hidden_dim
-        self.coeffs_dim = coeffs_dim
-        self.conv_dim = conv_dim
-        self.out_dim = out_dim
+        self.emb_size = emb_size
+        self.emb_size_coeff = emb_size_coeff
+        self.emb_size_conv = emb_size_conv
+        self.out_size = out_size
         self.n_interaction = n_interaction
         self.cutoff = cutoff
-        if cutoff_net is not None and cutoff is None:
-            raise ValueError("cutoff must be specified when cutoff_net is used")
         self.cutoff_net = cutoff_net
         self.elec_to_node = elec_to_node
         self.add_valence = add_valence
+        self.regress_forces = regress_forces
+        self.direct_forces = direct_forces
 
         # electron information
         elec_info = ElecInfo(max_z, max_orb, min_orb, n_per_orb)
 
-        # calc basis layers
-        self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info)
+        # basis layers
+        cn = cutoffnet_resolver(cutoff_net, cutoff=cutoff)
+        self.rbf = rbf_resolver(rbf_type, cutoff=cutoff, elec_info=elec_info, cutoff_net=cn)
         self.shbf = SphericalHarmonicsBasis(elec_info)
-        if cutoff_net:
-            self.cn = cutoffnet_resolver(cutoff_net, cutoff=cutoff)
 
         # node and coefficient embedding layers
-        z_embed_dim = self.hidden_dim + self.coeffs_dim
-        self.node_e_embed_dim = hidden_dim if elec_to_node else 0
-        e_embed_dim = self.node_e_embed_dim + self.coeffs_dim
-        self.z_embed = EmbedZ(embed_dim=z_embed_dim, max_z=max_z)
-        self.e_embed = EmbedElec(e_embed_dim, elec_info, extend_orb)
-        self.node_embed = EmbedNode(hidden_dim, hidden_dim, elec_to_node, self.node_e_embed_dim, act, wi)
-        self.coeff_embed = EmbedCoeffs(coeffs_dim, coeffs_dim, coeffs_dim, act, wi)
+        self.emb_layer = LCAOEmbedding(emb_size, emb_size_coeff, elec_info, max_z, elec_to_node, extend_orb, act, wi)
         if add_valence:
-            self.valence_mask = ValenceMask(conv_dim, elec_info)
+            self.valence_mask = ValenceMask(emb_size_conv, elec_info)
 
         # interaction layers
         self.int_layers = nn.ModuleList(
-            [LCAOInteraction(hidden_dim, coeffs_dim, conv_dim, add_valence, act, wi) for _ in range(n_interaction)]
+            [
+                LCAOInteraction(emb_size, emb_size_coeff, emb_size_conv, add_valence, act, wi)
+                for _ in range(n_interaction)
+            ]
         )
 
         # output layers
-        self.out_layer = LCAOOut(hidden_dim, out_dim, is_extensive, act, wi)
-        self.pp_layer = PostProcess(out_dim, is_extensive, atomref, mean)
+        self.out_layer = LCAOOut(emb_size, out_size, is_extensive, regress_forces, direct_forces, act, wi)
+        self.pp_layer = PostProcess(out_size, is_extensive, atomref, mean)
 
-    def forward(self, graph: Batch) -> Tensor:
+    def calc_3body_angles(self, graph: Batch) -> Batch:
+        """calculate 3body angles for periodic boundary conditions.
+
+        Args:
+            graph (torch_geometric.data.Batch): material graph batch.
+
+        Returns:
+            graph (torch_geometric.data.Batch): material graph batch with 3body angles:
+                angles (torch.Tensor): angle of ijk with (n_triplets) shape.
+        """
+        pair_vec_st = graph.get(GraphKeys.Edge_vec_st)
+        if pair_vec_st is None:
+            raise ValueError("edge_vec_st is not calculated. Please run calc_atomic_distances(return_vec=True) first.")
+        edge_idx_st, edge_idx_ks = graph[GraphKeys.Edge_idx_st_3b], graph[GraphKeys.Edge_idx_ks_3b]
+
+        vec_st, vec_ks = pair_vec_st[edge_idx_st], pair_vec_st[edge_idx_ks]
+        costheta = (vec_st * vec_ks).sum(dim=-1)
+
+        graph[GraphKeys.Angles_3b] = costheta
+
+        return graph
+
+    def get_triplets(self, graph: Batch) -> Batch:
+        """Convert edge_index to triplets.
+
+        Args:
+            graph (torch_geometirc.data.Batch): material graph batch.
+
+        Returns:
+            graph (torch_geometric.data.Batch): material graph batch with 3body index:
+                tri_idx_s (Tensor): index of atom i of (n_triplets) shape.
+                tri_idx_t (Tensor): index of atom j of (n_triplets) shape.
+                tri_idx_k (Tensor): index of atom k of (n_triplets) shape.
+                edge_idx_ks (Tensor): edge index of center k to j of (n_triplets) shape.
+                edge_idx_st (Tensor): edge index of center j to i of (n_triplets) shape.
+
+        Notes:
+            ref:
+                https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/dimenet.html
+        """
+        # order is "source_to_traget"
+        idx_s, idx_t = graph[GraphKeys.Edge_idx]
+
+        value = torch.arange(idx_s.size(0), device=idx_s.device)
+        num_nodes = graph[GraphKeys.Z].size(0)
+        adj_t = SparseTensor(row=idx_t, col=idx_s, value=value, sparse_sizes=(num_nodes, num_nodes))
+        adj_t_row = adj_t[idx_s]
+        num_triplets = adj_t_row.set_value(None).sum(dim=1).to(torch.long)
+
+        # Edge indices (k -> t) and (s -> t) for triplets.
+        # The position of s in the pair edge_index becomes k and the position of i becomes j
+        edge_idx_ks = adj_t_row.storage.value()
+        edge_idx_st = adj_t_row.storage.row()
+        mask = edge_idx_ks != edge_idx_st
+        edge_idx_ks = edge_idx_ks[mask]
+        edge_idx_st = edge_idx_st[mask]
+
+        # Node indices (s, t, k) for triplets.
+        tri_idx_s = idx_s.repeat_interleave(num_triplets)
+        tri_idx_t = idx_t.repeat_interleave(num_triplets)
+        tri_idx_k = adj_t_row.storage.col()
+        # Remove i == k triplets.
+        tri_idx_s, tri_idx_t, tri_idx_k = (tri_idx_s[mask], tri_idx_t[mask], tri_idx_k[mask])
+
+        # graph[GraphKeys.Idx_i_3b] = tri_idx_s
+        # graph[GraphKeys.Idx_j_3b] = tri_idx_t
+        graph[GraphKeys.Idx_k_3b] = tri_idx_k
+        graph[GraphKeys.Edge_idx_ks_3b] = edge_idx_ks
+        graph[GraphKeys.Edge_idx_st_3b] = edge_idx_st
+        return graph
+
+    def forward(self, graph: Batch) -> Tensor | tuple[Tensor, Tensor]:
         """Forward calculation of LCAONet.
 
         Args:
@@ -563,51 +492,47 @@ class LCAONet(BaseMPNN):
         Returns:
             torch.Tensor: the output property with (n_batch, out_dim) shape.
         """
+        if self.regress_forces and not self.direct_forces:
+            graph[GraphKeys.Pos].requires_grad_(True)
+
+        # ---------- Get Graph information ----------
         batch_idx: Tensor | None = graph.get(GraphKeys.Batch_idx)
         z = graph[GraphKeys.Z]
+        pos = graph[GraphKeys.Pos]
         # order is "source_to_target" i.e. [index_j, index_i]
-        idx_j, idx_i = graph[GraphKeys.Edge_idx]
+        idx_s, idx_t = graph[GraphKeys.Edge_idx]
 
         # get triplets
         graph = self.get_triplets(graph)
         tri_idx_k = graph[GraphKeys.Idx_k_3b]
-        edge_idx_ji = graph[GraphKeys.Edge_idx_ji_3b]
-        edge_idx_kj = graph[GraphKeys.Edge_idx_kj_3b]
+        edge_idx_ks = graph[GraphKeys.Edge_idx_ks_3b]
+        edge_idx_st = graph[GraphKeys.Edge_idx_st_3b]
 
         # calc atomic distances
-        graph = self.calc_atomic_distances(graph, return_vec=True)
+        graph = BaseMPNN.calc_atomic_distances(graph, return_vec=True)
         distances = graph[GraphKeys.Edge_dist]
+        edge_vec_st = graph[GraphKeys.Edge_vec_st]
 
         # calc angles of each triplets
         graph = self.calc_3body_angles(graph)
-        angles = graph[GraphKeys.Angles_3b]
+        costheta = graph[GraphKeys.Angles_3b]
 
-        # calc basis
+        # ---------- Basis layers ----------
         rb = self.rbf(distances)
-        shb = self.shbf(angles)
-        cutoff_w = self.cn(distances) if self.cutoff_net else None
+        shb = self.shbf(costheta)
 
-        # calc node and coefficient embedding vectors
-        z_embed = self.z_embed(z)
-        node_z, coeff_z = torch.split(z_embed, [self.hidden_dim, self.coeffs_dim], dim=-1)
-        e_embed = self.e_embed(z)
-        if self.elec_to_node:
-            node_e, coeff_e = torch.split(e_embed, [self.node_e_embed_dim, self.coeffs_dim], dim=-1)
-            x = self.node_embed(node_z, node_e)
-        else:
-            coeff_e = e_embed
-            x = self.node_embed(node_z)
-        cji = self.coeff_embed(coeff_z, coeff_e, idx_i, idx_j)
+        # ---------- Embedding block ----------
+        x, cst = self.emb_layer(z, idx_s, idx_t)
 
         # get valence mask coefficients
-        valence_mask: Tensor | None = self.valence_mask(z, idx_j) if self.add_valence else None
+        valence_mask: Tensor | None = self.valence_mask(z, idx_t) if self.add_valence else None
 
-        # calc interaction
+        # ---------- Interaction blocks ----------
         for inte in self.int_layers:
-            x = inte(x, cji, valence_mask, cutoff_w, rb, shb, idx_i, idx_j, tri_idx_k, edge_idx_kj, edge_idx_ji)
+            x = inte(x, cst, valence_mask, rb, shb, idx_s, idx_t, tri_idx_k, edge_idx_ks, edge_idx_st)
 
-        # output
-        out = self.out_layer(x, batch_idx)
+        # ---------- Output blocks ----------
+        out = self.out_layer(x, batch_idx, idx_s, idx_t, edge_vec_st, pos)
         out = self.pp_layer(out, z, batch_idx)
 
         return out

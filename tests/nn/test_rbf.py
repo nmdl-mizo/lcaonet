@@ -5,40 +5,30 @@ import pytest
 import torch
 
 from lcaonet.atomistic.info import ElecInfo
+from lcaonet.nn.cutoff import EnvelopeCutoff
 from lcaonet.nn.rbf import HydrogenRadialBasis
 
 param_HydrogenRadialBasis = [
-    (None, 12, None, 1),
     (1.0, 12, None, 1),
     (3.0, 12, None, 1),
-    (None, 12, None, 2),
     (1.0, 12, None, 2),
     (3.0, 12, None, 2),
-    (None, 12, "3s", 1),
     (1.0, 12, "3s", 1),
     (3.0, 12, "3s", 1),
-    (None, 12, "3s", 2),
     (1.0, 12, "3s", 2),
     (3.0, 12, "3s", 2),
-    (None, 36, None, 1),
     (1.0, 36, None, 1),
     (3.0, 36, None, 1),
-    (None, 36, None, 2),
     (1.0, 36, None, 2),
     (3.0, 36, None, 2),
-    (None, 36, "6s", 1),
     (1.0, 36, "6s", 1),
     (3.0, 36, "6s", 1),
-    (None, 36, "6s", 1),
     (1.0, 36, "6s", 1),
     (3.0, 36, "6s", 1),
-    (None, 84, None, 1),
     (1.0, 84, None, 1),
     (3.0, 84, None, 1),
-    (None, 84, "6d", 1),
     (1.0, 84, "6d", 1),
     (3.0, 84, "6d", 1),
-    (None, 84, "6d", 2),
     (1.0, 84, "6d", 2),
     (3.0, 84, "6d", 2),
 ]
@@ -61,7 +51,7 @@ rbfs = {
 
 @pytest.mark.parametrize("cutoff, max_z, max_orb, n_per_orb", param_HydrogenRadialBasis)
 def test_HydrogenRadialBasis(
-    cutoff: float | None,
+    cutoff: float,
     max_z: int,
     max_orb: str | None,
     n_per_orb: int,
@@ -69,20 +59,20 @@ def test_HydrogenRadialBasis(
     n_edge = 200
     r = torch.linspace(0, 10, n_edge)
     ei = ElecInfo(max_z, max_orb, None, n_per_orb)
+    cn = EnvelopeCutoff(cutoff)
 
-    rbf = HydrogenRadialBasis(cutoff, ei)
+    rbf = HydrogenRadialBasis(cutoff, ei, cn)
     rb = rbf(r)
 
     assert rb.size() == (n_edge, ei.n_orb)
 
     # check function
-    # FIXME: only no cutoff is tested
-    if cutoff is None:
-        r_numpy = r.numpy()
-        for i, nl in enumerate(ei.nl_list):
-            nl_tuple = (nl[0].item(), nl[1].item())
-            func = rbfs.get(nl_tuple, None)
-            if func is None:
-                continue
-            rbf_numpy = func(r_numpy, rbf.bohr_radius)
-            assert torch.allclose(rb[:, i], torch.tensor(rbf_numpy), rtol=1e-5, atol=1e-7)
+    r_numpy = r.numpy()
+    cw = cn(r).detach().numpy()
+    for i, nl in enumerate(ei.nl_list):
+        nl_tuple = (nl[0].item(), nl[1].item())
+        func = rbfs.get(nl_tuple, None)
+        if func is None:
+            continue
+        rbf_numpy = func(r_numpy, rbf.bohr_radius) * cw
+        assert torch.allclose(rb[:, i], torch.tensor(rbf_numpy), rtol=1e-5, atol=1e-7)

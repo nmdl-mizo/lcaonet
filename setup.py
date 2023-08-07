@@ -1,7 +1,13 @@
+import re
+
 from setuptools import find_packages, setup
 
-__version__ = "1.8.2"
-URL = "https://github.com/nmdl-mizo/lcaonet"
+with open("lcaonet/__init__.py", encoding="utf-8") as fd:
+    for line in fd.readlines():
+        m = re.search('__version__ = "(.*)"', line)
+        if m:
+            version = m.group(1)
+            break
 
 
 install_requires = [
@@ -9,7 +15,7 @@ install_requires = [
     "scipy==1.*",
     "sympy==1.*",
     "ase==3.*",
-    "torch==2.0.0",
+    "torch==2.0",
     "torch_geometric",
     "torch_scatter",
     "torch_sparse",
@@ -27,11 +33,11 @@ dev_requires = test_requires + [
 
 setup(
     name="lcaonet",
-    version=__version__,
+    version=version,
     description="LCAONet - MPNN including orbital interaction, physically motivatied by the LCAO method.",
     author="Kento Nishio",
     author_email="knishio@iis.u-tokyo.ac.jp",
-    url=URL,
+    url="https://github.com/nmdl-mizo/lcaonet",
     keywords=[
         "deep-learning",
         "pytorch",
@@ -40,7 +46,7 @@ setup(
         "materials-informatics",
         "machine-learning-interatomic-potential",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=install_requires,
     extras_require={
         "test": test_requires,
