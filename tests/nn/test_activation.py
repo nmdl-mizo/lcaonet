@@ -30,9 +30,9 @@ def test_Swish(
     out = act(input)
 
     assert out.size() == input.size()
-    assert torch.allclose(act.beta_coeff, torch.tensor(beta))
+    assert torch.allclose(act.beta, torch.tensor(beta))
     if train_beta:
-        assert act.beta_coeff.requires_grad
+        assert act.beta.requires_grad
 
     assert (out[input < 0] <= torch.zeros_like(out[input < 0])).all()
     assert (out[input == 0] == torch.zeros_like(out[input == 0])).all()
