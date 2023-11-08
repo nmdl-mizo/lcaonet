@@ -291,11 +291,12 @@ class LCAOOut(nn.Module):
         if batch_idx is not None:
             B = batch_idx.max().item() + 1
             prop = scatter(prop, batch_idx, dim=0, reduce="sum" if self.is_extensive else "mean", dim_size=B)
-            return prop
-        if self.is_extensive:
-            prop = prop.sum(dim=0, keepdim=True)
         else:
-            prop = prop.mean(dim=0, keepdim=True)
+            if self.is_extensive:
+                prop = prop.sum(dim=0, keepdim=True)
+            else:
+                prop = prop.mean(dim=0, keepdim=True)
+
         if not self.regress_forces:
             return prop
 
@@ -314,6 +315,7 @@ class LCAOOut(nn.Module):
             force_s = force_s.squeeze(1)  # (N, 3)
         else:
             force_s = -torch.autograd.grad(prop.sum(), pos, create_graph=True)[0]  # (N, 3)
+
         return prop, force_s
 
 

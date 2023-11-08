@@ -67,67 +67,73 @@ def test_LCAOOut(
         assert torch.allclose(out, out_test)
 
 
+# fmt: off
 param_LCAONet = [
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),  # default small
+    # default small
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
     # boolean param test
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, True, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, True, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, False, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, True, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, True, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, False, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, True, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, True, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, False, False, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, True, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, True, False, "hydrogen", None, False),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, True, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, True, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, False, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, True, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, True, True, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, False, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, True, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, False, True, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, False, False, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, True, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, False, True, True, False, "hydrogen", None, False, False, True),
     # cutoff test
-    (16, 16, 10, 1, 1, 6.0, "polynomial", None, True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "cosine", None, True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 2.0, "polynomial", None, True, True, True, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 2.0, "cosine", None, True, True, True, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, True, True, True, "hydrogen", None, False),
+    (16, 16, 10, 1, 1, 6.0, "polynomial", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "cosine", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 2.0, "polynomial", None, True, True, True, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 2.0, "cosine", None, True, True, True, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, True, True, True, "hydrogen", None, False, False, True),
     # dimension test
-    (32, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
-    (16, 32, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
-    (10, 16, 32, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
-    (10, 32, 16, 2, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
-    (10, 32, 16, 2, 1, 6.0, "envelope", None, True, True, True, True, "hydrogen", None, False),
+    (32, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 32, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (10, 16, 32, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (10, 32, 16, 2, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (10, 32, 16, 2, 1, 6.0, "envelope", None, True, True, True, True, "hydrogen", None, False, False, True),
     # n_per_orb test
-    (16, 16, 10, 1, 2, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 2, 6.0, "envelope", None, True, True, True, True, "hydrogen", None, False),
-    (10, 32, 16, 2, 2, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False),
+    (16, 16, 10, 1, 2, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 2, 6.0, "envelope", None, True, True, True, True, "hydrogen", None, False, False, True),
+    (10, 32, 16, 2, 2, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, False, True),
     # max_orb test
-    (16, 16, 10, 1, 2, 6.0, "envelope", "4p", True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 2, 6.0, "envelope", "3s", True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 2, 6.0, "envelope", "1s", True, False, False, True, "hydrogen", None, False),
-    (16, 16, 10, 1, 2, 6.0, "envelope", "4p", True, True, True, True, "hydrogen", None, False),
-    (10, 32, 16, 2, 1, 6.0, "envelope", "3s", True, False, False, True, "hydrogen", None, False),
+    (16, 16, 10, 1, 2, 6.0, "envelope", "4p", True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 2, 6.0, "envelope", "3s", True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 2, 6.0, "envelope", "1s", True, False, False, True, "hydrogen", None, False, False, True),
+    (16, 16, 10, 1, 2, 6.0, "envelope", "4p", True, True, True, True, "hydrogen", None, False, False, True),
+    (10, 32, 16, 2, 1, 6.0, "envelope", "3s", True, False, False, True, "hydrogen", None, False, False, True),
     # rbf_type test
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "sphericalbessel", None, False),
-    (16, 16, 10, 1, 1, 2.0, "envelope", "4p", True, False, False, True, "sphericalbessel", None, False),
-    (16, 16, 10, 1, 2, 2.0, "envelope", None, True, False, False, True, "sphericalbessel", None, False),
-    (16, 16, 10, 1, 2, 2.0, "envelope", None, True, True, True, True, "sphericalbessel", None, False),
-    (16, 16, 10, 1, 2, 2.0, "envelope", "4p", True, True, True, True, "sphericalbessel", None, False),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "sphericalbessel", None, False, False, True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", "4p", True, False, False, True, "sphericalbessel", None, False, False, True),
+    (16, 16, 10, 1, 2, 2.0, "envelope", None, True, False, False, True, "sphericalbessel", None, False, False, True),
+    (16, 16, 10, 1, 2, 2.0, "envelope", None, True, True, True, True, "sphericalbessel", None, False, False, True),
+    (16, 16, 10, 1, 2, 2.0, "envelope", "4p", True, True, True, True, "sphericalbessel", None, False, False, True),
     # mean and atomref test
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", torch.tensor([1.0]), False),
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", torch.tensor([1.0]), False),
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", None, True),
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", None, True),
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", torch.tensor([1.0]), True),
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", torch.tensor([1.0]), True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", torch.tensor([1.0]), False, False,True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", torch.tensor([1.0]), False, False, True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", None, True, False, True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", None, True, False, True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", torch.tensor([1.0]), True, False, True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", torch.tensor([1.0]), True, False, True),
+    # force test
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, True, True),
+    (16, 16, 10, 1, 1, 6.0, "envelope", None, True, False, False, True, "hydrogen", None, False, True, False),
 ]
+# fmt: on
 
 
 # @pytest.mark.model
 @pytest.mark.parametrize(
     """emb_size, emb_size_coeff, emb_size_conv, out_size, n_per_orb, cutoff, cutoff_net, max_orb,
-    elec_to_node, add_valence, extend_orb, is_extensive, rbf_type, mean, atomref""",
+    elec_to_node, add_valence, extend_orb, is_extensive, rbf_type, mean, atomref, regress_forces, direct_forces""",
     param_LCAONet,
 )
 def test_LCAONet(
@@ -147,6 +153,8 @@ def test_LCAONet(
     rbf_type: str,
     mean: torch.Tensor | None,
     atomref: bool,
+    regress_forces: bool,
+    direct_forces: bool,
 ):
     max_z = one_graph_data[GraphKeys.Z].max().item()
     aref = torch.ones((max_z + 1, out_size)) if atomref else None
@@ -170,23 +178,66 @@ def test_LCAONet(
         weight_init="glorotorthogonal",
         mean=mean,
         atomref=aref,
+        regress_forces=regress_forces,
+        direct_forces=direct_forces,
     )
 
-    with torch.no_grad():
+    if not direct_forces and regress_forces:
         out = model(one_graph_data)
-        assert out.size() == (1, out_size)
+        if regress_forces:
+            assert len(out) == 2
+            assert out[0].size() == (1, out_size)
+            assert out[1].size() == (one_graph_data["pos"].size(0), 3)
+        else:
+            assert out.size() == (1, out_size)
 
         jit = torch.jit.export(model)
-        assert torch.allclose(jit(one_graph_data), out)
+        if regress_forces:
+            assert len(jit(one_graph_data)) == 2
+            assert torch.allclose(jit(one_graph_data)[0], out[0])
+            assert torch.allclose(jit(one_graph_data)[1], out[1])
+        else:
+            assert torch.allclose(jit(one_graph_data), out)
+    else:
+        with torch.no_grad():
+            out = model(one_graph_data)
+            if regress_forces:
+                assert len(out) == 2
+                assert out[0].size() == (1, out_size)
+                assert out[1].size() == (one_graph_data["pos"].size(0), 3)
+            else:
+                assert out.size() == (1, out_size)
+
+            jit = torch.jit.export(model)
+            if regress_forces:
+                assert len(jit(one_graph_data)) == 2
+                assert torch.allclose(jit(one_graph_data)[0], out[0])
+                assert torch.allclose(jit(one_graph_data)[1], out[1])
+            else:
+                assert torch.allclose(jit(one_graph_data), out)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     min_loss = float("inf")
-    for _ in range(100):
-        optimizer.zero_grad()
-        out = model(one_graph_data)
-        loss = F.mse_loss(out, torch.ones((1, out_size)))
-        loss.backward()
-        optimizer.step()
-        min_loss = min(float(loss), min_loss)
-    assert min_loss < 2
+    if regress_forces:
+        for _ in range(100):
+            optimizer.zero_grad()
+            out = model(one_graph_data)
+            e_loss = F.mse_loss(out[0], torch.ones((1, out_size)))
+            f_loss = F.mse_loss(out[1], torch.ones((one_graph_data["pos"].size(0), 3)))
+            loss = (1 - 0.999) * e_loss + 0.999 * f_loss
+            loss.backward()
+            loss = torch.nan_to_num(loss)
+            optimizer.step()
+            min_loss = min(float(loss), min_loss)
+        assert min_loss < 2
+
+    else:
+        for _ in range(100):
+            optimizer.zero_grad()
+            out = model(one_graph_data)
+            loss = F.mse_loss(out, torch.ones((1, out_size)))
+            loss.backward()
+            optimizer.step()
+            min_loss = min(float(loss), min_loss)
+        assert min_loss < 2
