@@ -15,7 +15,7 @@ install_requires = [
     "scipy==1.*",
     "sympy==1.*",
     "ase==3.*",
-    "torch==2.0",
+    "torch==2.*",
     "torch_geometric",
     "torch_scatter",
     "torch_sparse",
