@@ -117,7 +117,7 @@ param_LCAONet = [
     (16, 16, 10, 1, 2, 2.0, "envelope", None, True, True, True, True, "sphericalbessel", None, False, False, True),
     (16, 16, 10, 1, 2, 2.0, "envelope", "4p", True, True, True, True, "sphericalbessel", None, False, False, True),
     # mean and atomref test
-    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", torch.tensor([1.0]), False, False,True),
+    (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", torch.tensor([1.0]), False, False, True),
     (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", torch.tensor([1.0]), False, False, True),
     (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, True, "hydrogen", None, True, False, True),
     (16, 16, 10, 1, 1, 2.0, "envelope", None, True, False, False, False, "hydrogen", None, True, False, True),
